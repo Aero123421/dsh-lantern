@@ -56,26 +56,33 @@ export type ParentMessage =
 export function frameRuntime(): void {
   const TAG = '__lantern'
   const MAX_JSON = 64 * 1024
+  // Taken before any visual script runs. Later replacements of `URL` or
+  // `String.prototype` must not be able to change this decision.
+  const startsWith = Function.prototype.call.bind(String.prototype.startsWith) as (value: string, search: string) => boolean
+  const SafeURL = URL
   const bootNode = document.getElementById('lantern-boot')
   const boot = JSON.parse((bootNode && bootNode.textContent) || '{}')
   // Chrome does not ship CSP `navigate-to`, and `window.location` cannot be
   // replaced. Give caged scripts (see cageScripts) a stand-in that only
-  // follows links inside a workspace page's own folder.
+  // follows links inside a workspace page's own folder. The check uses the
+  // captured `URL` and `startsWith` above, and nothing else.
   const realLocation = location
   const realDocument = document
-  function sameFolder(url: string): boolean {
+  function allowedTarget(url: unknown): string | undefined {
+    if (typeof url !== 'string') return undefined
+    if (realLocation.protocol !== 'http:' && realLocation.protocol !== 'https:') return undefined
     try {
-      const next = new URL(String(url), realLocation.href)
-      if (realLocation.protocol !== 'http:' && realLocation.protocol !== 'https:') return false
-      const dir = new URL('./', realLocation.href)
-      return (next.protocol === 'http:' || next.protocol === 'https:') && next.href.indexOf(dir.href) === 0
-    } catch { return false }
+      const next = new SafeURL(url, realLocation.href)
+      if (next.protocol !== 'http:' && next.protocol !== 'https:') return undefined
+      const dir = new SafeURL('./', realLocation.href).href
+      return startsWith(next.href, dir) ? next.href : undefined
+    } catch { return undefined }
   }
   const realAssign = realLocation.assign.bind(realLocation)
   const realReplace = realLocation.replace.bind(realLocation)
   const ltLoc = {
-    assign(url: string) { if (sameFolder(url)) realAssign(url) },
-    replace(url: string) { if (sameFolder(url)) realReplace(url) },
+    assign(url: string) { const next = allowedTarget(url); if (next !== undefined) realAssign(next) },
+    replace(url: string) { const next = allowedTarget(url); if (next !== undefined) realReplace(next) },
     reload() {},
     toString() { return realLocation.href },
     valueOf() { return realLocation.href },
@@ -84,7 +91,7 @@ export function frameRuntime(): void {
     Object.defineProperty(ltLoc, key, {
       configurable: true, enumerable: true,
       get() { return (realLocation as unknown as Record<string, string>)[key] },
-      set(value: string) { if (key === 'href' && sameFolder(value)) realAssign(value) },
+      set(value: string) { const next = allowedTarget(value); if (key === 'href' && next !== undefined) realAssign(next) },
     })
   }
   const ltWin: typeof window = new Proxy(window, {
@@ -96,7 +103,7 @@ export function frameRuntime(): void {
       return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value
     },
     set(target, key, value) {
-      if (key === 'location') { if (sameFolder(String(value))) realAssign(String(value)); return true }
+      if (key === 'location') { const next = allowedTarget(value); if (next !== undefined) realAssign(next); return true }
       ;(target as unknown as Record<PropertyKey, unknown>)[key] = value
       return true
     },
@@ -121,7 +128,7 @@ export function frameRuntime(): void {
       return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value
     },
     set(target, key, value) {
-      if (key === 'location') { if (sameFolder(String(value))) realAssign(String(value)); return true }
+      if (key === 'location') { const next = allowedTarget(value); if (next !== undefined) realAssign(next); return true }
       ;(target as unknown as Record<PropertyKey, unknown>)[key] = value
       return true
     },
@@ -144,15 +151,8 @@ export function frameRuntime(): void {
     const nav = (window as unknown as { navigation?: { addEventListener: (type: string, listener: (event: { destination?: { url?: string }; cancelable?: boolean; preventDefault: () => undefined }) => undefined) => undefined } }).navigation
     if (nav && typeof nav.addEventListener === 'function') {
       nav.addEventListener('navigate', (event) => {
-        let allow = false
-        try {
-          const next = new URL(String(event.destination && event.destination.url || ''))
-          if (location.protocol === 'http:' || location.protocol === 'https:') {
-            const dir = new URL('./', location.href)
-            allow = (next.protocol === 'http:' || next.protocol === 'https:') && next.href.indexOf(dir.href) === 0
-          }
-        } catch { allow = false }
-        if (!allow && event.cancelable) event.preventDefault()
+        const raw = event.destination && event.destination.url
+        if (allowedTarget(raw) === undefined && event.cancelable) event.preventDefault()
       })
     }
   } catch { /* Navigation API missing */ }
@@ -436,9 +436,9 @@ export function frameRuntime(): void {
     if (box) box.textContent = message
   }
   function emptyText() {
-    const lang = String(boot.lang || navigator.language || 'en').toLowerCase()
-    if (lang.startsWith('ja')) return '選んでから送ってください。'
-    if (lang.startsWith('zh')) return '请先选择再提交。'
+    const lang = String(boot.lang || 'en').toLowerCase()
+    if (startsWith(lang, 'ja')) return '選んでから送ってください。'
+    if (startsWith(lang, 'zh')) return '请先选择再提交。'
     return 'Pick an option first.'
   }
   function isEmpty(value: unknown) {
@@ -507,7 +507,7 @@ export function frameRuntime(): void {
       // A download link (say, a PNG made from a canvas as a blob: URL) saves a
       // file and does not navigate; the sandbox allows downloads.
       if (anchor.hasAttribute('download') && /^(blob|data):/i.test(anchor.href)) return
-      if (href.startsWith('#')) {
+      if (startsWith(href, '#')) {
         event.preventDefault()
         const dest = document.getElementById(decodeURIComponent(href.slice(1)))
         if (dest) dest.scrollIntoView({ behavior: 'smooth' })
@@ -515,15 +515,7 @@ export function frameRuntime(): void {
       }
       // Workspace pages navigate between files in their own folder.
       // Same host is not enough: the rest of DSH must not be reachable.
-      let sameFolder = false
-      try {
-        if (location.protocol === 'http:' || location.protocol === 'https:') {
-          const next = new URL(anchor.href)
-          const dir = new URL('./', location.href)
-          sameFolder = next.href.indexOf(dir.href) === 0
-        }
-      } catch { sameFolder = false }
-      if (sameFolder) return
+      if (allowedTarget(anchor.href) !== undefined) return
       event.preventDefault()
       if (/^https?:\/\//i.test(anchor.href)) lantern.openLink(anchor.href)
     }

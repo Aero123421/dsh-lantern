@@ -197,7 +197,7 @@ sequenceDiagram
 
 ## 工作区页面
 
-`path: "report/index.html"` 会在侧边栏标签页中打开工作目录里的真实文件。页面通过按文件夹限定、会过期的链接提供，因此该文件夹内相对路径的 `<link>`、`<img>`、`<script type="module">` 和 `fetch()` 都像在静态服务器上一样工作。发往其他站点的 `fetch`、XHR、图片、CSS `url()`、表单、prefetch、WebSocket、`sendBeacon` 和导航一律拒绝。页面保留自己的外观，同时可以使用 `window.lantern` 和 `--lt-*` 主题变量；写上 `<meta name="lantern-kit">` 即可使用组件库。
+`path: "report/index.html"` 会在侧边栏标签页中打开工作目录里的真实文件。页面通过按文件夹限定、会过期的链接提供，因此该文件夹内相对路径的 `<link>`、`<img>`、`<script type="module">` 和 `fetch()` 都像在静态服务器上一样工作。发往其他站点的 `fetch`、XHR、图片、CSS `url()`、表单、prefetch、WebSocket 和 `sendBeacon` 会被拒绝。这些页面的脚本在按下运行之前不会执行。运行之后，页面仍可以自己跳转，并借此把数据送出去。页面保留自己的外观，同时可以使用 `window.lantern` 和 `--lt-*` 主题变量；写上 `<meta name="lantern-kit">` 即可使用组件库。
 
 <img src="docs/workspace-page.png" alt="在侧边栏打开的工作区报告页，加载了相对路径的 CSS、图片、模块 JS 和 JSON（暗色）" width="100%">
 
@@ -205,10 +205,11 @@ sequenceDiagram
 
 可视化是模型编写的代码，因此 Lantern 不信任它：
 
-- **隔离。** 可视化运行在沙箱 iframe 中（`allow-scripts allow-forms allow-downloads`，从不带 `allow-same-origin`）。它没有自己的源，无法访问 DSH 的 Cookie、DOM 或 API。唯一的出口是向卡片发送 `postMessage`，卡片还会校验发送方。
+- **隔离。** 可视化运行在沙箱 iframe 中（`allow-scripts allow-forms allow-downloads`，从不带 `allow-same-origin`）。它没有自己的源，无法访问 DSH 的 Cookie、DOM 或 API。回答通过发往卡片的 `postMessage` 送出，卡片还会校验发送方。
 - **由用户决定。** 回答、消息、链接和侧边栏请求只在用户于该可视化内真实操作后才被接受。每个可视化只能回答一次；追问消息有间隔和次数限制。
-- **不外泄。** HTML 可视化和工作区页面都会拒绝对外的 `fetch`、XHR、`sendBeacon`、WebSocket、图片、CSS `url()`、样式表、`<script src>`、prefetch/preload、表单提交、`<base>` 和导航。页面自己生成的 `data:` 和 `blob:` 图片仍然可用。CDN 脚本同样被拒绝，因为放行它也会让 prefetch 离开页面。内联脚本无法让框架跳转。流式预览会去除脚本、事件属性、`javascript:` URL 和嵌入框架。
-- **重新打开的卡片保持静止。** 脚本只会在创建它的那个页面里第一次出现时自动运行。重新打开对话、再次加载页面，或仍在等待回答的卡片，都会停在那里，直到按下运行。第一次出现时的死循环会冻住标签页，因为框架和页面共用渲染进程，循环期间 Chrome 完不成刷新。关闭标签页再打开该对话后，DSH 会恢复，并且这张卡片保持暂停。
+- **挡得住的请求。** HTML 可视化和工作区页面会拒绝对外的 `fetch`、XHR、`sendBeacon`、WebSocket、图片、CSS `url()`、样式表、`<script src>`、prefetch/preload、表单提交和 `<base>`。页面自己生成的 `data:` 和 `blob:` 图片仍然可用。CDN 脚本同样被拒绝，因为放行它也会让 prefetch 离开页面。流式预览会去除脚本、事件属性、`javascript:` URL 和嵌入框架。
+- **挡不住的请求。** 允许脚本的卡片可以通过自身跳转把数据送出去。Chromium 没有实现 CSP 的 `navigate-to`，脚本还能用 `Function('return location')()` 或间接 `eval` 拿到真正的 `location`，所以这条通道无法完全关掉。因此 `/lantern/files/<token>/` 的页面在按下运行之前不执行脚本，运行画面上也会写明这一点。
+- **重新打开的卡片保持静止。** 内联脚本只会在创建它的那个页面里第一次出现时自动运行。再次打开该对话不会重新执行：卡片回到按下运行之前的状态，其他标签页仍可使用。第一次出现时的死循环可能冻住正在显示它的那个标签页。这是已知限制，因为框架和页面共用渲染进程。关闭该标签页，再打开这个对话即可。
 - **文件不越界。** 工作区链接是随机的，只覆盖页面所在文件夹，8 小时后失效，并且只能通过 DSH 的已认证 API 签发。符号链接会被解析，并在打开文件后再次校验；隐藏文件和文件夹一律拒绝。
 
 ## 配置

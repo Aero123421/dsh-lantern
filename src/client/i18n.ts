@@ -1,4 +1,5 @@
 /** UI copy in Japanese, English and Chinese, picked from the page language. */
+import { useSyncExternalStore } from 'react'
 
 const ja = {
   visual: 'ビジュアル',
@@ -30,6 +31,7 @@ const ja = {
   resume: '再開',
   run: '実行',
   paused: '停止中です。実行するまでスクリプトは動きません。',
+  leave: 'スクリプトを許可したカードは、自分の遷移でデータを外へ送れます。',
 }
 
 type Copy = typeof ja
@@ -64,6 +66,7 @@ const en: Copy = {
   resume: 'Resume',
   run: 'Run',
   paused: 'Paused. Scripts stay off until you run it.',
+  leave: 'A card with scripts allowed can send data out by navigating itself.',
 }
 
 const zh: Copy = {
@@ -96,6 +99,7 @@ const zh: Copy = {
   resume: '继续',
   run: '运行',
   paused: '已暂停。点击运行前不会执行脚本。',
+  leave: '允许脚本的卡片可以通过自身跳转把数据送出去。',
 }
 
 /** BCP 47 tag Lantern should follow: the document language DSH set, nothing from the browser. */
@@ -119,4 +123,24 @@ export function uiLang(): 'ja' | 'zh' | 'en' {
 export function copy(): Copy {
   const value = uiLang()
   return value === 'ja' ? ja : value === 'zh' ? zh : en
+}
+
+const langListeners = new Set<() => void>()
+let langWatch: MutationObserver | undefined
+
+function watchDocumentLang(): void {
+  if (langWatch !== undefined || typeof document === 'undefined') return
+  langWatch = new MutationObserver(() => { for (const listener of langListeners) listener() })
+  langWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+}
+
+export function subscribeCopy(listener: () => void): () => void {
+  watchDocumentLang()
+  langListeners.add(listener)
+  return () => langListeners.delete(listener)
+}
+
+/** Card chrome that follows `document.documentElement.lang` when DSH changes it. */
+export function useCopy(): Copy {
+  return useSyncExternalStore(subscribeCopy, copy, () => en)
 }

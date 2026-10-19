@@ -33,6 +33,23 @@ test('only the first live display may run, and a later open stays paused', () =>
   assert.equal(gate.enabled('live'), true)
 })
 
+test('a workspace page never auto-runs, and hold drops an unconfirmed run', () => {
+  const gate = createLiveScripts()
+  assert.equal(gate.observe('path', false), true)
+  assert.equal(gate.enabled('path'), false)
+  assert.equal(gate.hold('path'), false)
+  gate.arm('path')
+  assert.equal(gate.hold('path'), false)
+  assert.equal(gate.enabled('path'), true)
+
+  const late = createLiveScripts()
+  late.observe('late', true)
+  assert.equal(late.hold('late'), true)
+  assert.equal(late.enabled('late'), false)
+  late.arm('late')
+  assert.equal(late.enabled('late'), true)
+})
+
 test('a pending card restored as start does not run until Run', () => {
   const gate = createLiveScripts()
   assert.equal(gate.observe('pending', false), true)

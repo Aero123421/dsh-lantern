@@ -32,8 +32,9 @@ export function requestOrigin(req: IncomingMessage): string | undefined {
  * `/lantern/files/<token>/`, not `'self'`: a sandboxed page has an opaque
  * origin, and `'self'` would not match those requests (or would match the
  * whole host). Relative CSS, images, modules and `fetch()` under the token
- * still match. fetch, XHR, images, CSS `url()`, forms, prefetch, WebSocket,
- * sendBeacon and navigation to anywhere else do not.
+ * still match. fetch, XHR, images, CSS `url()`, forms, prefetch, WebSocket
+ * and sendBeacon to anywhere else do not. A script that navigates the page
+ * itself can still leave; Chromium does not implement `navigate-to`.
  */
 export function fileContentSecurityPolicy(origin: string, token: string): string {
   const prefix = /^https?:\/\/[^/\s;"']+$/.test(origin) && /^[\w-]+$/.test(token)

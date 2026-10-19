@@ -133,7 +133,7 @@ A visual is model-written code, so Lantern treats it as untrusted:
 
 - **Isolated.** Visuals run in a sandboxed iframe (`allow-scripts allow-forms allow-downloads`, never `allow-same-origin`). They have an opaque origin and cannot reach DSH's cookies, DOM or API. The only way out is `postMessage` to the card, which checks the sender.
 - **The user decides.** Answers, messages, links and sidebar requests are honoured only right after a real user action inside that visual. One answer per visual; follow-up messages are throttled and capped.
-- **Nothing leaks out.** HTML visuals get a CSP that blocks `fetch`, XHR, WebSockets, form posts and `<base>`. Libraries still load with `<script src>`. The live preview strips scripts, event handlers, `javascript:` URLs and embedded frames.
+- **Requests that cannot leave.** HTML visuals refuse external `fetch`, XHR, WebSockets, images, form posts, `<base>` and `<script src>`. A card whose scripts are allowed can still send data out by navigating itself. Chromium does not implement `navigate-to`. The live preview strips scripts, event handlers, `javascript:` URLs and embedded frames.
 - **Files stay scoped.** Workspace links are random, cover only the page's own folder, expire after 8 hours and are issued only through DSH's authenticated API. Symlinks are resolved and re-checked on the opened file, and hidden files and folders are refused.
 
 ## Configuration

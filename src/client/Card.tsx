@@ -4,7 +4,7 @@
  * the turn has ended, and in the sidebar.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { copy } from './i18n.ts'
+import { useCopy } from './i18n.ts'
 import { Frame } from './Frame.tsx'
 import { armScripts, releaseScripts, retainScripts, scriptsEnabled, subscribeScripts } from './live.ts'
 import { answer, dismiss, openInSidebar, sendAsUser, workspaceUrl } from './services.ts'
@@ -42,7 +42,7 @@ function useScripts(key: string): boolean {
 }
 
 export function VisualCard({ record, sessionId, placement, phase, partialHtml }: CardProps) {
-  const c = copy()
+  const c = useCopy()
   const callId = record.callId
   const session = sessionId ?? record.sessionId
   const key = visualKey(callId, session)
@@ -158,6 +158,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
     {paused && record.error === undefined && (args?.html !== undefined || isPath) && (
       <div className="lantern-paused" data-kind="hold">
         <span>{c.paused}</span>
+        <span className="lantern-paused-warn">{c.leave}</span>
         <button type="button" className="lantern-action lantern-resume" onClick={onRun}>{c.run}</button>
       </div>
     )}
@@ -207,7 +208,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
 }
 
 function Notes({ notice, errors }: { notice: string | undefined; errors: readonly string[] }) {
-  const c = copy()
+  const c = useCopy()
   if (!notice && errors.length === 0) return null
   return (
     <div className="lantern-notes">
@@ -228,7 +229,7 @@ function PathFrame(props: {
   onGlLost: (lost: boolean) => void
   paused: boolean
 }) {
-  const c = copy()
+  const c = useCopy()
   const path = props.record.result?.path ?? props.record.args?.path
   const [url, setUrl] = useState<string | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)

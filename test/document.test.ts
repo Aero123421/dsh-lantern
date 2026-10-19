@@ -111,8 +111,11 @@ test('the runtime keeps download links, wheel gating and visibility self-contain
   const html = buildDocument('<p>x</p>', boot, '')
   const runtime = html.slice(html.indexOf('</script><script>') + 17, html.indexOf('</script><style id="lantern-kit">'))
   // Serialized with toString(): everything it uses must be inside the function.
-  for (const marker of ["hasAttribute('download')", 'stopImmediatePropagation', 'IntersectionObserver', "type: 'gl'", 'data-lt-fullscreen', 'ResizeObserver loop']) {
+  for (const marker of ["hasAttribute('download')", 'stopImmediatePropagation', 'IntersectionObserver', "type: 'gl'", 'data-lt-fullscreen', 'ResizeObserver loop', 'Function.prototype.call.bind(String.prototype.startsWith)', 'const SafeURL = URL']) {
     assert.ok(runtime.includes(marker), marker)
   }
+  assert.equal(runtime.includes('.indexOf('), false)
+  assert.equal(runtime.includes('new URL('), false)
+  assert.equal(runtime.includes('navigator.language'), false)
   assert.doesNotThrow(() => new Function(runtime))
 })

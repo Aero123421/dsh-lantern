@@ -66,6 +66,7 @@
   background: color-mix(in srgb, var(--dsw-alias-bg-base, #fff) 88%, transparent);
   backdrop-filter: blur(2px);
 }
+.lantern-paused-warn { max-width: 36em; font-size: 12px; line-height: 1.45; }
 .lantern-resume { border: 1px solid var(--dsw-alias-border-l2, rgba(127,127,127,.35)); padding: 0 14px; color: var(--dsw-alias-label-primary, inherit); }
 @media (prefers-reduced-motion: reduce) { .lantern-hint { animation: none; } }
 .lantern-frame { display: block; width: 100%; border: 0; background: transparent; color-scheme: normal; }
