@@ -110,8 +110,7 @@ export function frameRuntime(): void {
   })
   function cageInline(html: string): string {
     return String(html).replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (full, attrs: string, body: string) => {
-      if (/\bsrc\s*=/i.test(attrs)) return full
-      if (/\btype\s*=\s*["']?module/i.test(attrs) && /(^|\n)\s*(import|export)\b/.test(body)) return full
+      if (/\bsrc\s*=/i.test(attrs) || /\btype\s*=\s*["']?module/i.test(attrs)) return full
       const wrapped = `(function(__ltLoc,__ltWin,__ltDoc){const location=__ltLoc,window=__ltWin,top=window,parent=window,self=window,globalThis=window,frames=window,document=__ltDoc;\n${body}\n}).call(globalThis.__ltWin,globalThis.__ltLoc,globalThis.__ltWin,globalThis.__ltDoc)`
       return `<script${attrs}>${wrapped}</script>`
     })

@@ -125,9 +125,9 @@ const FULL_DOCUMENT =/^\s*(?:<!--[\s\S]*?-->\s*)*(?:<!doctype[^>]*>|<html[\s>])/
 /**
  * Classic inline scripts get a local `location` / `window` / `document` so
  * they cannot navigate the iframe. Chrome does not implement `navigate-to`,
- * and the real `location` object is not replaceable. Module scripts that
- * contain `import` or `export` are left alone so workspace modules keep
- * loading; a meta refresh is removed outright.
+ * and the real `location` object is not replaceable. Module scripts are left
+ * alone: wrapping them would break `import`, `import.meta` and top-level
+ * `await`. A meta refresh is removed outright.
  */
 export function cageScripts(html: string): string {
   const noRefresh = html.replace(/<meta\b[^>]*>/gi, (tag) => /http-equiv\s*=\s*["']?\s*refresh/i.test(tag) ? '' : tag)
@@ -135,9 +135,8 @@ export function cageScripts(html: string): string {
     const type = /\btype\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(attrs)
     const kind = (type?.[1] || type?.[2] || type?.[3] || '').trim().toLowerCase()
     if (kind !== '' && kind !== 'text/javascript' && kind !== 'application/javascript' && kind !== 'module') return full
-    if (/\bsrc\s*=/i.test(attrs)) return full
-    if (kind === 'module' && /(^|\n)\s*(import|export)\b/.test(body)) return full
-    const cleaned = kind === 'module' && type ? attrs.replace(type[0], 'type="text/javascript"') : attrs
+    if (/\bsrc\s*=/i.test(attrs) || kind === 'module') return full
+    const cleaned = attrs
     // Arguments are read from the real global before the inner names exist.
     // Shadowing `globalThis` in the same list would hit its temporal dead zone.
     const wrapped = `(function(__ltLoc,__ltWin,__ltDoc){const location=__ltLoc,window=__ltWin,top=window,parent=window,self=window,globalThis=window,frames=window,document=__ltDoc;\n${body}\n}).call(globalThis.__ltWin,globalThis.__ltLoc,globalThis.__ltWin,globalThis.__ltDoc)`

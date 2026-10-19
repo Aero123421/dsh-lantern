@@ -24,6 +24,9 @@ test('inline scripts are caged and meta refresh is removed', () => {
   assert.match(html, /const location=__ltLoc/)
   assert.match(html, /import x from/)
   assert.match(html, /<script type="application\/json">\{"a":1\}<\/script>/)
+  const bare = cageScripts('<script type="module">await fetch("./data.json")</script>')
+  assert.match(bare, /<script type="module">await fetch/)
+  assert.equal(bare.includes('__ltLoc'), false)
 })
 
 test('a fragment is wrapped with the runtime, the kit layers and the theme', () => {
