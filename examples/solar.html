@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<style>
+  :root { --sky-a: #ffffff; --sky-b: #e8ecf3; --glass: color-mix(in srgb, var(--lt-bg) 82%, transparent); }
+  :root[data-theme="dark"] { --sky-a: #10131c; --sky-b: #040507; }
+  html, body { height: 100%; }
+  body { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+  header { padding: 14px 18px 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 17px; margin: 0; }
+  .date { font: 600 26px/1.15 var(--lt-font); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+  .date small { display: block; font-size: 12px; font-weight: 400; color: var(--lt-fg-2); letter-spacing: 0; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--lt-surface); border: 1px solid var(--lt-border); border-radius: 10px; }
+  .seg button { min-height: 28px; padding: 0 10px; border: 0; background: transparent; border-radius: 7px; font-size: 12.5px; color: var(--lt-fg-2); }
+  .seg button:hover { background: transparent; color: var(--lt-fg); }
+  .seg button[aria-pressed="true"] { background: var(--lt-bg); color: var(--lt-fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px var(--lt-border-strong); }
+  .stage { position: relative; flex: 1 1 auto; min-height: 300px; margin: 0 18px; border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--lt-border-strong); background: radial-gradient(110% 90% at 50% 45%, var(--sky-a), var(--sky-b)); user-select: none; }
+  .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .glass { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--lt-border-strong); border-radius: 10px; }
+  .labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .pl { position: absolute; left: 0; top: 0; font-size: 11.5px; color: var(--lt-fg-2); white-space: nowrap; transform: translate(-50%, 0); text-shadow: 0 0 6px var(--lt-bg), 0 0 2px var(--lt-bg); }
+  .pl.on { color: var(--lt-fg); font-weight: 700; }
+  .info { position: absolute; left: 10px; top: 10px; padding: 10px 12px; min-width: 200px; font-size: 12.5px; display: none; }
+  .info.on { display: block; }
+  .info h2 { font-size: 15px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+  .info h2 i { width: 10px; height: 10px; border-radius: 50%; }
+  .info .lt-kv { gap: 3px 14px; font-size: 12px; }
+  .info .lt-kv span:nth-child(even) { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .info button { margin-top: 8px; }
+  .hint { position: absolute; left: 10px; bottom: 10px; padding: 5px 10px; font-size: 11.5px; color: var(--lt-fg-2); pointer-events: none; transition: opacity .4s; }
+  .note { position: absolute; right: 10px; bottom: 10px; padding: 4px 9px; font-size: 11px; color: var(--lt-fg-3); pointer-events: none; }
+  footer { padding: 12px 18px 16px; display: grid; gap: 8px; }
+  .timeline { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
+  .play { width: 40px; min-height: 40px; padding: 0; border-radius: 50%; background: var(--lt-fg); color: var(--lt-bg); border-color: var(--lt-fg); }
+  .play:hover { background: var(--lt-fg); filter: brightness(1.15); }
+  .play svg { width: 16px; height: 16px; }
+  .track { position: relative; }
+  .track input { display: block; margin: 0; }
+  .ticks { position: relative; height: 16px; font: 10.5px var(--lt-font-mono); color: var(--lt-fg-3); }
+  .ticks span { position: absolute; transform: translateX(-50%); top: 2px; white-space: nowrap; }
+  .ticks span:first-child { transform: none; }
+  .ticks span:last-child { transform: translateX(-100%); }
+  .ticks span.now { color: var(--lt-fg); font-weight: 700; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>太陽系オーラリー</h1>
+    <div class="date" id="date"></div>
+  </div>
+  <div class="row">
+    <button class="small" id="today">今日に戻る</button>
+    <div class="seg" id="scale" role="group" aria-label="距離">
+      <button data-s="sqrt" aria-pressed="true">距離を圧縮</button><button data-s="linear">実際の比率</button>
+    </div>
+  </div>
+</header>
+<div class="stage" id="stage">
+  <div class="labels" id="labels"></div>
+  <div class="info glass" id="info"></div>
+  <div class="hint glass" id="hint">ドラッグで回転 · ホイールで拡大 · 惑星をクリックで追跡</div>
+  <div class="note" id="note">惑星の大きさは誇張しています</div>
+</div>
+<footer>
+  <div class="timeline">
+    <button class="play" id="play" aria-label="再生"></button>
+    <div class="track">
+      <input type="range" id="time" min="0" max="1" step="1" aria-label="日付">
+      <div class="ticks" id="ticks"></div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="seg" id="speed" role="group" aria-label="速さ">
+      <button data-v="1">1 日/秒</button><button data-v="7">1 週/秒</button><button data-v="30" aria-pressed="true">1 か月/秒</button><button data-v="365">1 年/秒</button>
+    </div>
+    <button class="small" id="ask">この日の惑星の配置を解説 ↗</button>
+  </div>
+</footer>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+
+const $ = (id) => document.getElementById(id)
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+const RAD = Math.PI / 180, DAY = 86400000, J2000 = Date.UTC(2000, 0, 1, 12)
+
+// J2000 mean orbital elements: a [AU], e, i, L0 (mean longitude), w (long. of perihelion), O (ascending node) [deg], T [days]
+const PLANETS = [
+  { id: 'mercury', name: '水星', a: 0.38710, e: 0.20563, i: 7.005, L0: 252.251, w: 77.456, O: 48.331, T: 87.969, r: 0.12, color: ['#a3a3a8', '#b9b9be'] },
+  { id: 'venus', name: '金星', a: 0.72333, e: 0.00677, i: 3.395, L0: 181.980, w: 131.533, O: 76.680, T: 224.701, r: 0.2, color: ['#d9b26f', '#e8c98a'] },
+  { id: 'earth', name: '地球', a: 1.00000, e: 0.01671, i: 0.000, L0: 100.464, w: 102.937, O: 0, T: 365.256, r: 0.21, color: ['#2f7fe0', '#4d97ff'] },
+  { id: 'mars', name: '火星', a: 1.52368, e: 0.09340, i: 1.850, L0: 355.453, w: 336.041, O: 49.558, T: 686.980, r: 0.15, color: ['#d4553a', '#ff7a5a'] },
+  { id: 'jupiter', name: '木星', a: 5.20260, e: 0.04849, i: 1.303, L0: 34.404, w: 14.753, O: 100.464, T: 4332.59, r: 0.55, color: ['#c99a6b', '#ddb58a'], bands: true },
+  { id: 'saturn', name: '土星', a: 9.55491, e: 0.05551, i: 2.489, L0: 49.944, w: 92.432, O: 113.665, T: 10759.2, r: 0.47, color: ['#d8c08a', '#e9d4a2'], ring: true },
+  { id: 'uranus', name: '天王星', a: 19.2184, e: 0.04630, i: 0.773, L0: 313.232, w: 170.964, O: 74.006, T: 30688.5, r: 0.32, color: ['#5fc0cf', '#86dce8'] },
+  { id: 'neptune', name: '海王星', a: 30.1104, e: 0.00899, i: 1.770, L0: 304.880, w: 44.971, O: 131.784, T: 60182, r: 0.31, color: ['#3f5fd8', '#6c86ff'] },
+]
+
+function kepler(M, e) { let E = M; for (let k = 0; k < 8; k++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E)); return E }
+// Heliocentric ecliptic position [AU] (x, y in the ecliptic plane, z north).
+function helio(p, d, Eoverride) {
+  const M = ((p.L0 + 360 / p.T * d - p.w) % 360) * RAD
+  const E = Eoverride ?? kepler(M, p.e)
+  const xv = p.a * (Math.cos(E) - p.e), yv = p.a * Math.sqrt(1 - p.e * p.e) * Math.sin(E)
+  const O = p.O * RAD, w = (p.w - p.O) * RAD, i = p.i * RAD
+  const cO = Math.cos(O), sO = Math.sin(O), cw = Math.cos(w), sw = Math.sin(w), ci = Math.cos(i), si = Math.sin(i)
+  return [(cO * cw - sO * sw * ci) * xv + (-cO * sw - sO * cw * ci) * yv, (sO * cw + cO * sw * ci) * xv + (-sO * sw + cO * cw * ci) * yv, (sw * si) * xv + (cw * si) * yv]
+}
+const S = Object.assign({ day: Math.round((Date.now() - J2000) / DAY), speed: 30, scale: 'sqrt', follow: null, playing: !reduced, cam: null }, lantern.getState() || {})
+const scaleR = (r) => S.scale === 'sqrt' ? 3.1 * Math.pow(r, 0.45) : 0.5 * r
+const toScene = (v, out = new THREE.Vector3()) => { const r = Math.hypot(...v) || 1, k = scaleR(r) / r; return out.set(v[0] * k, v[2] * k, -v[1] * k) }
+
+// ── Theme helpers ────────────────────────────────────────────────────────
+const probe = document.createElement('i'); probe.style.display = 'none'; document.body.append(probe)
+const pix = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
+function token(name) {
+  probe.style.color = 'var(' + name + ')'
+  pix.clearRect(0, 0, 1, 1); pix.fillStyle = getComputedStyle(probe).color; pix.fillRect(0, 0, 1, 1)
+  const d = pix.getImageData(0, 0, 1, 1).data
+  return '#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join('')
+}
+const dark = () => document.documentElement.dataset.theme === 'dark'
+
+// ── Scene ────────────────────────────────────────────────────────────────
+const stage = $('stage')
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+stage.prepend(renderer.domElement)
+const scene = new THREE.Scene()
+const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 500)
+const controls = new OrbitControls(camera, renderer.domElement)
+controls.enableDamping = true
+controls.dampingFactor = 0.1
+controls.minDistance = 1.2
+controls.maxDistance = 80
+const ambient = new THREE.AmbientLight(0xffffff, 0.35)
+const sunLight = new THREE.PointLight(0xffffff, 3.2, 0, 0)
+scene.add(ambient, sunLight)
+
+function canvasTexture(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h
+  draw(c.getContext('2d'), w, h)
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+const glowTex = canvasTexture(128, 128, (g, w) => {
+  const grd = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2)
+  grd.addColorStop(0, 'rgba(255,236,170,1)'); grd.addColorStop(0.25, 'rgba(255,190,90,.55)'); grd.addColorStop(1, 'rgba(255,160,60,0)')
+  g.fillStyle = grd; g.fillRect(0, 0, w, w)
+})
+const sun = new THREE.Mesh(new THREE.SphereGeometry(0.62, 48, 32), new THREE.MeshBasicMaterial({ color: 0xffc35a }))
+const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }))
+glow.scale.setScalar(4.2)
+scene.add(sun, glow)
+
+// Stars (dark theme only), deterministic.
+let seed = 7
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+const starGeo = new THREE.BufferGeometry()
+const starPos = []
+for (let k = 0; k < 1400; k++) { const u = rnd() * 2 - 1, t = rnd() * Math.PI * 2, r = 160 + rnd() * 60; starPos.push(r * Math.sqrt(1 - u * u) * Math.cos(t), r * u, r * Math.sqrt(1 - u * u) * Math.sin(t)) }
+starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3))
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 1.3, sizeAttenuation: false, transparent: true, opacity: 0.75 }))
+scene.add(stars)
+
+const orbitMat = new THREE.LineBasicMaterial({ transparent: true })
+const orbitOn = new THREE.LineBasicMaterial({ transparent: true })
+const bodies = PLANETS.map((p) => {
+  const tex = p.bands ? canvasTexture(256, 128, (g, w, h) => {
+    const cols = ['#e3c7a3', '#b98a5e', '#d7b48d', '#a87650', '#e8d3b5', '#c4956a', '#dcc09a']
+    for (let y = 0; y < h; y++) { g.fillStyle = cols[Math.floor((Math.sin(y * 0.21) * 0.5 + 0.5 + y / h) * 3.2) % cols.length]; g.fillRect(0, y, w, 1) }
+    g.fillStyle = 'rgba(190,90,60,.75)'; g.beginPath(); g.ellipse(w * 0.62, h * 0.62, 14, 6, 0, 0, Math.PI * 2); g.fill()
+  }) : null
+  const mat = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0, map: tex })
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(p.r, 40, 28), mat)
+  mesh.userData.id = p.id
+  const holder = new THREE.Group()
+  holder.add(mesh)
+  if (p.ring) {
+    const ringTex = canvasTexture(256, 8, (g, w) => { const grd = g.createLinearGradient(0, 0, w, 0); grd.addColorStop(0, 'rgba(220,200,160,0)'); grd.addColorStop(0.2, 'rgba(220,200,160,.85)'); grd.addColorStop(0.55, 'rgba(190,165,120,.35)'); grd.addColorStop(0.62, 'rgba(225,205,165,.8)'); grd.addColorStop(1, 'rgba(220,200,160,0)'); g.fillStyle = grd; g.fillRect(0, 0, w, 8) })
+    const ringGeo = new THREE.RingGeometry(p.r * 1.35, p.r * 2.3, 96, 1)
+    const uv = ringGeo.attributes.uv, pos = ringGeo.attributes.position
+    for (let k = 0; k < pos.count; k++) { const rr = Math.hypot(pos.getX(k), pos.getY(k)); uv.setXY(k, (rr - p.r * 1.35) / (p.r * 0.95), 0.5) }
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ map: ringTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }))
+    ring.rotation.x = -Math.PI / 2 + 0.47
+    holder.add(ring)
+  }
+  const orbit = new THREE.LineLoop(new THREE.BufferGeometry(), orbitMat)
+  scene.add(holder, orbit)
+  return { p, mesh, holder, orbit, mat, pos: new THREE.Vector3(), helio: [0, 0, 0] }
+})
+function buildOrbits() {
+  for (const b of bodies) {
+    const pts = []
+    for (let k = 0; k < 360; k++) pts.push(toScene(helio(b.p, 0, (k / 360) * Math.PI * 2)))
+    b.orbit.geometry.dispose()
+    b.orbit.geometry = new THREE.BufferGeometry().setFromPoints(pts)
+  }
+}
+
+function applyTheme() {
+  const d = dark()
+  bodies.forEach((b) => { b.mat.color.set(b.p.bands ? '#ffffff' : b.p.color[d ? 1 : 0]) })
+  orbitMat.color.set(token('--lt-fg')); orbitMat.opacity = d ? 0.18 : 0.16
+  orbitOn.color.set(token('--lt-fg')); orbitOn.opacity = d ? 0.65 : 0.55
+  stars.visible = d
+  stars.material.color.set('#ffffff')
+  ambient.intensity = d ? 0.22 : 0.9
+  sunLight.intensity = d ? 3.4 : 2.2
+  glow.material.opacity = d ? 1 : 0.75
+  requestRender()
+}
+
+// ── Labels and info ──────────────────────────────────────────────────────
+const labels = $('labels')
+labels.innerHTML = bodies.map((b) => '<span class="pl" data-id="' + b.p.id + '">' + b.p.name + '</span>').join('') + '<span class="pl" data-id="sun">太陽</span>'
+const labelEls = Object.fromEntries([...labels.children].map((el) => [el.dataset.id, el]))
+function placeLabels() {
+  const w = stage.clientWidth, h = stage.clientHeight
+  // Followed planet first, then the Sun, then outer planets: a label that would overlap one already placed is hidden.
+  const items = bodies.map((b) => [b.p.id, b.holder.position, b.p.r * b.holder.scale.x]).reverse()
+  items.unshift(['sun', sun.position, 0.62 * sun.scale.x])
+  items.sort((a, b) => (b[0] === S.follow) - (a[0] === S.follow))
+  const placed = []
+  for (const [id, p, r] of items) {
+    const v = p.clone().project(camera), el = labelEls[id]
+    const dist = camera.position.distanceTo(p), px = r / (dist * Math.tan(camera.fov * RAD / 2)) * h / 2
+    const x = (v.x + 1) / 2 * w, y = (1 - v.y) / 2 * h + px + 3, half = el.offsetWidth / 2 + 3
+    const box = [x - half, y, x + half, y + 16]
+    const clash = placed.some((q) => box[0] < q[2] && box[2] > q[0] && box[1] < q[3] && box[3] > q[1])
+    el.style.display = v.z > 1 || clash ? 'none' : ''
+    if (!clash) placed.push(box)
+    el.style.transform = 'translate(-50%, 0) translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)'
+    el.classList.toggle('on', id === S.follow)
+  }
+  for (const b of bodies) b.orbit.material = b.p.id === S.follow ? orbitOn : orbitMat
+}
+function fmtDate(day) {
+  const t = new Date(J2000 + day * DAY)
+  return t.getUTCFullYear() + '年' + (t.getUTCMonth() + 1) + '月' + t.getUTCDate() + '日'
+}
+const GM = 1.32712440018e20, AU = 1.495978707e11
+function renderInfo() {
+  const box = $('info')
+  const b = bodies.find((x) => x.p.id === S.follow)
+  box.classList.toggle('on', !!b)
+  if (!b) return
+  const r = Math.hypot(...b.helio), earth = bodies[2].helio
+  const fromEarth = Math.hypot(b.helio[0] - earth[0], b.helio[1] - earth[1], b.helio[2] - earth[2])
+  const v = Math.sqrt(GM * (2 / (r * AU) - 1 / (b.p.a * AU))) / 1000
+  const years = b.p.T / 365.256
+  box.innerHTML = '<h2><i style="background:' + b.p.color[dark() ? 1 : 0] + '"></i>' + b.p.name + '</h2><div class="lt-kv">'
+    + '<span>太陽から</span><span>' + r.toFixed(3) + ' AU</span>'
+    + (b.p.id === 'earth' ? '' : '<span>地球から</span><span>' + fromEarth.toFixed(3) + ' AU</span>')
+    + '<span>公転速度</span><span>' + v.toFixed(1) + ' km/s</span>'
+    + '<span>公転周期</span><span>' + (years < 1.5 ? b.p.T.toFixed(0) + ' 日' : years.toFixed(1) + ' 年') + '</span>'
+    + '<span>離心率</span><span>' + b.p.e.toFixed(3) + '</span></div>'
+    + '<button class="small ghost" id="unfollow">追跡をやめる</button>'
+}
+$('info').addEventListener('click', (e) => { if (e.target.id === 'unfollow') { S.follow = null; renderInfo(); save(); requestRender() } })
+
+// ── Time ─────────────────────────────────────────────────────────────────
+const MIN = Math.round((Date.UTC(1990, 0, 1) - J2000) / DAY), MAX = Math.round((Date.UTC(2060, 11, 31) - J2000) / DAY)
+const TODAY = Math.round((Date.now() - J2000) / DAY)
+const slider = $('time')
+slider.min = MIN; slider.max = MAX
+const ticks = []
+for (let y = 1990; y <= 2060; y += 10) ticks.push('<span style="left:' + ((Math.round((Date.UTC(y, 0, 1) - J2000) / DAY) - MIN) / (MAX - MIN) * 100).toFixed(2) + '%">' + y + '</span>')
+$('ticks').innerHTML = ticks.join('')
+function setDay(day) {
+  S.day = Math.max(MIN, Math.min(MAX, day))
+  slider.value = Math.round(S.day)
+  const delta = Math.round(S.day) - TODAY
+  $('date').innerHTML = fmtDate(Math.round(S.day)) + '<small>' + (delta === 0 ? '今日' : Math.abs(delta) < 400 ? '今日から ' + (delta > 0 ? '+' : '') + delta + ' 日' : '今日から ' + (delta > 0 ? '+' : '') + (delta / 365.256).toFixed(1) + ' 年') + '</small>'
+  const k = S.scale === 'sqrt' ? 1 : 0.42
+  for (const b of bodies) { b.helio = helio(b.p, S.day); toScene(b.helio, b.holder.position); b.holder.scale.setScalar(k) }
+  sun.scale.setScalar(S.scale === 'sqrt' ? 1 : 0.5); glow.scale.setScalar(S.scale === 'sqrt' ? 4.2 : 2.2)
+  renderInfo()
+  requestRender()
+}
+slider.addEventListener('input', () => { setPlaying(false); setDay(+slider.value); save() })
+
+const PLAY = '<svg viewBox="0 0 16 16"><path d="M5 3.2v9.6L12.6 8z" fill="currentColor"/></svg>'
+const PAUSE = '<svg viewBox="0 0 16 16"><path d="M4.5 3h2.4v10H4.5zM9.1 3h2.4v10H9.1z" fill="currentColor"/></svg>'
+function setPlaying(on) {
+  S.playing = on
+  $('play').innerHTML = on ? PAUSE : PLAY
+  $('play').setAttribute('aria-label', on ? '一時停止' : '再生')
+  if (on && S.day >= MAX) setDay(MIN)
+  last = performance.now()
+  requestRender()
+}
+$('play').addEventListener('click', () => { setPlaying(!S.playing); save() })
+$('speed').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-v]'); if (!b) return
+  S.speed = +b.dataset.v
+  $('speed').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+  save()
+})
+$('today').addEventListener('click', () => { setPlaying(false); setDay(TODAY); save() })
+$('scale').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-s]'); if (!b) return
+  S.scale = b.dataset.s
+  $('scale').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+  buildOrbits(); setDay(S.day); save()
+})
+
+// ── Picking ──────────────────────────────────────────────────────────────
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2()
+let down = null
+renderer.domElement.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; $('hint').style.opacity = 0 })
+function pick(e) {
+  const r = renderer.domElement.getBoundingClientRect()
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
+  ray.setFromCamera(ndc, camera)
+  // Generous targets: nearest planet within 14 px of the pointer.
+  let best = null, bestD = 14
+  for (const b of bodies) {
+    const v = b.holder.position.clone().project(camera)
+    const d = Math.hypot((v.x - ndc.x) * r.width / 2, (v.y - ndc.y) * r.height / 2)
+    const px = b.p.r / (camera.position.distanceTo(b.holder.position) * Math.tan(camera.fov * RAD / 2)) * r.height / 2
+    if (v.z < 1 && d < Math.max(bestD, px + 4)) { best = b; bestD = d }
+  }
+  return best
+}
+renderer.domElement.addEventListener('pointermove', (e) => { if (!e.buttons) renderer.domElement.style.cursor = pick(e) ? 'pointer' : 'grab' })
+renderer.domElement.addEventListener('click', (e) => {
+  if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return
+  const b = pick(e)
+  S.follow = b ? b.p.id : null
+  renderInfo(); save(); requestRender()
+})
+
+// ── Loop ─────────────────────────────────────────────────────────────────
+let raf = 0, last = performance.now()
+function requestRender() { if (!raf && lantern.visible) raf = requestAnimationFrame(frame) }
+const goal = new THREE.Vector3()
+function frame(now) {
+  raf = 0
+  const dt = Math.min(0.05, (now - last) / 1000)
+  last = now
+  if (S.playing) { setDay(S.day + S.speed * dt); if (S.day >= MAX) setPlaying(false) }
+  let following = false
+  const b = bodies.find((x) => x.p.id === S.follow)
+  goal.copy(b ? b.holder.position : sun.position)
+  if (controls.target.distanceTo(goal) > 1e-3) {
+    const step = reduced ? 1 : Math.min(1, dt * 5)
+    const delta = goal.clone().sub(controls.target).multiplyScalar(step)
+    controls.target.add(delta)
+    camera.position.add(delta)
+    following = true
+  }
+  const moved = controls.update(dt)
+  for (const x of bodies) x.mesh.rotation.y += dt * 0.6
+  renderer.render(scene, camera)
+  placeLabels()
+  if (wasMoving && !moved && !following) save()   // camera at rest: remember the view
+  wasMoving = moved || following
+  if (S.playing || moved || following) requestRender()
+}
+let wasMoving = false
+controls.addEventListener('change', requestRender)
+controls.addEventListener('end', save)
+lantern.on('visibility', (v) => { if (v) { last = performance.now(); requestRender() } })
+lantern.on('theme', applyTheme)
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight
+  if (!w || !h) return
+  renderer.setSize(w, h, false)
+  camera.aspect = w / h
+  camera.updateProjectionMatrix()
+  requestRender()
+}
+new ResizeObserver(resize).observe(stage)
+
+let saveTimer = 0
+function save() {
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => lantern.setState({ day: Math.round(S.day), speed: S.speed, scale: S.scale, follow: S.follow, playing: S.playing, cam: camera.position.toArray().map((v) => +v.toFixed(2)), target: controls.target.toArray().map((v) => +v.toFixed(2)) }), 300)
+}
+$('ask').addEventListener('click', () => {
+  const pos = bodies.map((b) => b.p.name + ' ' + Math.hypot(...b.helio).toFixed(2) + ' AU').join('、')
+  lantern.send(fmtDate(Math.round(S.day)) + 'の惑星の配置（太陽からの距離: ' + pos + '）について、目立つ並びや見どころを解説して').catch(() => {})
+})
+
+document.querySelectorAll('#speed button').forEach((x) => x.setAttribute('aria-pressed', String(+x.dataset.v === S.speed)))
+document.querySelectorAll('#scale button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.s === S.scale)))
+applyTheme()
+buildOrbits()
+setDay(S.day)
+if (S.cam) { camera.position.fromArray(S.cam); controls.target.fromArray(S.target || [0, 0, 0]) }
+else camera.position.set(0, 15.5, 26)
+setPlaying(S.playing)
+resize()
+</script>
+</body>
+</html>

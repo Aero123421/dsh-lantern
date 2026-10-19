@@ -1,0 +1,270 @@
+<style>
+  :root { --stage-a: #ffffff; --stage-b: #eff2f7; --glass: color-mix(in srgb, var(--lt-bg) 82%, transparent); }
+  :root[data-theme="dark"] { --stage-a: #20232a; --stage-b: #121316; }
+  .pd { display: grid; gap: 10px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .title b { font-size: 15px; }
+  .title span { color: var(--lt-fg-2); font-size: 12.5px; margin-left: 8px; }
+  .btns { display: flex; gap: 6px; }
+  .play { min-width: 92px; }
+  .play.pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--lt-accent) 18%, transparent); } }
+  .stage { position: relative; height: 360px; border-radius: 14px; overflow: hidden; border: 1px solid var(--lt-border-strong);
+    background: radial-gradient(120% 100% at 50% 0%, var(--stage-a), var(--stage-b)); touch-action: none; user-select: none; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  :root[data-lt-mode="panel"] .stage { height: calc(100vh - 190px); min-height: 320px; }
+  .glass { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--lt-border-strong); border-radius: 10px; }
+  .stats { position: absolute; left: 10px; top: 10px; padding: 7px 10px; font: 12px/1.55 var(--lt-font-mono); color: var(--lt-fg-2); pointer-events: none; }
+  .stats b { color: var(--lt-fg); font-weight: 600; }
+  .chart { position: absolute; right: 10px; top: 10px; width: 190px; padding: 7px 9px 6px; pointer-events: none; }
+  .chart .lab { font-size: 11px; color: var(--lt-fg-2); display: flex; justify-content: space-between; }
+  .chart canvas { position: static; display: block; width: 100%; height: 58px; margin-top: 3px; }
+  .hint { position: absolute; left: 10px; bottom: 10px; padding: 5px 10px; font-size: 11.5px; color: var(--lt-fg-2); pointer-events: none; transition: opacity .4s; }
+  .legend { position: absolute; right: 10px; bottom: 10px; padding: 5px 10px; font-size: 11.5px; color: var(--lt-fg-2); display: flex; gap: 10px; pointer-events: none; }
+  .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+  .controls { display: grid; grid-template-columns: auto 1fr 1fr 1fr; gap: 8px 18px; align-items: center; }
+  @media (max-width: 620px) { .controls { grid-template-columns: 1fr 1fr; } }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--lt-surface); border: 1px solid var(--lt-border); border-radius: 10px; }
+  .seg button { min-height: 26px; padding: 0 9px; border: 0; background: transparent; border-radius: 7px; font-size: 12.5px; color: var(--lt-fg-2); }
+  .seg button:hover { background: transparent; color: var(--lt-fg); }
+  .seg button[aria-pressed="true"] { background: var(--lt-bg); color: var(--lt-fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px var(--lt-border-strong); }
+  .slider { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 12px; color: var(--lt-fg-2); }
+  .slider input { grid-column: 1 / 3; }
+  .slider output { font: 600 12px var(--lt-font-mono); color: var(--lt-fg); }
+</style>
+
+<div class="pd">
+  <div class="top">
+    <div class="title"><b>二重振り子とカオス</b><span>ほんのわずかな初期値の差が、やがて全く別の運動になる</span></div>
+    <div class="btns">
+      <button class="primary play" id="play">▶ 再生</button>
+      <button id="reset" title="初期位置に戻す">↺ 戻す</button>
+    </div>
+  </div>
+  <div class="stage" id="stage">
+    <canvas id="c"></canvas>
+    <div class="stats glass" id="stats"></div>
+    <div class="chart glass"><div class="lab"><span>ずれの大きさ（対数）</span><span id="lyap"></span></div><canvas id="spark"></canvas></div>
+    <div class="hint glass" id="hint">おもりをドラッグして初期角度を決めてから再生</div>
+    <div class="legend glass" id="legend"></div>
+  </div>
+  <div class="controls">
+    <div class="seg" id="count" role="group" aria-label="振り子の数"><button data-n="1">1 本</button><button data-n="3" aria-pressed="true">3 本</button><button data-n="5">5 本</button></div>
+    <label class="slider"><span>初期のずれ</span><output id="o-delta"></output><input type="range" id="delta" min="-6" max="-1" step="0.5" value="-3"></label>
+    <label class="slider"><span>重力 g</span><output id="o-g"></output><input type="range" id="g" min="1" max="20" step="0.1" value="9.8"></label>
+    <label class="slider"><span>空気抵抗</span><output id="o-damp"></output><input type="range" id="damp" min="0" max="0.4" step="0.01" value="0"></label>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id)
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const stage = $('stage'), canvas = $('c'), ctx = canvas.getContext('2d'), spark = $('spark'), sctx = spark.getContext('2d')
+  const S = Object.assign({ t1: 2.2, t2: 2.9, n: 3, delta: -3, g: 9.8, damp: 0 }, lantern.getState() || {})
+
+  // ── Canvas sizing (DPR aware) ───────────────────────────────────────────
+  let W = 0, H = 0, dpr = 1
+  function fit(cv, c2) {
+    const r = cv.getBoundingClientRect()
+    const d = Math.min(devicePixelRatio || 1, 2)
+    cv.width = Math.max(1, Math.round(r.width * d)); cv.height = Math.max(1, Math.round(r.height * d))
+    c2.setTransform(d, 0, 0, d, 0, 0)
+    return [r.width, r.height, d]
+  }
+  function resize() { [W, H, dpr] = fit(canvas, ctx); fit(spark, sctx); draw() }
+  new ResizeObserver(resize).observe(stage)
+  matchMedia('(resolution: ' + devicePixelRatio + 'dppx)').addEventListener('change', resize)
+
+  // ── Colours from the theme ──────────────────────────────────────────────
+  let C = {}
+  function readTheme() {
+    const css = getComputedStyle(document.documentElement), v = (n) => css.getPropertyValue(n).trim()
+    const series = lantern.colors()
+    C = { fg: v('--lt-fg'), fg2: v('--lt-fg-2'), fg3: v('--lt-fg-3'), border: v('--lt-border-strong'), bg: v('--lt-bg'), series: [series[0], series[3], series[1], series[4], series[2]] }
+    $('legend').innerHTML = pend.slice(0, Math.min(S.n, 3)).map((p, i) => '<span><i style="background:' + C.series[i] + '"></i>' + (i === 0 ? '基準' : '+' + i + 'Δ') + '</span>').join('')
+    draw()
+  }
+  lantern.on('theme', readTheme)
+
+  // ── Physics: RK4 on (θ1, ω1, θ2, ω2), m = l = 1 ─────────────────────────
+  function deriv(s, g, c) {
+    const [t1, w1, t2, w2] = s, d = t1 - t2, den = 3 - Math.cos(2 * d)
+    const a1 = (-g * 3 * Math.sin(t1) - g * Math.sin(t1 - 2 * t2) - 2 * Math.sin(d) * (w2 * w2 + w1 * w1 * Math.cos(d))) / den - c * w1
+    const a2 = (2 * Math.sin(d) * (w1 * w1 * 2 + g * 2 * Math.cos(t1) + w2 * w2 * Math.cos(d))) / den - c * w2
+    return [w1, a1, w2, a2]
+  }
+  function rk4(s, h, g, c) {
+    const k1 = deriv(s, g, c), k2 = deriv(s.map((x, i) => x + h / 2 * k1[i]), g, c)
+    const k3 = deriv(s.map((x, i) => x + h / 2 * k2[i]), g, c), k4 = deriv(s.map((x, i) => x + h * k3[i]), g, c)
+    return s.map((x, i) => x + h / 6 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]))
+  }
+  const energy = ([t1, w1, t2, w2], g) => 0.5 * w1 * w1 + 0.5 * (w1 * w1 + w2 * w2 + 2 * w1 * w2 * Math.cos(t1 - t2)) - 2 * g * Math.cos(t1) - g * Math.cos(t2)
+
+  let pend = [], time = 0, E0 = 0, history = [], running = false
+  function reset() {
+    const d = Math.pow(10, S.delta)
+    pend = Array.from({ length: 5 }, (_, k) => ({ s: [S.t1, 0, S.t2 + k * d, 0], trail: [] }))
+    time = 0; history = []; E0 = energy(pend[0].s, S.g)
+    setRunning(false)
+    readTheme()
+  }
+
+  // ── Drawing ─────────────────────────────────────────────────────────────
+  const geom = () => { const L = Math.min(W * 0.2, H * 0.235); return { ox: W / 2, oy: H * 0.47, L } }
+  function joints(s) {
+    const { ox, oy, L } = geom()
+    const x1 = ox + L * Math.sin(s[0]), y1 = oy + L * Math.cos(s[0])
+    return [[ox, oy], [x1, y1], [x1 + L * Math.sin(s[2]), y1 + L * Math.cos(s[2])]]
+  }
+  function alpha(hex, a) { const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})/i.exec(hex); return m ? 'rgba(' + parseInt(m[1], 16) + ',' + parseInt(m[2], 16) + ',' + parseInt(m[3], 16) + ',' + a + ')' : hex }
+  function draw() {
+    if (!W || !pend.length) return
+    ctx.clearRect(0, 0, W, H)
+    const { ox, oy, L } = geom()
+    // reach circle
+    ctx.strokeStyle = alpha(C.fg3, 0.35); ctx.setLineDash([3, 5]); ctx.lineWidth = 1
+    ctx.beginPath(); ctx.arc(ox, oy, 2 * L, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([])
+    const n = S.n
+    // trails
+    for (let k = n - 1; k >= 0; k--) {
+      const tr = pend[k].trail, col = C.series[k]
+      for (let i = 1; i < tr.length; i++) {
+        ctx.strokeStyle = alpha(col, (i / tr.length) * 0.75); ctx.lineWidth = 2
+        ctx.beginPath(); ctx.moveTo(tr[i - 1][0], tr[i - 1][1]); ctx.lineTo(tr[i][0], tr[i][1]); ctx.stroke()
+      }
+    }
+    // rods and bobs
+    for (let k = n - 1; k >= 0; k--) {
+      const [p0, p1, p2] = joints(pend[k].s), col = C.series[k], main = k === 0
+      ctx.strokeStyle = main ? C.fg : alpha(col, 0.55); ctx.lineWidth = main ? 2.6 : 2; ctx.lineCap = 'round'
+      ctx.beginPath(); ctx.moveTo(...p0); ctx.lineTo(...p1); ctx.lineTo(...p2); ctx.stroke()
+      for (const [p, r] of [[p1, 8], [p2, 10]]) {
+        ctx.fillStyle = col; ctx.strokeStyle = C.bg; ctx.lineWidth = 2
+        ctx.beginPath(); ctx.arc(p[0], p[1], (main ? r : r - 2) + (drag && main && drag.which === (r === 8 ? 1 : 2) ? 3 : 0), 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+      }
+    }
+    // pivot
+    ctx.fillStyle = C.fg; ctx.fillRect(ox - 18, oy - 2, 36, 4)
+    ctx.beginPath(); ctx.arc(ox, oy, 4.5, 0, Math.PI * 2); ctx.fill()
+    // angle labels while dragging or paused at start
+    if (drag || (!running && time === 0)) {
+      const [p0, p1, p2] = joints(pend[0].s)
+      ctx.font = '600 12px ' + getComputedStyle(document.body).fontFamily
+      ctx.fillStyle = C.fg2
+      const deg = (a) => (((a * 180 / Math.PI) % 360 + 540) % 360 - 180).toFixed(0) + '°'
+      ctx.fillText('θ₁ ' + deg(pend[0].s[0]), (p0[0] + p1[0]) / 2 + 10, (p0[1] + p1[1]) / 2)
+      ctx.fillText('θ₂ ' + deg(pend[0].s[2]), (p1[0] + p2[0]) / 2 + 10, (p1[1] + p2[1]) / 2)
+    }
+    drawStats()
+  }
+  function drawStats() {
+    const E = energy(pend[0].s, S.g), err = Math.abs(E - E0) / Math.max(1, Math.abs(E0)) * 100
+    $('stats').innerHTML = 't = <b>' + time.toFixed(1) + '</b> s<br>' + (S.damp > 0 ? 'エネルギー <b>' + E.toFixed(2) + '</b>' : 'エネルギー誤差 <b>' + (err < 0.001 ? '<0.001' : err.toFixed(3)) + '</b> %')
+    const sw = spark.clientWidth, sh = spark.clientHeight
+    sctx.clearRect(0, 0, sw, sh)
+    const lo = S.delta - 0.5, hi = 0.75, span = Math.min(30, Math.max(8, time))
+    sctx.strokeStyle = alpha(C.fg3, 0.5); sctx.lineWidth = 1
+    sctx.beginPath(); sctx.moveTo(0, sh - 0.5); sctx.lineTo(sw, sh - 0.5); sctx.stroke()
+    if (S.n < 2) { $('lyap').textContent = '2 本以上で表示'; return }
+    if (history.length > 1) {
+      const t0 = Math.max(0, time - span)
+      sctx.strokeStyle = C.series[1]; sctx.lineWidth = 1.6; sctx.beginPath()
+      history.forEach(([t, v], i) => { if (t < t0) return; const x = (t - t0) / span * sw, y = sh - (v - lo) / (hi - lo) * sh; i ? sctx.lineTo(x, y) : sctx.moveTo(x, y) })
+      sctx.stroke()
+      const last = history[history.length - 1][1]
+      $('lyap').textContent = '×' + Math.round(Math.pow(10, last - S.delta)).toLocaleString()
+    } else $('lyap').textContent = ''
+  }
+
+  // ── Loop (pauses offscreen; dt is clamped so a long pause does not jump) ─
+  let raf = 0, last = 0
+  function setRunning(on) {
+    running = on
+    $('play').textContent = on ? '❚❚ 一時停止' : '▶ 再生'
+    $('play').classList.toggle('pulse', !on && time === 0 && !reduced)
+    if (on) { $('hint').style.opacity = 0; last = performance.now(); kick() }
+  }
+  function kick() { if (!raf && running && lantern.visible) raf = requestAnimationFrame(tick) }
+  function tick(now) {
+    raf = 0
+    const dt = Math.min(1 / 30, (now - last) / 1000); last = now
+    const steps = Math.max(1, Math.round(dt / (1 / 480)))
+    for (let k = 0; k < S.n; k++) {
+      const p = pend[k]
+      for (let i = 0; i < steps; i++) p.s = rk4(p.s, dt / steps, S.g, S.damp)
+      p.trail.push(joints(p.s)[2])
+      if (p.trail.length > (reduced ? 40 : 160)) p.trail.shift()
+    }
+    time += dt
+    if (S.n > 1) {
+      const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a))
+      const d = Math.hypot(wrap(pend[1].s[0] - pend[0].s[0]), wrap(pend[1].s[2] - pend[0].s[2]))
+      history.push([time, Math.log10(Math.max(d, 1e-12))])
+      if (history.length > 2400) history.shift()
+    }
+    draw()
+    kick()
+  }
+  lantern.on('visibility', (v) => { if (v) { last = performance.now(); kick() } })
+
+  // ── Dragging the bobs ───────────────────────────────────────────────────
+  let drag = null
+  function local(e) { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top] }
+  canvas.addEventListener('pointerdown', (e) => {
+    const [x, y] = local(e), [, p1, p2] = joints(pend[0].s)
+    const d1 = Math.hypot(x - p1[0], y - p1[1]), d2 = Math.hypot(x - p2[0], y - p2[1])
+    if (Math.min(d1, d2) > 26) return
+    drag = { which: d2 <= d1 ? 2 : 1 }
+    canvas.setPointerCapture(e.pointerId)
+    setRunning(false)
+    time = 0; history = []
+    pend.forEach((p) => { p.trail = [] })
+    $('hint').style.opacity = 0
+    move(e)
+  })
+  function move(e) {
+    const [x, y] = local(e)
+    if (!drag) {
+      const [, p1, p2] = joints(pend[0].s)
+      canvas.style.cursor = Math.min(Math.hypot(x - p1[0], y - p1[1]), Math.hypot(x - p2[0], y - p2[1])) < 26 ? 'grab' : 'default'
+      return
+    }
+    canvas.style.cursor = 'grabbing'
+    const [p0, p1] = joints(pend[0].s)
+    if (drag.which === 1) S.t1 = Math.atan2(x - p0[0], y - p0[1])
+    else S.t2 = Math.atan2(x - p1[0], y - p1[1])
+    const d = Math.pow(10, S.delta)
+    pend.forEach((p, k) => { p.s = [S.t1, 0, S.t2 + k * d, 0] })
+    E0 = energy(pend[0].s, S.g)
+    draw()
+  }
+  canvas.addEventListener('pointermove', move)
+  canvas.addEventListener('pointerup', () => { if (drag) { drag = null; canvas.style.cursor = 'grab'; setRunning(false); save(); draw() } })
+
+  // ── Controls ────────────────────────────────────────────────────────────
+  const save = () => lantern.setState({ t1: +S.t1.toFixed(4), t2: +S.t2.toFixed(4), n: S.n, delta: S.delta, g: S.g, damp: S.damp })
+  $('play').addEventListener('click', () => { if (time === 0) E0 = energy(pend[0].s, S.g); setRunning(!running) })
+  $('reset').addEventListener('click', reset)
+  $('count').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-n]'); if (!b) return
+    S.n = +b.dataset.n
+    $('count').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+    save(); reset()
+  })
+  function out() {
+    $('o-delta').textContent = '10^' + S.delta + ' rad'
+    $('o-delta').innerHTML = '10<sup>' + S.delta + '</sup> rad'
+    $('o-g').textContent = S.g.toFixed(1) + ' m/s²'
+    $('o-damp').textContent = S.damp.toFixed(2)
+  }
+  for (const id of ['delta', 'g', 'damp']) {
+    $(id).value = S[id]
+    $(id).addEventListener('input', () => { S[id] = +$(id).value; out(); save(); if (id === 'delta' || !running) reset() })
+  }
+  document.querySelectorAll('#count button').forEach((x) => x.setAttribute('aria-pressed', String(+x.dataset.n === S.n)))
+  out()
+  reset()
+  resize()
+})()
+</script>

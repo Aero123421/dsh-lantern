@@ -63,3 +63,23 @@ test('workspace pages get tokens only unless they ask for the kit', () => {
   assert.equal(injectPrelude('<!doctype html><p>x</p>', 'P'), '<!doctype html>P<p>x</p>')
   assert.equal(injectPrelude('<p>x</p>', 'P'), 'P<p>x</p>')
 })
+
+test('inline cards never show a scrollbar of their own, unless taller than the largest card', () => {
+  const html = buildDocument('<p>x</p>', { ...boot, maxHeight: 1800 }, '')
+  // The rule lives in the kit layer, so a visual's own overflow styles still win.
+  const kit = html.slice(html.indexOf('@layer lantern-kit{'), html.indexOf('</style>', html.indexOf('@layer lantern-kit{')))
+  assert.match(kit, /:root\[data-lt-mode="inline"\]:not\(\[data-lt-overflow\]\) \{ overflow-y: hidden; \}/)
+  assert.match(html, /"maxHeight":1800/)
+  // Workspace pages are panels: only the tokens, no inline overflow rule.
+  assert.equal(filePrelude({ ...boot, mode: 'panel' }, false).includes(':root[data-lt-mode="inline"]'), false)
+})
+
+test('the runtime keeps download links, wheel gating and visibility self-contained', () => {
+  const html = buildDocument('<p>x</p>', boot, '')
+  const runtime = html.slice(html.indexOf('</script><script>') + 17, html.indexOf('</script><style id="lantern-kit">'))
+  // Serialized with toString(): everything it uses must be inside the function.
+  for (const marker of ["hasAttribute('download')", 'stopImmediatePropagation', 'IntersectionObserver', "type: 'gl'", 'data-lt-fullscreen', 'ResizeObserver loop']) {
+    assert.ok(runtime.includes(marker), marker)
+  }
+  assert.doesNotThrow(() => new Function(runtime))
+})

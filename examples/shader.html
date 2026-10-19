@@ -1,0 +1,209 @@
+<style>
+  :root { --glass: color-mix(in srgb, var(--lt-bg) 80%, transparent); }
+  .sh { display: grid; gap: 10px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .title b { font-size: 15px; }
+  .title span { color: var(--lt-fg-2); font-size: 12.5px; margin-left: 8px; }
+  .pal { display: flex; gap: 6px; }
+  .pal button { width: 34px; min-height: 34px; padding: 0; border-radius: 50%; border: 2px solid transparent; background-clip: padding-box; box-shadow: 0 0 0 1px var(--lt-border-strong); }
+  .pal button[aria-pressed="true"] { border-color: var(--lt-bg); box-shadow: 0 0 0 2px var(--lt-fg); }
+  .stage { position: relative; height: 360px; border-radius: 14px; overflow: hidden; border: 1px solid var(--lt-border-strong); background: var(--lt-surface); cursor: crosshair; touch-action: none; }
+  .stage canvas { display: block; width: 100%; height: 100%; }
+  :root[data-lt-mode="panel"] .stage { height: calc(100vh - 160px); min-height: 320px; }
+  .glass { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--lt-border-strong); border-radius: 10px; }
+  .tools { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+  .icon { min-height: 34px; padding: 0 11px; border-radius: 10px; background: var(--glass); backdrop-filter: blur(8px); border-color: var(--lt-border-strong); color: var(--lt-fg); font-size: 12.5px; }
+  .icon:hover { background: var(--glass); }
+  .hint { position: absolute; left: 10px; bottom: 10px; padding: 5px 10px; font-size: 11.5px; color: var(--lt-fg-2); pointer-events: none; transition: opacity .5s; }
+  .fps { position: absolute; left: 10px; top: 10px; padding: 3px 8px; font: 11px var(--lt-font-mono); color: var(--lt-fg-2); pointer-events: none; }
+  .sliders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 18px; }
+  .slider { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 12px; color: var(--lt-fg-2); }
+  .slider input { grid-column: 1 / 3; }
+  .slider output { font: 600 12px var(--lt-font-mono); color: var(--lt-fg); }
+  .err { position: absolute; inset: 0; display: grid; place-items: center; color: var(--lt-fg-2); font-size: 13px; padding: 20px; text-align: center; }
+</style>
+
+<div class="sh">
+  <div class="top">
+    <div class="title"><b>流れる模様</b><span>GPU シェーダーで毎フレーム描いています</span></div>
+    <div class="pal" id="pal" role="group" aria-label="配色"></div>
+  </div>
+  <div class="stage" id="stage">
+    <canvas id="c"></canvas>
+    <div class="fps glass" id="fps"></div>
+    <div class="tools">
+      <button class="icon" id="pause">❚❚ 停止</button>
+      <button class="icon" id="save">PNG で保存</button>
+    </div>
+    <div class="hint glass" id="hint">カーソルで模様がうずを巻き、クリックすると波紋が広がります</div>
+  </div>
+  <div class="sliders">
+    <label class="slider"><span>模様の大きさ</span><output id="o-scale"></output><input type="range" id="scale" min="0.8" max="5" step="0.1"></label>
+    <label class="slider"><span>ゆがみ</span><output id="o-warp"></output><input type="range" id="warp" min="0" max="6" step="0.1"></label>
+    <label class="slider"><span>流れの速さ</span><output id="o-speed"></output><input type="range" id="speed" min="0" max="3" step="0.05"></label>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id)
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const PALETTES = {
+    theme: null,
+    dusk: { light: ['#fff3e8', '#ff8a65', '#ffd180', '#a98bff'], dark: ['#140b26', '#ff6b4a', '#ffc15e', '#8a3ffc'] },
+    sea: { light: ['#edf6ff', '#4c8dff', '#3fcfdf', '#a8f0ff'], dark: ['#020a18', '#1466ff', '#16c2d5', '#8ff0ff'] },
+    forest: { light: ['#f2f9ef', '#3fa56f', '#b3df76', '#e4f3a9'], dark: ['#06120c', '#2e8b57', '#a3d65c', '#eaf6a8'] },
+  }
+  const S = Object.assign({ palette: 'theme', scale: 2.4, warp: 3.4, speed: 1, paused: reduced }, lantern.getState() || {})
+  const stage = $('stage'), canvas = $('c')
+  const gl = canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: false, alpha: false })
+  if (!gl) { stage.insertAdjacentHTML('beforeend', '<div class="err">このブラウザでは WebGL2 が使えないため、模様を表示できません。</div>'); return }
+
+  const vs = `#version 300 es
+  in vec2 p; void main() { gl_Position = vec4(p, 0., 1.); }`
+  const fs = `#version 300 es
+  precision highp float;
+  uniform vec2 uRes; uniform float uTime, uScale, uWarp; uniform vec2 uMouse; uniform float uHover;
+  uniform vec3 uC0, uC1, uC2, uC3; uniform vec4 uRip[6]; uniform float uContrast;
+  out vec4 o;
+  float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+  float noise(vec2 p) { vec2 i = floor(p), f = fract(p), u = f * f * (3. - 2. * f);
+    return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+  float fbm(vec2 p) { float v = 0., a = .5; mat2 m = mat2(1.6, 1.2, -1.2, 1.6); for (int i = 0; i < 5; i++) { v += a * noise(p); p = m * p; a *= .5; } return v; }
+  void main() {
+    vec2 uv = (gl_FragCoord.xy - .5 * uRes) / uRes.y;
+    vec2 d = uv - uMouse; float r = length(d);
+    vec2 p = uv * uScale + vec2(-d.y, d.x) * exp(-r * r * 7.) * 1.6 * uHover;
+    for (int i = 0; i < 6; i++) {
+      vec4 R = uRip[i]; if (R.w <= 0.) continue;
+      float age = uTime - R.z; vec2 dd = uv - R.xy; float rr = length(dd);
+      p += normalize(dd + 1e-5) * sin(rr * 26. - age * 8.) * exp(-age * 1.4) * exp(-rr * 2.5) * R.w * .3;
+    }
+    float t = uTime * .07;
+    vec2 q = vec2(fbm(p + vec2(0., t)), fbm(p + vec2(5.2, 1.3) - t));
+    vec2 s = vec2(fbm(p + uWarp * q + vec2(1.7, 9.2) + .15 * t), fbm(p + uWarp * q + vec2(8.3, 2.8) - .126 * t));
+    float f = fbm(p + uWarp * s);
+    // Colouring after Inigo Quilez's "warp": blend by the warp fields, then shade by f.
+    vec3 col = mix(uC1, uC2, clamp(f * f * 4., 0., 1.));
+    col = mix(col, uC0, clamp(length(q) * .9 - .2, 0., 1.));
+    col = mix(col, uC3, clamp(abs(s.x) * .9 - .3, 0., 1.) * .85);
+    float shade = (f * f * f + .6 * f * f + .5 * f) * 1.9;
+    col *= mix(1., shade, uContrast);
+    o = vec4(pow(clamp(col, 0., 1.), vec3(.95)), 1.);
+  }`
+  function shader(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s }
+  const prog = gl.createProgram()
+  gl.attachShader(prog, shader(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(prog)
+  gl.useProgram(prog)
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer())
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
+  const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0)
+  const U = Object.fromEntries(['uRes', 'uTime', 'uScale', 'uWarp', 'uMouse', 'uHover', 'uC0', 'uC1', 'uC2', 'uC3', 'uRip', 'uContrast'].map((n) => [n, gl.getUniformLocation(prog, n)]))
+
+  // ── Colours ─────────────────────────────────────────────────────────────
+  const probe = document.createElement('i'); probe.style.display = 'none'; document.body.append(probe)
+  const pix = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
+  const rgb = (css) => { probe.style.color = css; pix.clearRect(0, 0, 1, 1); pix.fillStyle = getComputedStyle(probe).color; pix.fillRect(0, 0, 1, 1); const d = pix.getImageData(0, 0, 1, 1).data; return [d[0] / 255, d[1] / 255, d[2] / 255] }
+  const dark = () => document.documentElement.dataset.theme === 'dark'
+  function colors(id) {
+    if (id !== 'theme') return PALETTES[id][dark() ? 'dark' : 'light'].map(rgb)
+    const s = lantern.colors()
+    return dark() ? [rgb('var(--lt-bg)'), rgb(s[0]), rgb(s[4]), rgb(s[5])] : [rgb('#f7f8fb'), rgb(s[0]), rgb(s[4]), rgb(s[5])]
+  }
+  function paintPalettes() {
+    $('pal').innerHTML = Object.keys(PALETTES).map((id) => {
+      const c = colors(id).map(([r, g, b]) => 'rgb(' + [r, g, b].map((v) => Math.round(v * 255)).join(',') + ')')
+      return '<button data-p="' + id + '" aria-pressed="' + (id === S.palette) + '" title="' + { theme: 'テーマの色', dusk: '夕焼け', sea: '深海', forest: '森' }[id] + '" style="background:conic-gradient(' + c[1] + ' 0 33%,' + c[2] + ' 0 66%,' + c[3] + ' 0)"></button>'
+    }).join('')
+  }
+  let pal = colors(S.palette)
+
+  // ── Sizing with adaptive resolution ─────────────────────────────────────
+  let quality = 1, maxQ = 1
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight
+    maxQ = Math.min(devicePixelRatio || 1, 1.5)
+    quality = Math.min(quality, maxQ) || maxQ
+    canvas.width = Math.max(2, Math.round(w * quality)); canvas.height = Math.max(2, Math.round(h * quality))
+    gl.viewport(0, 0, canvas.width, canvas.height)
+    if (S.paused) render(time)
+  }
+  new ResizeObserver(resize).observe(stage)
+
+  // ── Pointer: swirl follows the cursor, clicks add ripples ───────────────
+  const mouse = [0, 0], target = [0, 0]
+  let hover = 0, hoverTarget = 0, ripples = [], time = 0
+  const toUv = (e) => { const r = canvas.getBoundingClientRect(); return [((e.clientX - r.left) - r.width / 2) / r.height, (r.height / 2 - (e.clientY - r.top)) / r.height] }
+  stage.addEventListener('pointermove', (e) => { const [x, y] = toUv(e); target[0] = x; target[1] = y; hoverTarget = 1; $('hint').style.opacity = 0; kick() })
+  stage.addEventListener('pointerleave', () => { hoverTarget = 0; kick() })
+  canvas.addEventListener('pointerdown', (e) => { const [x, y] = toUv(e); ripples.push([x, y, time, 1]); if (ripples.length > 6) ripples.shift(); kick() })
+
+  function render(t) {
+    gl.uniform2f(U.uRes, canvas.width, canvas.height)
+    gl.uniform1f(U.uTime, t); gl.uniform1f(U.uScale, S.scale); gl.uniform1f(U.uWarp, S.warp)
+    gl.uniform2f(U.uMouse, mouse[0], mouse[1]); gl.uniform1f(U.uHover, hover)
+    pal.forEach((c, i) => gl.uniform3f(U['uC' + i], c[0], c[1], c[2]))
+    gl.uniform1f(U.uContrast, dark() ? 1 : 0.6)
+    const rip = new Float32Array(24); ripples.forEach((r, i) => rip.set(r, i * 4)); gl.uniform4fv(U.uRip, rip)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+  }
+
+  // ── Loop: pauses offscreen, settles to a still frame when paused ────────
+  let raf = 0, last = performance.now(), frames = 0, acc = 0, fpsT = 0
+  function kick() { if (!raf && lantern.visible) raf = requestAnimationFrame(frame) }
+  function frame(now) {
+    raf = 0
+    const dt = Math.min(0.05, (now - last) / 1000); last = now
+    if (!S.paused) time += dt * S.speed
+    mouse[0] += (target[0] - mouse[0]) * Math.min(1, dt * 8); mouse[1] += (target[1] - mouse[1]) * Math.min(1, dt * 8)
+    hover += (hoverTarget - hover) * Math.min(1, dt * 4)
+    ripples = ripples.filter((r) => time - r[2] < 4)
+    render(time)
+    // Adaptive resolution: drop below 30 fps → render fewer pixels; recover when fast.
+    frames++; acc += dt; fpsT += dt
+    if (fpsT > 1) {
+      const fps = frames / acc
+      $('fps').textContent = Math.round(fps) + ' fps · ' + Math.round(quality * 100) + '%'
+      if (fps < 30 && quality > 0.45) { quality *= 0.8; resize() } else if (fps > 55 && quality < maxQ) { quality = Math.min(maxQ, quality * 1.15); resize() }
+      frames = 0; acc = 0; fpsT = 0
+    }
+    const settling = Math.abs(hover - hoverTarget) > 0.01 || Math.hypot(target[0] - mouse[0], target[1] - mouse[1]) > 0.002 || ripples.length
+    if (!S.paused || settling) kick()
+  }
+  lantern.on('visibility', (v) => { if (v) { last = performance.now(); kick() } })
+  lantern.on('theme', () => { pal = colors(S.palette); paintPalettes(); kick(); if (S.paused) render(time) })
+
+  // ── Controls ────────────────────────────────────────────────────────────
+  const save = () => lantern.setState({ palette: S.palette, scale: S.scale, warp: S.warp, speed: S.speed, paused: S.paused })
+  for (const id of ['scale', 'warp', 'speed']) {
+    $(id).value = S[id]
+    $('o-' + id).textContent = (+S[id]).toFixed(id === 'speed' ? 2 : 1)
+    $(id).addEventListener('input', () => { S[id] = +$(id).value; $('o-' + id).textContent = S[id].toFixed(id === 'speed' ? 2 : 1); render(time); kick(); save() })
+  }
+  $('pal').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-p]'); if (!b) return
+    S.palette = b.dataset.p; pal = colors(S.palette)
+    $('pal').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+    render(time); kick(); save()
+  })
+  function setPaused(p) { S.paused = p; $('pause').textContent = p ? '▶ 再生' : '❚❚ 停止'; last = performance.now(); kick() }
+  $('pause').addEventListener('click', () => { setPaused(!S.paused); save() })
+  $('save').addEventListener('click', () => {
+    // Draw at full resolution, then read the pixels in the same task (the drawing buffer is not preserved).
+    const q = quality; quality = maxQ; resize(); render(time)
+    canvas.toBlob((blob) => {
+      quality = q; resize()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob); a.download = 'pattern-' + S.palette + '.png'
+      document.body.append(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+    }, 'image/png')
+  })
+
+  paintPalettes()
+  setPaused(S.paused)
+  resize()
+  render(time)
+  kick()
+})()
+</script>

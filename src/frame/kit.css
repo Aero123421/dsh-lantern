@@ -105,6 +105,8 @@
 /* Base */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; }
+/* An inline card is as tall as its content, so it never needs a scrollbar of its own. */
+:root[data-lt-mode="inline"]:not([data-lt-overflow]) { overflow-y: hidden; }
 body {
   background: var(--lt-bg);
   color: var(--lt-fg);

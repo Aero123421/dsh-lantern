@@ -25,6 +25,9 @@ const ja = {
   fileError: 'ファイルを開けませんでした',
   answerPrefix: '回答',
   notWaiting: 'エージェントはもう待っていません',
+  wheelHint: 'クリックするとホイールで操作できます',
+  glLost: '3D 表示を一時停止しました（同時に動かせる数の上限）',
+  resume: '再開',
 }
 
 type Copy = typeof ja
@@ -54,6 +57,9 @@ const en: Copy = {
   fileError: 'Could not open the file',
   answerPrefix: 'Answer',
   notWaiting: 'The agent is no longer waiting',
+  wheelHint: 'Click the visual to use the scroll wheel in it',
+  glLost: 'The 3D view was paused (too many running at once)',
+  resume: 'Resume',
 }
 
 const zh: Copy = {
@@ -81,6 +87,9 @@ const zh: Copy = {
   fileError: '无法打开文件',
   answerPrefix: '回答',
   notWaiting: '智能体已不再等待',
+  wheelHint: '点击后即可在其中使用滚轮',
+  glLost: '3D 视图已暂停（同时运行的数量已达上限）',
+  resume: '继续',
 }
 
 export function lang(): string {

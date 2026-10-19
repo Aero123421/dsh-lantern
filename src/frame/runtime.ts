@@ -27,6 +27,8 @@ export interface FrameBoot {
   readonly streaming: boolean
   /** UI language for the few built-in messages (BCP 47). */
   readonly lang?: string
+  /** Tallest inline card in px; taller content scrolls inside the card. */
+  readonly maxHeight?: number
 }
 
 /** Messages the iframe sends. */
@@ -39,6 +41,10 @@ export type FrameMessage =
   | { type: 'open-link'; url: string }
   | { type: 'set-state'; json: string }
   | { type: 'error'; message: string }
+  /** A wheel turn was kept from the visual's own handlers so the chat could scroll. */
+  | { type: 'hint'; kind: 'wheel' }
+  /** The browser took a WebGL context away (too many live contexts on the page), or gave it back. */
+  | { type: 'gl'; lost: boolean }
 
 /** Messages the parent sends. */
 export type ParentMessage =
@@ -105,12 +111,15 @@ export function frameRuntime(): void {
     return out
   }
 
+  let visible = true
+
   const lantern = {
     get id() { return boot.id as string },
     get state() { return state as string },
     get response() { return response as unknown },
     get theme() { return scheme as string },
     get mode() { return boot.mode as string },
+    get visible() { return visible },
     submit(value: unknown) {
       try { return call('submit', { json: toJson(value, 'submit') }) } catch (error) { return Promise.reject(error) }
     },
@@ -161,18 +170,124 @@ export function frameRuntime(): void {
     }
   })
 
-  // Height: report the document's content height whenever it changes.
-  let lastHeight = -1
+  // Height: report the document's content height whenever it changes. An
+  // inline card is as tall as its content, which sets two traps. A classic
+  // scrollbar inside the frame (while the card catches up) narrows the page,
+  // and anything sized by width then changes height again; the kit hides the
+  // frame's own vertical scrollbar unless the content is taller than the
+  // largest card (`data-lt-overflow`). And a page whose height follows the
+  // frame's height (100vh, innerHeight, height:100%) would grow the card
+  // forever, or stay as small as the frame happened to be; such a page gets a
+  // fixed inline viewport instead (`pinned`).
+  const root = document.documentElement
+  const inline = boot.mode !== 'panel' && !boot.streaming
+  const maxHeight = Number(boot.maxHeight) > 0 ? Number(boot.maxHeight) : 2400
+  root.setAttribute('data-lt-mode', boot.mode === 'panel' ? 'panel' : 'inline')
+  let reported = -1
   let queued = false
+  let seenHeight = -1
+  let seenViewport = -1
+  let follows = 0
+  let probing = false
+  let pinned = 0
+  let started = false
+  function contentHeight(): number {
+    const rect = root.getBoundingClientRect()
+    return Math.ceil(Math.max(rect.height, document.body ? document.body.scrollHeight : 0))
+  }
   function measure() {
     queued = false
-    const rect = document.documentElement.getBoundingClientRect()
-    const height = Math.ceil(Math.max(rect.height, document.body ? document.body.scrollHeight : 0))
-    if (Math.abs(height - lastHeight) < 2) return
-    lastHeight = height
+    // A fullscreen visual fills the screen; its card keeps its size meanwhile.
+    if (document.fullscreenElement) return
+    const content = contentHeight()
+    const viewport = window.innerHeight
+    if (inline && !pinned && seenViewport > 0 && viewport !== seenViewport) {
+      const followed = content >= viewport - 1 && Math.abs((content - seenHeight) - (viewport - seenViewport)) <= 1
+      follows = followed ? follows + 1 : 0
+      if (followed && (probing || follows >= 3)) pinned = Math.round(Math.min(540, Math.max(320, window.innerWidth * 0.62)))
+      probing = false
+    }
+    seenHeight = content
+    seenViewport = viewport
+    const height = pinned || content
+    // Until the page has run its scripts, only grow: it is not its real height yet.
+    if (!pinned && !started && height <= viewport) return
+    root.toggleAttribute('data-lt-overflow', boot.mode !== 'panel' && height > maxHeight)
+    if (Math.abs(height - reported) < 2) return
+    reported = height
     post({ type: 'resize', height })
   }
   function schedule() { if (!queued) { queued = true; requestAnimationFrame(measure) } }
+  /**
+   * Content exactly as tall as the frame may be sized by the frame itself
+   * (an element of 100vh). Nudge the card 2 px taller once: if the content
+   * grows with it, `measure` pins the card; if not, the card shrinks back.
+   */
+  function probe() {
+    if (!inline || pinned || probing || document.fullscreenElement || !document.body) return
+    const viewport = window.innerHeight
+    if (Math.abs(contentHeight() - viewport) > 1) return
+    const sized = Array.from(document.body.children).some((el) => Math.abs((el as HTMLElement).offsetHeight - viewport) <= 1)
+    if (!sized) return
+    probing = true
+    reported = viewport + 2
+    post({ type: 'resize', height: reported })
+    setTimeout(() => { probing = false }, 1000)
+  }
+  if (typeof ResizeObserver === 'function') new ResizeObserver(schedule).observe(root)
+  window.addEventListener('resize', schedule)
+  window.addEventListener('load', () => { schedule(); setTimeout(probe, 300); setTimeout(probe, 1500) })
+  document.addEventListener('fullscreenchange', () => { follows = 0; seenViewport = -1; schedule() })
+
+  // Visibility: on screen (not scrolled away, not in a folded card) and in a
+  // visible tab. Animation loops and timers can pause otherwise.
+  let onScreen = true
+  function updateVisible() {
+    const next = onScreen && document.visibilityState !== 'hidden'
+    if (next === visible) return
+    visible = next
+    emit('visibility', visible)
+  }
+  if (typeof IntersectionObserver === 'function') {
+    new IntersectionObserver((entries) => {
+      const last = entries[entries.length - 1]
+      if (last) { onScreen = last.isIntersecting; updateVisible() }
+    }).observe(root)
+  }
+  document.addEventListener('visibilitychange', updateVisible)
+
+  // Wheel: an inline visual sits in a scrolling chat, and one that zooms on
+  // the wheel (3D, maps, charts) would trap the page's scrolling. Its own
+  // wheel handlers run only after the user clicks into it (until the pointer
+  // leaves it) or with Ctrl/⌘ held (pinch zoom); otherwise the chat scrolls
+  // and the card shows a short hint.
+  if (inline) {
+    const addListener = EventTarget.prototype.addEventListener
+    const wheelTargets = new WeakSet<object>()
+    EventTarget.prototype.addEventListener = function (this: EventTarget, type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) {
+      if (type === 'wheel' || type === 'mousewheel' || type === 'DOMMouseScroll') wheelTargets.add(this)
+      return addListener.call(this, type, listener, options)
+    }
+    let engaged = false
+    let lastHint = 0
+    addListener.call(window, 'pointerdown', () => { engaged = true }, true)
+    addListener.call(window, 'blur', () => { engaged = false })
+    addListener.call(document, 'mouseout', (event) => { if (!(event as MouseEvent).relatedTarget) engaged = false }, true)
+    addListener.call(window, 'wheel', (event) => {
+      const wheel = event as WheelEvent
+      if (engaged || wheel.ctrlKey || wheel.metaKey || document.fullscreenElement) return
+      const handled = wheel.composedPath().some((node) => wheelTargets.has(node) || typeof (node as { onwheel?: unknown }).onwheel === 'function')
+      if (!handled) return
+      wheel.stopImmediatePropagation()
+      const now = Date.now()
+      if (now - lastHint > 2500) { lastHint = now; post({ type: 'hint', kind: 'wheel' }) }
+    }, { capture: true, passive: true })
+  }
+
+  // WebGL: a page keeps about 16 live contexts and the browser drops the
+  // oldest; the card then offers to restart the visual.
+  window.addEventListener('webglcontextlost', (event) => { if ((event.target as Node).isConnected) post({ type: 'gl', lost: true }) }, true)
+  window.addEventListener('webglcontextrestored', () => post({ type: 'gl', lost: false }), true)
 
   // Declarative helpers for the kit.
   function parseValue(raw: string | null): unknown {
@@ -262,6 +377,13 @@ export function frameRuntime(): void {
     if (send) { event.preventDefault(); lantern.send(send.getAttribute('data-lt-send') || '').catch(() => undefined); return }
     const expand = target.closest('[data-lt-expand]')
     if (expand) { event.preventDefault(); lantern.expand(); return }
+    const full = target.closest('[data-lt-fullscreen]')
+    if (full) {
+      event.preventDefault()
+      const request = document.fullscreenElement ? document.exitFullscreen() : root.requestFullscreen()
+      request.catch(() => undefined)
+      return
+    }
     const tab = target.closest('[role="tablist"] > [data-tab]')
     if (tab) {
       const tabs = tab.closest('[data-lt-tabs]')
@@ -284,6 +406,9 @@ export function frameRuntime(): void {
     const anchor = target.closest('a[href]') as HTMLAnchorElement | null
     if (anchor && !event.defaultPrevented) {
       const href = anchor.getAttribute('href') || ''
+      // A download link (say, a PNG made from a canvas as a blob: URL) saves a
+      // file and does not navigate; the sandbox allows downloads.
+      if (anchor.hasAttribute('download') && /^(blob|data):/i.test(anchor.href)) return
       if (href.startsWith('#')) {
         event.preventDefault()
         const dest = document.getElementById(decodeURIComponent(href.slice(1)))
@@ -336,18 +461,17 @@ export function frameRuntime(): void {
         })
       })
     }
-    if (typeof ResizeObserver === 'function') {
-      const observer = new ResizeObserver(schedule)
-      observer.observe(document.documentElement)
-      if (document.body) observer.observe(document.body)
-    }
-    window.addEventListener('load', schedule)
+    if (typeof ResizeObserver === 'function' && document.body) new ResizeObserver(schedule).observe(document.body)
+    started = true
     schedule()
     post({ type: 'ready' })
   }
 
   let errors = 0
   window.addEventListener('error', (event) => {
+    // Chrome reports a ResizeObserver callback that resized what it observes as an
+    // error event; the notifications are only deferred to the next frame, nothing failed.
+    if (/^ResizeObserver loop/.test(String(event.message))) return
     if (errors++ < 3) post({ type: 'error', message: String(event.message || 'Script error') })
   })
   window.addEventListener('unhandledrejection', (event) => {

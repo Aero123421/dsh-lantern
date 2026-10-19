@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<style>
+  body { padding: 16px 18px 24px; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  h1 { font-size: 17px; margin: 0; }
+  .sub { color: var(--lt-fg-2); font-size: 12.5px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; min-height: 28px; align-items: center; margin-bottom: 10px; font-size: 12.5px; color: var(--lt-fg-3); }
+  .chip { min-height: 26px; padding: 0 6px 0 10px; border-radius: 999px; font-size: 12px; background: var(--lt-surface-2); border-color: transparent; gap: 4px; }
+  .chip span { opacity: .55; font-size: 14px; line-height: 1; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .kpi { padding: 9px 11px; border-radius: 12px; background: var(--lt-surface); border: 1px solid var(--lt-border); }
+  .kpi .l { font-size: 11.5px; color: var(--lt-fg-2); }
+  .kpi .v { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.3; white-space: nowrap; }
+  .kpi .d { font-size: 11px; color: var(--lt-fg-3); font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .panel { border: 1px solid var(--lt-border); border-radius: 14px; padding: 10px 12px 8px; background: var(--lt-bg); min-width: 0; }
+  .panel.wide { grid-column: 1 / -1; }
+  .panel h2 { font-size: 13px; margin: 0 0 4px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .panel h2 small { font-weight: 400; color: var(--lt-fg-3); font-size: 11.5px; }
+  svg { display: block; width: 100%; overflow: visible; }
+  .axis text { fill: var(--lt-fg-3); font-size: 10.5px; font-family: var(--lt-font); }
+  .axis path, .axis line { stroke: var(--lt-border-strong); }
+  .gridline line { stroke: var(--lt-border); }
+  .gridline path { display: none; }
+  .bar { cursor: pointer; }
+  .bar .ghost { fill: color-mix(in srgb, var(--lt-fg) 7%, transparent); }
+  .bar text { font-size: 11.5px; fill: var(--lt-fg); }
+  .bar text.n { fill: var(--lt-fg-2); font-variant-numeric: tabular-nums; }
+  .bar.off rect.fill { opacity: .28; }
+  .bar:hover .ghost { fill: color-mix(in srgb, var(--lt-fg) 12%, transparent); }
+  .selection { fill: var(--lt-fg); fill-opacity: .07; stroke: var(--lt-fg-2); stroke-dasharray: 3 3; }
+  table { font-size: 12px; }
+  td, th { padding: 5px 8px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .stars { color: var(--lt-warning); letter-spacing: -1px; }
+  footer { margin-top: 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .note { font-size: 11.5px; color: var(--lt-fg-3); }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>2025 年 注文データ探索</h1><div class="sub">架空のオンラインストア · <span id="total"></span> 件の注文（サンプルデータ）</div></div>
+  <button class="small" id="clear">絞り込みを解除</button>
+</header>
+<div class="chips" id="chips"></div>
+<div class="kpis" id="kpis"></div>
+<div class="grid">
+  <section class="panel wide"><h2>週ごとの売上 <small>ドラッグで期間を選ぶ</small></h2><svg id="ts" height="150"></svg></section>
+  <section class="panel"><h2>単価と評価 <small>ドラッグで範囲を囲む</small></h2><svg id="sc" height="230"></svg></section>
+  <section class="panel"><h2>カテゴリ <small>クリックで絞り込み</small></h2><svg id="cat" height="230"></svg></section>
+  <section class="panel"><h2>地域 <small>クリックで絞り込み</small></h2><svg id="reg" height="200"></svg></section>
+  <section class="panel"><h2>配送日数と平均評価 <small>クリックで絞り込み</small></h2><svg id="del" height="200"></svg></section>
+  <section class="panel wide"><h2>該当する注文 <small id="rows-note"></small></h2><table id="table"></table></section>
+</div>
+<footer>
+  <span class="note">ほかのグラフで絞り込んだ結果が、すべてのグラフと数字に反映されます</span>
+  <button class="primary" id="ask">この条件で分析を依頼 ↗</button>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script>
+(() => {
+  // ── Sample data (deterministic) ─────────────────────────────────────────
+  let seed = 20250101
+  const rnd = () => (seed = (seed * 48271) % 2147483647) / 2147483647
+  const normal = () => Math.sqrt(-2 * Math.log(rnd() || 1e-9)) * Math.cos(2 * Math.PI * rnd())
+  const CATS = [['家電', 17000, 0.75, 0.13], ['本', 1700, 0.35, 0.2], ['ファッション', 4800, 0.55, 0.2], ['食品', 2600, 0.45, 0.18], ['日用品', 1300, 0.45, 0.18], ['おもちゃ', 3900, 0.55, 0.11]]
+  const REGIONS = [['北海道', 0.05, 1.6], ['東北', 0.07, 0.9], ['関東', 0.34, 0], ['中部', 0.17, 0.3], ['近畿', 0.18, 0.4], ['中国・四国', 0.08, 0.9], ['九州・沖縄', 0.11, 1.4]]
+  const pick = (list, wi) => { let u = rnd(), acc = 0; for (const x of list) { acc += x[wi]; if (u <= acc) return x } return list[list.length - 1] }
+  const start = Date.UTC(2025, 0, 1), DAY = 86400000
+  const dayW = Array.from({ length: 365 }, (_, d) => {
+    const t = new Date(start + d * DAY), wd = t.getUTCDay(), m = t.getUTCMonth(), dd = t.getUTCDate()
+    return 1 + (wd === 0 || wd === 6 ? 0.45 : 0) + (m === 11 ? 0.6 + Math.max(0, 1 - Math.abs(dd - 21) / 6) * 1.4 : 0) + (m === 6 && dd >= 10 && dd <= 14 ? 1.6 : 0) + (m === 0 && dd <= 3 ? -0.5 : 0) + 0.15 * Math.sin(d / 365 * Math.PI * 2)
+  })
+  const dayCum = []; dayW.reduce((a, w, i) => (dayCum[i] = a + w), 0)
+  const rows = []
+  for (let k = 0; k < 1200; k++) {
+    const u = rnd() * dayCum[364]
+    let lo = 0, hi = 364; while (lo < hi) { const m = (lo + hi) >> 1; dayCum[m] < u ? (lo = m + 1) : (hi = m) }
+    const c = pick(CATS.map((x) => [x, x[3]]), 1)[0], r = pick(REGIONS, 1)
+    const price = Math.round(Math.exp(Math.log(c[1]) + normal() * c[2]) / 10) * 10
+    const qty = 1 + (rnd() < 0.25 ? 1 : 0) + (rnd() < 0.08 ? 1 : 0)
+    const delivery = Math.max(1, Math.min(7, Math.round(1.6 + r[2] + Math.abs(normal()) * 1.3 + (lo > 340 ? 1 : 0))))
+    const rating = Math.max(1, Math.min(5, Math.round(4.65 - 0.42 * (delivery - 1) + normal() * 0.7 + (c[0] === '本' ? 0.2 : 0))))
+    rows.push({ id: k, day: lo, date: new Date(start + lo * DAY), cat: c[0], region: r[0], price, qty, amount: price * qty, delivery, rating, jitter: (rnd() - 0.5) * 0.62 })
+  }
+  rows.sort((a, b) => b.day - a.day || b.id - a.id)
+
+  // ── Filters (crossfilter: each view ignores its own filter) ─────────────
+  const saved = lantern.getState() || {}
+  const F = { time: saved.time || null, box: saved.box || null, cats: saved.cats || [], regions: saved.regions || [], deliv: saved.deliv || [] }
+  const pass = (r, except) =>
+    (except === 'time' || !F.time || (r.day >= F.time[0] && r.day <= F.time[1])) &&
+    (except === 'box' || !F.box || (r.price >= F.box[0] && r.price <= F.box[1] && r.rating >= F.box[2] && r.rating <= F.box[3])) &&
+    (except === 'cats' || !F.cats.length || F.cats.includes(r.cat)) &&
+    (except === 'regions' || !F.regions.length || F.regions.includes(r.region)) &&
+    (except === 'deliv' || !F.deliv.length || F.deliv.includes(r.delivery))
+
+  const $ = (id) => document.getElementById(id)
+  const yen = (v) => v >= 1e8 ? (v / 1e8).toFixed(2) + ' 億円' : v >= 1e5 ? Math.round(v / 1e4).toLocaleString('ja-JP') + ' 万円' : v >= 1e4 ? (v / 1e4).toFixed(1) + ' 万円' : Math.round(v).toLocaleString('ja-JP') + ' 円'
+  const fmtDay = (d) => { const t = new Date(start + d * DAY); return (t.getUTCMonth() + 1) + '/' + t.getUTCDate() }
+  let color = {}
+  function readColors() { const c = lantern.colors(); CATS.forEach((x, i) => { color[x[0]] = c[i] }) }
+  readColors()
+  $('total').textContent = rows.length.toLocaleString('ja-JP')
+
+  // ── KPIs and chips ──────────────────────────────────────────────────────
+  function kpis(sel) {
+    const all = rows, n = sel.length, sum = d3.sum(sel, (r) => r.amount), sumAll = d3.sum(all, (r) => r.amount)
+    const avg = n ? sum / d3.sum(sel, (r) => r.qty) : 0, rate = n ? d3.mean(sel, (r) => r.rating) : 0
+    const share = (a, b) => (b ? Math.round(a / b * 100) : 0) + '%'
+    $('kpis').innerHTML = [
+      ['注文数', n.toLocaleString('ja-JP') + ' 件', '全体の ' + share(n, all.length)],
+      ['売上', yen(sum), '全体の ' + share(sum, sumAll)],
+      ['平均単価', yen(avg), '全体 ' + yen(sumAll / d3.sum(all, (r) => r.qty))],
+      ['平均評価', n ? '★ ' + rate.toFixed(2) : '—', '全体 ★ ' + d3.mean(all, (r) => r.rating).toFixed(2)],
+    ].map(([l, v, d]) => '<div class="kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="d">' + d + '</div></div>').join('')
+  }
+  function chips() {
+    const list = []
+    if (F.time) list.push(['time', '期間 ' + fmtDay(F.time[0]) + '–' + fmtDay(F.time[1])])
+    if (F.box) list.push(['box', '単価 ' + yen(F.box[0]) + '–' + yen(F.box[1]) + ' · ★' + F.box[2] + '–' + F.box[3]])
+    if (F.cats.length) list.push(['cats', F.cats.join('・')])
+    if (F.regions.length) list.push(['regions', F.regions.join('・')])
+    if (F.deliv.length) list.push(['deliv', '配送 ' + F.deliv.sort((a, b) => a - b).join('・') + ' 日'])
+    $('chips').innerHTML = list.length ? list.map(([k, t]) => '<button class="chip" data-k="' + k + '">' + t + '<span>×</span></button>').join('') : '絞り込みなし — グラフをドラッグ・クリックして条件を作ります'
+  }
+  $('chips').addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (!b) return; clearFilter(b.dataset.k); update() })
+  function clearFilter(k) {
+    if (k === 'time') { F.time = null; tsBrushG && tsBrushG.call(tsBrush.move, null) }
+    else if (k === 'box') { F.box = null; scBrushG && scBrushG.call(scBrush.move, null) }
+    else F[k] = []
+  }
+  $('clear').addEventListener('click', () => { ['time', 'box', 'cats', 'regions', 'deliv'].forEach(clearFilter); update() })
+
+  // ── Charts ──────────────────────────────────────────────────────────────
+  const size = (svg) => [svg.node().clientWidth, +svg.attr('height')]
+  let tsBrush, tsBrushG, tsBars, paintTs = () => {}, scBrush, scBrushG, silent = false
+
+  function drawTs() {
+    const svg = d3.select('#ts'), [W, H] = size(svg), m = { l: 44, r: 8, t: 8, b: 20 }
+    svg.selectAll('*').remove()
+    // Weekly bars (week k covers days 7k…7k+6); the brush snaps to whole days.
+    const x = d3.scaleLinear([0, 365], [m.l, W - m.r]), byWeek = (sel) => { const a = new Array(53).fill(0); sel.forEach((r) => { a[Math.floor(r.day / 7)] += r.amount }); return a }
+    const all = byWeek(rows), sel = byWeek(rows.filter((r) => pass(r, 'time')))
+    const y = d3.scaleLinear([0, d3.max(all) * 1.05], [H - m.b, m.t]).nice()
+    svg.append('g').attr('class', 'gridline').attr('transform', 'translate(' + m.l + ',0)').call(d3.axisLeft(y).ticks(4).tickSize(-(W - m.l - m.r)).tickFormat(''))
+    const months = d3.range(12).map((k) => Math.round((Date.UTC(2025, k, 1) - start) / DAY))
+    svg.append('g').attr('class', 'axis').attr('transform', 'translate(0,' + (H - m.b) + ')').call(d3.axisBottom(x).tickValues(months).tickFormat((d) => (new Date(start + d * DAY).getUTCMonth() + 1) + '月').tickSizeOuter(0))
+    svg.append('g').attr('class', 'axis').attr('transform', 'translate(' + m.l + ',0)').call(d3.axisLeft(y).ticks(4).tickFormat((v) => (v / 1e4) + '万').tickSizeOuter(0))
+    const bw = Math.max(1, x(7) - x(0) - 1.5), c0 = lantern.colors()[0]
+    const inTime = (k) => !F.time || (k * 7 + 6 >= F.time[0] && k * 7 <= F.time[1])
+    svg.append('g').selectAll('rect').data(all).join('rect').attr('x', (d, k) => x(k * 7) + 0.75).attr('width', bw).attr('y', (d) => y(d)).attr('height', (d) => y(0) - y(d)).attr('rx', 2).attr('fill', 'color-mix(in srgb, var(--lt-fg) 8%, transparent)')
+    tsBars = svg.append('g').selectAll('rect').data(sel).join('rect').attr('x', (d, k) => x(k * 7) + 0.75).attr('width', bw).attr('y', (d) => y(d)).attr('height', (d) => y(0) - y(d)).attr('rx', 2).attr('fill', c0)
+    paintTs = () => tsBars.attr('fill-opacity', (d, k) => (inTime(k) ? 0.85 : 0.25))
+    paintTs()
+    tsBrush = d3.brushX().extent([[m.l, m.t], [W - m.r, H - m.b]]).on('brush end', (e) => {
+      if (silent) return
+      F.time = e.selection ? [Math.max(0, Math.round(x.invert(e.selection[0]))), Math.min(364, Math.round(x.invert(e.selection[1])))] : null
+      update('ts')
+    })
+    tsBrushG = svg.append('g').call(tsBrush)
+    if (F.time) { silent = true; tsBrushG.call(tsBrush.move, [x(F.time[0]), x(F.time[1])]); silent = false }
+  }
+
+  let scDots
+  function drawSc() {
+    const svg = d3.select('#sc'), [W, H] = size(svg), m = { l: 34, r: 8, t: 8, b: 22 }
+    svg.selectAll('*').remove()
+    const x = d3.scaleLog([200, 200000], [m.l, W - m.r]).clamp(true), y = d3.scaleLinear([0.5, 5.5], [H - m.b, m.t])
+    svg.append('g').attr('class', 'gridline').attr('transform', 'translate(' + m.l + ',0)').call(d3.axisLeft(y).tickValues([1, 2, 3, 4, 5]).tickSize(-(W - m.l - m.r)).tickFormat(''))
+    svg.append('g').attr('class', 'axis').attr('transform', 'translate(0,' + (H - m.b) + ')').call(d3.axisBottom(x).tickValues([300, 1000, 3000, 10000, 30000, 100000]).tickFormat((v) => v >= 10000 ? v / 10000 + '万' : v.toLocaleString()).tickSizeOuter(0))
+    svg.append('g').attr('class', 'axis').attr('transform', 'translate(' + m.l + ',0)').call(d3.axisLeft(y).tickValues([1, 2, 3, 4, 5]).tickFormat((v) => '★' + v).tickSizeOuter(0))
+    scDots = svg.append('g').selectAll('circle').data(rows).join('circle').attr('cx', (r) => x(r.price)).attr('cy', (r) => y(r.rating + r.jitter)).attr('r', 2.6).attr('fill', (r) => color[r.cat])
+    scBrush = d3.brush().extent([[m.l, m.t], [W - m.r, H - m.b]]).on('brush end', (e) => {
+      if (silent) return
+      if (!e.selection) F.box = null
+      else { const [[x0, y0], [x1, y1]] = e.selection; F.box = [Math.round(x.invert(x0)), Math.round(x.invert(x1)), Math.max(1, Math.ceil(y.invert(y1) - 0.31)), Math.min(5, Math.floor(y.invert(y0) + 0.31))] }
+      update('sc')
+    })
+    scBrushG = svg.append('g').call(scBrush)
+    if (F.box) { silent = true; scBrushG.call(scBrush.move, [[x(F.box[0]), y(F.box[3] + 0.31)], [x(F.box[1]), y(F.box[2] - 0.31)]]); silent = false }
+    paintSc()
+  }
+  function paintSc() { scDots.attr('fill-opacity', (r) => (pass(r) ? 0.85 : pass(r, 'box') ? 0.22 : 0.06)) }
+
+  function bars(id, key, keys, label, colorOf, filterKey) {
+    const svg = d3.select('#' + id), [W, H] = size(svg)
+    svg.selectAll('*').remove()
+    const total = d3.rollup(rows, (v) => v.length, (r) => r[key]), sel = d3.rollup(rows.filter((r) => pass(r, filterKey)), (v) => v.length, (r) => r[key])
+    const max = d3.max(keys, (k) => total.get(k) || 0), rowH = Math.min(30, H / keys.length), lw = 86
+    const x = d3.scaleLinear([0, max], [0, W - lw - 44])
+    const g = svg.selectAll('g').data(keys).join('g').attr('class', (k) => 'bar' + (F[filterKey].length && !F[filterKey].includes(k) ? ' off' : '')).attr('transform', (k, i) => 'translate(0,' + (i * rowH) + ')')
+    g.append('rect').attr('class', 'ghost').attr('x', lw).attr('y', 4).attr('height', rowH - 8).attr('rx', 4).attr('width', (k) => x(total.get(k) || 0))
+    g.append('rect').attr('class', 'fill').attr('x', lw).attr('y', 4).attr('height', rowH - 8).attr('rx', 4).attr('width', (k) => x(sel.get(k) || 0)).attr('fill', colorOf)
+    g.append('text').attr('x', 0).attr('y', rowH / 2 + 4).text((k) => label(k))
+    g.append('text').attr('class', 'n').attr('x', (k) => lw + x(total.get(k) || 0) + 6).attr('y', rowH / 2 + 4).text((k) => (sel.get(k) || 0))
+    g.append('rect').attr('width', W).attr('height', rowH).attr('fill', 'transparent')
+    g.on('click', (e, k) => { F[filterKey] = F[filterKey].includes(k) ? F[filterKey].filter((v) => v !== k) : [...F[filterKey], k]; update() })
+  }
+  function drawDel() {
+    const svg = d3.select('#del'), [W, H] = size(svg), m = { l: 8, r: 8, t: 18, b: 22 }
+    svg.selectAll('*').remove()
+    const sel = rows.filter((r) => pass(r, 'deliv')), days = d3.range(1, 8)
+    const cnt = d3.rollup(sel, (v) => v.length, (r) => r.delivery), rate = d3.rollup(sel, (v) => d3.mean(v, (r) => r.rating), (r) => r.delivery)
+    const x = d3.scaleBand(days, [m.l, W - m.r]).padding(0.22), y = d3.scaleLinear([0, d3.max(days, (d) => cnt.get(d) || 0) || 1], [H - m.b, m.t])
+    const css = getComputedStyle(document.documentElement), good = css.getPropertyValue('--lt-success').trim() || '#22c55e', bad = css.getPropertyValue('--lt-danger').trim() || '#ec1313'
+    const tone = d3.scaleLinear([2.2, 3.4, 4.6], [bad, css.getPropertyValue('--lt-warning').trim() || '#f59e0b', good]).clamp(true)
+    svg.append('g').attr('class', 'axis').attr('transform', 'translate(0,' + (H - m.b) + ')').call(d3.axisBottom(x).tickFormat((d) => d + '日').tickSizeOuter(0))
+    const g = svg.selectAll('.bar').data(days).join('g').attr('class', (d) => 'bar' + (F.deliv.length && !F.deliv.includes(d) ? ' off' : ''))
+    g.append('rect').attr('class', 'fill').attr('x', (d) => x(d)).attr('width', x.bandwidth()).attr('y', (d) => y(cnt.get(d) || 0)).attr('height', (d) => y(0) - y(cnt.get(d) || 0)).attr('rx', 4).attr('fill', (d) => (rate.has(d) ? tone(rate.get(d)) : 'transparent'))
+    g.append('text').attr('class', 'n').attr('text-anchor', 'middle').attr('x', (d) => x(d) + x.bandwidth() / 2).attr('y', (d) => y(cnt.get(d) || 0) - 4).text((d) => (rate.has(d) ? '★' + rate.get(d).toFixed(1) : ''))
+    g.append('rect').attr('x', (d) => x(d)).attr('width', x.bandwidth()).attr('y', m.t).attr('height', H - m.t - m.b).attr('fill', 'transparent')
+    g.on('click', (e, d) => { F.deliv = F.deliv.includes(d) ? F.deliv.filter((v) => v !== d) : [...F.deliv, d]; update() })
+  }
+  function table(sel) {
+    $('rows-note').textContent = sel.length ? '新しい順に 6 件 / ' + sel.length.toLocaleString('ja-JP') + ' 件' : '条件に合う注文はありません'
+    $('table').innerHTML = '<tr><th>日付</th><th>カテゴリ</th><th>地域</th><th style="text-align:right">金額</th><th>配送</th><th>評価</th></tr>' + sel.slice(0, 6).map((r) =>
+      '<tr><td>' + fmtDay(r.day) + '</td><td><span class="dot" style="background:' + color[r.cat] + '"></span>' + r.cat + '</td><td>' + r.region + '</td><td class="num">' + r.amount.toLocaleString('ja-JP') + ' 円</td><td>' + r.delivery + ' 日</td><td class="stars">' + '★'.repeat(r.rating) + '<span style="opacity:.25">' + '★'.repeat(5 - r.rating) + '</span></td></tr>').join('')
+  }
+
+  // ── Update loop ─────────────────────────────────────────────────────────
+  let saveTimer = 0
+  function update(from) {
+    const sel = rows.filter((r) => pass(r))
+    kpis(sel); chips(); table(sel)
+    // A view being brushed keeps its DOM (and its brush); it only depends on the other filters.
+    if (from !== 'ts') drawTs(); else paintTs()
+    if (from !== 'sc') drawSc(); else paintSc()
+    bars('cat', 'cat', CATS.map((c) => c[0]), (k) => k, (k) => color[k], 'cats')
+    bars('reg', 'region', REGIONS.map((r) => r[0]), (k) => k, () => lantern.colors()[5], 'regions')
+    drawDel()
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => lantern.setState({ time: F.time, box: F.box, cats: F.cats, regions: F.regions, deliv: F.deliv }), 300)
+  }
+
+  $('ask').addEventListener('click', () => {
+    const sel = rows.filter((r) => pass(r)), parts = $('chips').innerText.replace(/×/g, '').trim()
+    const top = d3.rollups(sel, (v) => d3.sum(v, (r) => r.amount), (r) => r.cat).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => k + ' ' + yen(v)).join('、')
+    lantern.send('注文データを「' + (F.time || F.box || F.cats.length || F.regions.length || F.deliv.length ? parts.replace(/\s+/g, ' / ') : '絞り込みなし') + '」で絞り込みました。該当 ' + sel.length + ' 件、売上 ' + yen(d3.sum(sel, (r) => r.amount)) + '、平均評価 ' + (sel.length ? d3.mean(sel, (r) => r.rating).toFixed(2) : '—') + '、売上上位カテゴリは ' + top + '。この傾向から何が言えるか分析して').catch(() => {})
+  })
+  lantern.on('theme', () => { readColors(); update() })
+  let lastW = 0
+  // Redraw in the next frame: redrawing inside the observer callback would resize what it observes.
+  new ResizeObserver(() => requestAnimationFrame(() => { const w = document.body.clientWidth; if (Math.abs(w - lastW) > 4) { lastW = w; update() } })).observe(document.body)
+})()
+</script>
+</body>
+</html>

@@ -1,0 +1,472 @@
+<style>
+  :root { --stage-a: #ffffff; --stage-b: #e9edf3; --glass: color-mix(in srgb, var(--lt-bg) 80%, transparent); }
+  :root[data-theme="dark"] { --stage-a: #262931; --stage-b: #111215; }
+  .mv { display: grid; gap: 10px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .title { display: flex; align-items: baseline; gap: 8px; }
+  .title b { font-size: 15px; }
+  .title span { color: var(--lt-fg-2); font-size: 12.5px; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--lt-surface); border: 1px solid var(--lt-border); border-radius: 10px; flex-wrap: wrap; }
+  .seg button { min-height: 28px; padding: 0 10px; border: 0; background: transparent; border-radius: 7px; font-size: 12.5px; color: var(--lt-fg-2); }
+  .seg button:hover { background: transparent; color: var(--lt-fg); }
+  .seg button[aria-pressed="true"] { background: var(--lt-bg); color: var(--lt-fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px var(--lt-border-strong); }
+  .stage { position: relative; height: 410px; border-radius: 14px; overflow: hidden; border: 1px solid var(--lt-border-strong);
+    background: radial-gradient(120% 100% at 28% 18%, var(--stage-a), var(--stage-b)); cursor: grab; user-select: none; }
+  .stage.dragging { cursor: grabbing; }
+  .stage.over-atom { cursor: pointer; }
+  .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .glass { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--lt-border-strong); border-radius: 10px; }
+  .formula { position: absolute; left: 12px; top: 12px; padding: 7px 11px; line-height: 1.35; pointer-events: none; }
+  .formula b { font-size: 16px; letter-spacing: .01em; }
+  .formula small { display: block; font-size: 11.5px; color: var(--lt-fg-2); }
+  .tools { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; }
+  .tools .seg { background: var(--glass); backdrop-filter: blur(8px); border-color: var(--lt-border-strong); }
+  .icon { width: 36px; min-height: 36px; padding: 0; border-radius: 10px; background: var(--glass); backdrop-filter: blur(8px); border-color: var(--lt-border-strong); color: var(--lt-fg-2); }
+  .icon:hover { color: var(--lt-fg); background: var(--glass); }
+  .icon[aria-pressed="true"] { color: var(--lt-fg); box-shadow: inset 0 0 0 1.5px var(--lt-fg-3); }
+  .icon svg { width: 17px; height: 17px; }
+  .hint { position: absolute; left: 12px; bottom: 12px; padding: 5px 10px; font-size: 11.5px; color: var(--lt-fg-2); pointer-events: none; transition: opacity .4s ease; }
+  .tip { position: absolute; left: 0; top: 0; padding: 7px 10px; font-size: 12px; line-height: 1.45; pointer-events: none; opacity: 0;
+    transition: opacity .12s ease; white-space: nowrap; box-shadow: var(--lt-shadow); }
+  .tip b { font-size: 13px; }
+  .tip .el { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; box-shadow: 0 0 0 1px var(--lt-border-strong); }
+  .labels { position: absolute; inset: 0; pointer-events: none; }
+  .label { position: absolute; transform: translate(-50%, -50%); padding: 2px 7px; border-radius: 999px; font: 600 11.5px var(--lt-font-mono);
+    background: var(--lt-fg); color: var(--lt-bg); white-space: nowrap; }
+  .label.pick { background: var(--lt-series-3); color: #fff; font-family: var(--lt-font); padding: 1px 6px; }
+  .bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; flex-wrap: wrap; }
+  .readout { font-size: 13px; color: var(--lt-fg-2); }
+  .readout b { color: var(--lt-fg); font-variant-numeric: tabular-nums; }
+  .legend { display: inline-flex; gap: 12px; margin-left: 4px; }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; box-shadow: 0 0 0 1px var(--lt-border-strong); }
+  :root[data-lt-mode="panel"] .stage { height: calc(100vh - 140px); min-height: 360px; }
+  :root:fullscreen body { padding: 16px; }
+  :root:fullscreen .stage { height: calc(100vh - 130px); }
+</style>
+
+<div class="mv">
+  <div class="top">
+    <div class="title"><b>分子ビューア</b></div>
+    <div class="seg" id="mols" role="group" aria-label="分子"></div>
+  </div>
+  <div class="stage" id="stage">
+    <div class="formula glass" id="formula"></div>
+    <div class="tools">
+      <div class="seg" id="modes" role="group" aria-label="表示">
+        <button data-mode="ball" aria-pressed="true">球棒</button><button data-mode="space">空間充填</button><button data-mode="stick">棒</button>
+      </div>
+      <button class="icon" id="spin" title="自動回転" aria-label="自動回転"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16 3.5v3.2h-3.2"/></svg></button>
+      <button class="icon" id="reset" title="視点を戻す" aria-label="視点を戻す"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="10" r="2.2"/><path d="M10 2.5v3M10 14.5v3M2.5 10h3M14.5 10h3"/></svg></button>
+      <button class="icon" data-lt-fullscreen title="全画面" aria-label="全画面"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4"/></svg></button>
+    </div>
+    <div class="labels" id="labels"></div>
+    <div class="tip glass" id="tip"></div>
+    <div class="hint glass" id="hint">ドラッグで回転 · 原子をクリックで距離と角度を計測</div>
+  </div>
+  <div class="bottom">
+    <div class="readout" id="readout"></div>
+    <button class="small" id="ask">この分子を解説して ↗</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+
+const $ = (id) => document.getElementById(id)
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+
+// ── Elements and molecules ───────────────────────────────────────────────
+const EL = {
+  H: { name: '水素', mass: 1.008, vdw: 1.20, light: '#f4f5f8', dark: '#eef0f4' },
+  C: { name: '炭素', mass: 12.011, vdw: 1.70, light: '#40444d', dark: '#8f96a3' },
+  N: { name: '窒素', mass: 14.007, vdw: 1.55, light: '#3d6be8', dark: '#7d9dff' },
+  O: { name: '酸素', mass: 15.999, vdw: 1.52, light: '#e2483d', dark: '#ff7468' },
+}
+const V = {
+  add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+  mul: (a, k) => [a[0] * k, a[1] * k, a[2] * k], dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+  cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+  norm: (a) => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l] },
+}
+const RAD = Math.PI / 180
+// Place D bonded to C with angle B–C–D and torsion A–B–C–D (NeRF).
+function place(A, B, C, bond, angle, torsion) {
+  const bc = V.norm(V.sub(C, B)), n = V.norm(V.cross(V.sub(B, A), bc)), m = V.cross(n, bc)
+  const d = [-bond * Math.cos(angle * RAD), bond * Math.sin(angle * RAD) * Math.cos(torsion * RAD), bond * Math.sin(angle * RAD) * Math.sin(torsion * RAD)]
+  return V.add(C, V.add(V.mul(bc, d[0]), V.add(V.mul(m, d[1]), V.mul(n, d[2]))))
+}
+function methyl(atoms, onto, carbon, inPlane) {
+  for (const t of [180, 60, -60]) atoms.push({ el: 'H', p: place(inPlane, onto, carbon, 1.09, 109.5, t) })
+}
+const MOLS = {
+  water: { name: '水', about: '折れ曲がった形（H–O–H 約 104.5°）。この非対称さが極性を生みます', build() {
+    const a = 104.5 / 2 * RAD
+    return { atoms: [{ el: 'O', p: [0, 0.12, 0] }, { el: 'H', p: [0.96 * Math.sin(a), 0.12 - 0.96 * Math.cos(a), 0] }, { el: 'H', p: [-0.96 * Math.sin(a), 0.12 - 0.96 * Math.cos(a), 0] }] }
+  } },
+  methane: { name: 'メタン', about: '正四面体。どの H–C–H も 109.5° です', build() {
+    const k = 1.09 / Math.sqrt(3)
+    return { atoms: [{ el: 'C', p: [0, 0, 0] }, ...[[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]].map((v) => ({ el: 'H', p: V.mul(v, k) }))] }
+  } },
+  ethanol: { name: 'エタノール', about: 'C–C–O の骨格。端の OH 基が水素結合をつくります', build() {
+    const C1 = [0, 0, 0], C2 = [1.52, 0, 0], O = [1.52 + 1.43 * 0.334, 1.43 * 0.943, 0]
+    const atoms = [{ el: 'C', p: C1 }, { el: 'C', p: C2 }, { el: 'O', p: O }, { el: 'H', p: place(C1, C2, O, 0.96, 108.5, 180) }]
+    for (const t of [180, 60, -60]) atoms.push({ el: 'H', p: place(O, C2, C1, 1.09, 109.5, t) })
+    for (const t of [120, -120]) atoms.push({ el: 'H', p: place(O, C1, C2, 1.09, 109.5, t) })
+    return { atoms }
+  } },
+  benzene: { name: 'ベンゼン', about: '6 個の炭素が平面の正六角形に並ぶ芳香環です', build() {
+    const atoms = []
+    for (let i = 0; i < 6; i++) atoms.push({ el: 'C', p: [1.397 * Math.cos(i * 60 * RAD), 1.397 * Math.sin(i * 60 * RAD), 0] })
+    for (let i = 0; i < 6; i++) atoms.push({ el: 'H', p: [2.484 * Math.cos(i * 60 * RAD), 2.484 * Math.sin(i * 60 * RAD), 0] })
+    return { atoms, double: [[0, 1], [2, 3], [4, 5]] }
+  } },
+  caffeine: { name: 'カフェイン', about: 'プリン骨格に 3 つのメチル基。環の部分はほぼ平面です', build() {
+    // Purine skeleton: a hexagon (N1 C2 N3 C4 C5 C6) fused with a pentagon (C4 C5 N7 C8 N9).
+    const b = 1.40, hex = (deg) => [b * Math.cos(deg * RAD), b * Math.sin(deg * RAD), 0]
+    const N1 = hex(150), C2 = hex(210), N3 = hex(270), C4 = hex(330), C5 = hex(30), C6 = hex(90)
+    const pc = [b * Math.cos(30 * RAD) + b / (2 * Math.tan(36 * RAD)), 0, 0], R5 = b / (2 * Math.sin(36 * RAD))
+    const pent = (deg) => [pc[0] + R5 * Math.cos(deg * RAD), R5 * Math.sin(deg * RAD), 0]
+    const N7 = pent(72), C8 = pent(0), N9 = pent(-72)
+    const out = (p, c, len) => V.add(p, V.mul(V.norm(V.sub(p, c)), len))
+    const atoms = [N1, C2, N3, C4, C5, C6, N7, C8, N9].map((p, i) => ({ el: 'NCNCCCNCN'[i], p }))
+    const O2 = out(C2, [0, 0, 0], 1.23), O6 = out(C6, [0, 0, 0], 1.23)
+    atoms.push({ el: 'O', p: O2 }, { el: 'O', p: O6 }, { el: 'H', p: out(C8, pc, 1.08) })
+    for (const [n, c, ref] of [[N1, [0, 0, 0], C2], [N3, [0, 0, 0], C2], [N7, pc, C8]]) {
+      const m = out(n, c, 1.47)
+      atoms.push({ el: 'C', p: m })
+      methyl(atoms, n, m, ref)
+    }
+    return { atoms, double: [[1, 9], [5, 10], [3, 4], [7, 8]] }
+  } },
+  c60: { name: 'フラーレン', about: '60 個の炭素が五員環 12 個と六員環 20 個をつくるサッカーボール形', build() {
+    const f = (1 + Math.sqrt(5)) / 2, s = 0.71, pts = []
+    const seeds = [[0, 1, 3 * f], [1, 2 + f, 2 * f], [f, 2, 2 * f + 1]]
+    for (const [x, y, z] of seeds) for (const sx of [1, -1]) for (const sy of [1, -1]) for (const sz of [1, -1]) {
+      const v = [x * sx, y * sy, z * sz]
+      for (let r = 0; r < 3; r++) {
+        const p = [v[r % 3], v[(r + 1) % 3], v[(r + 2) % 3]].map((c) => c * s)
+        if (!pts.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]) < 1e-6)) pts.push(p)
+      }
+    }
+    return { atoms: pts.map((p) => ({ el: 'C', p })) }
+  } },
+}
+const ORDER = ['water', 'methane', 'ethanol', 'benzene', 'caffeine', 'c60']
+
+function analyse(id) {
+  const mol = MOLS[id], data = mol.build()
+  const atoms = data.atoms
+  const center = V.mul(atoms.reduce((s, a) => V.add(s, a.p), [0, 0, 0]), 1 / atoms.length)
+  atoms.forEach((a) => { a.p = V.sub(a.p, center) })
+  const counts = {}
+  atoms.forEach((a) => { counts[a.el] = (counts[a.el] || 0) + 1; a.label = a.el + counts[a.el] })
+  const double = new Set((data.double || []).map(([i, j]) => i + '-' + j))
+  const bonds = []
+  for (let i = 0; i < atoms.length; i++) for (let j = i + 1; j < atoms.length; j++) {
+    const d = Math.hypot(...V.sub(atoms[i].p, atoms[j].p))
+    const hydrogen = atoms[i].el === 'H' || atoms[j].el === 'H'
+    if (d < (hydrogen ? 1.25 : 1.62)) bonds.push({ i, j, order: double.has(i + '-' + j) || double.has(j + '-' + i) ? 2 : 1 })
+  }
+  atoms.forEach((a, i) => { a.degree = bonds.filter((b) => b.i === i || b.j === i).length })
+  const hill = Object.keys(counts).sort((a, b) => (a === 'C' ? -1 : b === 'C' ? 1 : a === 'H' ? -1 : b === 'H' ? 1 : a.localeCompare(b)))
+  const formula = hill.map((e) => e + (counts[e] > 1 ? '<sub>' + counts[e] + '</sub>' : '')).join('')
+  const mass = atoms.reduce((s, a) => s + EL[a.el].mass, 0)
+  const radius = Math.max(...atoms.map((a) => Math.hypot(...a.p))) + 1.2
+  return { id, name: mol.name, about: mol.about, atoms, bonds, formula, mass, radius }
+}
+
+// ── Theme ────────────────────────────────────────────────────────────────
+const probe = document.createElement('i'); probe.style.display = 'none'; document.body.append(probe)
+const pix = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
+function token(name) { // any CSS color token → '#rrggbb' (handles color-mix and var())
+  probe.style.color = 'var(' + name + ')'
+  pix.clearRect(0, 0, 1, 1); pix.fillStyle = getComputedStyle(probe).color; pix.fillRect(0, 0, 1, 1)
+  const d = pix.getImageData(0, 0, 1, 1).data
+  return '#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join('')
+}
+const dark = () => document.documentElement.dataset.theme === 'dark'
+
+// ── Scene ────────────────────────────────────────────────────────────────
+const stage = $('stage')
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+renderer.toneMapping = THREE.NeutralToneMapping
+stage.prepend(renderer.domElement)
+const scene = new THREE.Scene()
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture
+const key = new THREE.DirectionalLight(0xffffff, 1.6)
+key.position.set(-4, 6, 8)
+scene.add(key)
+const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 200)
+const controls = new OrbitControls(camera, renderer.domElement)
+controls.enableDamping = true
+controls.dampingFactor = 0.09
+controls.autoRotateSpeed = 1.4
+controls.enablePan = false
+
+const group = new THREE.Group()
+scene.add(group)
+const sphere = new THREE.SphereGeometry(1, 40, 28)
+const cylinder = new THREE.CylinderGeometry(1, 1, 1, 20, 1, true)
+const halo = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.32, depthWrite: false, side: THREE.BackSide })
+const pickHalo = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5, depthWrite: false, side: THREE.BackSide })
+const lineMat = new THREE.LineDashedMaterial({ dashSize: 0.16, gapSize: 0.1, depthTest: false, transparent: true })
+const materials = {}
+function material(el) { return (materials[el] ||= new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.0, envMapIntensity: 0.9 })) }
+function applyTheme() {
+  for (const el of Object.keys(EL)) material(el).color.set(EL[el][dark() ? 'dark' : 'light'])
+  material('H').roughness = 0.4
+  halo.color.set(token('--lt-series-1'))
+  pickHalo.color.set(token('--lt-series-3'))
+  lineMat.color.set(token('--lt-fg'))
+  key.intensity = dark() ? 1.9 : 1.5
+  renderer.toneMappingExposure = dark() ? 1.05 : 1.0
+  requestRender()
+}
+
+let mol, atomMeshes = [], bondMeshes = [], hoverMesh = null
+const S = Object.assign({ mol: 'caffeine', mode: 'ball', spin: !reduced, picks: [] }, lantern.getState() || {})
+const radiusOf = (el, mode) => mode === 'space' ? EL[el].vdw * 0.92 : mode === 'stick' ? 0.15 : EL[el].vdw * 0.21
+const BOND_R = { ball: 0.085, stick: 0.15, space: 0 }
+
+function build(id, keepView) {
+  mol = analyse(id)
+  group.clear()
+  group.add(pickGroup)
+  atomMeshes = mol.atoms.map((a, index) => {
+    const m = new THREE.Mesh(sphere, material(a.el))
+    m.position.set(...a.p)
+    m.userData = { index, r: radiusOf(a.el, S.mode) }
+    m.scale.setScalar(m.userData.r)
+    group.add(m)
+    return m
+  })
+  bondMeshes = []
+  const up = new THREE.Vector3(0, 1, 0)
+  for (const b of mol.bonds) {
+    const A = new THREE.Vector3(...mol.atoms[b.i].p), B = new THREE.Vector3(...mol.atoms[b.j].p)
+    const dir = B.clone().sub(A), len = dir.length()
+    dir.normalize()
+    // Offset for double bonds: in the plane of a neighbouring atom.
+    let side = new THREE.Vector3(0, 0, 1)
+    const nb = mol.bonds.find((o) => o !== b && (o.i === b.i || o.j === b.i || o.i === b.j || o.j === b.j))
+    if (nb) {
+      const shared = nb.i === b.i || nb.j === b.i ? b.i : b.j
+      const other = nb.i === shared ? nb.j : nb.i
+      side = new THREE.Vector3(...mol.atoms[other].p).sub(new THREE.Vector3(...mol.atoms[shared].p))
+    }
+    side.sub(dir.clone().multiplyScalar(side.dot(dir))).normalize()
+    const lanes = b.order === 2 ? [-1, 1] : [0]
+    for (const lane of lanes) for (const [from, el, t0] of [[A, mol.atoms[b.i].el, 0], [A, mol.atoms[b.j].el, 0.5]]) {
+      const m = new THREE.Mesh(cylinder, material(el))
+      m.quaternion.setFromUnitVectors(up, dir)
+      m.userData = { lane, len: len / 2, base: from.clone().addScaledVector(dir, len * (t0 + 0.25)), side: side.clone() }
+      group.add(m)
+      bondMeshes.push(m)
+    }
+  }
+  styleBonds()
+  $('formula').innerHTML = '<b>' + mol.formula + '</b><small>' + mol.name + ' · ' + mol.mass.toFixed(2) + ' g/mol · 原子 ' + mol.atoms.length + '</small>'
+  $('ask').textContent = S.picks.length >= 2 ? 'この計測について質問 ↗' : mol.name + 'を解説して ↗'
+  const dist = mol.radius / Math.sin((camera.fov / 2) * RAD) * 1.0
+  controls.minDistance = dist * 0.35
+  controls.maxDistance = dist * 2.5
+  if (!keepView) {
+    controls.target.set(0, 0, 0)
+    camera.position.set(0.35, 0.25, 1).normalize().multiplyScalar(dist)
+  }
+  if (!reduced) group.scale.setScalar(0.82)
+  updatePicks()
+  requestRender()
+}
+function styleBonds() {
+  for (const m of bondMeshes) {
+    const r = BOND_R[S.mode] * (m.userData.lane ? 0.62 : 1)
+    m.visible = S.mode !== 'space' && !(S.mode === 'stick' && m.userData.lane > 0)
+    m.scale.set(S.mode === 'stick' ? BOND_R.stick : r, m.userData.len, S.mode === 'stick' ? BOND_R.stick : r)
+    m.position.copy(m.userData.base).addScaledVector(m.userData.side, S.mode === 'stick' ? 0 : m.userData.lane * 0.11)
+  }
+}
+
+// ── Measuring and hover ──────────────────────────────────────────────────
+const tip = $('tip'), labels = $('labels')
+const pickGroup = new THREE.Group()
+function updatePicks() {
+  pickGroup.clear()
+  S.picks = S.picks.filter((i) => i < mol.atoms.length)
+  const P = S.picks.map((i) => new THREE.Vector3(...mol.atoms[i].p))
+  S.picks.forEach((i) => {
+    const h = new THREE.Mesh(sphere, pickHalo)
+    h.position.copy(P[S.picks.indexOf(i)])
+    h.scale.setScalar(S.mode === 'space' ? radiusOf(mol.atoms[i].el, S.mode) * 1.05 : Math.max(radiusOf(mol.atoms[i].el, S.mode), 0.2) * 1.45 + 0.08)
+    pickGroup.add(h)
+  })
+  if (P.length >= 2) {
+    const g = new THREE.BufferGeometry().setFromPoints(P)
+    const line = new THREE.Line(g, lineMat)
+    line.computeLineDistances()
+    line.renderOrder = 5
+    pickGroup.add(line)
+  }
+  const names = S.picks.map((i) => mol.atoms[i].label)
+  let text = mol.about
+  if (P.length === 1) text = '<b>' + names[0] + '</b>（' + EL[mol.atoms[S.picks[0]].el].name + '）を選択中。もう 1 つクリック'
+  if (P.length === 2) text = names.join('–') + ' の距離 <b>' + P[0].distanceTo(P[1]).toFixed(2) + ' Å</b>'
+  if (P.length === 3) text = names.join('–') + ' の角度 <b>' + angleAt(P).toFixed(1) + '°</b>'
+  $('readout').innerHTML = text
+  $('ask').textContent = P.length >= 2 ? 'この計測について質問 ↗' : mol.name + 'を解説して ↗'
+  labels.innerHTML = ''
+  requestRender()
+}
+const angleAt = (P) => P[0].clone().sub(P[1]).angleTo(P[2].clone().sub(P[1])) / RAD
+function placeLabels() {
+  const w = stage.clientWidth, h = stage.clientHeight
+  const items = []
+  if (S.picks.length) {
+    const P = S.picks.map((i) => new THREE.Vector3(...mol.atoms[i].p).applyMatrix4(group.matrixWorld))
+    S.picks.forEach((i, k) => items.push({ p: P[k], text: mol.atoms[i].label, cls: 'pick', dy: -1 }))
+    if (P.length === 2) items.push({ p: P[0].clone().lerp(P[1], 0.5), text: P[0].distanceTo(P[1]).toFixed(2) + ' Å' })
+    if (P.length === 3) items.push({ p: P[1].clone(), text: angleAt(P).toFixed(1) + '°', dy: 1 })
+  }
+  labels.innerHTML = items.map((it) => {
+    const v = it.p.clone().project(camera)
+    const x = (v.x + 1) / 2 * w, y = (1 - v.y) / 2 * h + (it.dy || 0) * 20
+    return '<span class="label ' + (it.cls || '') + '" style="left:' + x.toFixed(1) + 'px;top:' + y.toFixed(1) + 'px">' + it.text + '</span>'
+  }).join('')
+}
+
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2()
+function hit(e) {
+  const r = renderer.domElement.getBoundingClientRect()
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
+  ray.setFromCamera(ndc, camera)
+  return ray.intersectObjects(atomMeshes, false)[0]
+}
+let hoverHalo = new THREE.Mesh(sphere, halo)
+hoverHalo.visible = false
+scene.add(hoverHalo)
+let down = null
+renderer.domElement.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; stage.classList.add('dragging'); $('hint').style.opacity = 0 })
+addEventListener('pointerup', () => stage.classList.remove('dragging'))
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (e.buttons) { tip.style.opacity = 0; return }
+  const h = hit(e)
+  const mesh = h ? h.object : null
+  stage.classList.toggle('over-atom', !!mesh)
+  if (mesh !== hoverMesh) { hoverMesh = mesh; requestRender() }
+  if (!mesh) { tip.style.opacity = 0; return }
+  const a = mol.atoms[mesh.userData.index]
+  tip.innerHTML = '<b><span class="el" style="background:' + EL[a.el][dark() ? 'dark' : 'light'] + '"></span>' + a.label + ' · ' + EL[a.el].name + '</b><br>結合 ' + a.degree + ' 本 · 原子量 ' + EL[a.el].mass
+  const r = stage.getBoundingClientRect()
+  const x = Math.min(e.clientX - r.left + 14, r.width - tip.offsetWidth - 8), y = Math.max(e.clientY - r.top - tip.offsetHeight - 10, 8)
+  tip.style.transform = 'translate(' + x + 'px,' + y + 'px)'
+  tip.style.opacity = 1
+})
+renderer.domElement.addEventListener('pointerleave', () => { tip.style.opacity = 0; if (hoverMesh) { hoverMesh = null; requestRender() } })
+renderer.domElement.addEventListener('click', (e) => {
+  if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return
+  const h = hit(e)
+  if (!h) { if (S.picks.length) { S.picks = []; updatePicks(); save() } return }
+  const i = h.object.userData.index
+  if (S.picks.length >= 3 || S.picks.includes(i)) S.picks = []
+  S.picks.push(i)
+  updatePicks()
+  save()
+})
+
+// ── Render loop: runs only while something moves and the card is visible ─
+let raf = 0, last = performance.now(), intro = 1
+function requestRender() { if (!raf && lantern.visible) raf = requestAnimationFrame(frame) }
+function frame(now) {
+  raf = 0
+  const dt = Math.min(0.05, (now - last) / 1000)
+  last = now
+  const moved = controls.update(dt)
+  let animating = false
+  if (group.scale.x < 1) { group.scale.setScalar(Math.min(1, group.scale.x + dt * 1.1)); animating = true }
+  for (const m of atomMeshes) {
+    const target = radiusOf(mol.atoms[m.userData.index].el, S.mode)
+    const s = m.scale.x + (target - m.scale.x) * (reduced ? 1 : Math.min(1, dt * 12))
+    if (Math.abs(s - target) > 1e-3) animating = true
+    m.scale.setScalar(Math.abs(s - target) > 1e-3 ? s : target)
+  }
+  hoverHalo.visible = !!hoverMesh
+  if (hoverMesh) { hoverHalo.position.copy(hoverMesh.position).applyMatrix4(group.matrixWorld); hoverHalo.scale.setScalar(hoverMesh.scale.x * 1.32 + 0.06) }
+  renderer.render(scene, camera)
+  placeLabels()
+  // Save the camera once the damping has brought it to rest (not at pointer-up, when it still glides).
+  if (wasMoving && !moved && !controls.autoRotate) save()
+  wasMoving = moved
+  if (moved || animating || controls.autoRotate) requestRender()
+}
+let wasMoving = false
+controls.addEventListener('change', requestRender)
+controls.addEventListener('end', save)
+lantern.on('visibility', (visible) => { if (visible) { last = performance.now(); requestRender() } })
+lantern.on('theme', applyTheme)
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight
+  renderer.setSize(w, h, false)
+  camera.aspect = w / h
+  camera.updateProjectionMatrix()
+  requestRender()
+}
+new ResizeObserver(resize).observe(stage)
+matchMedia('(resolution: ' + devicePixelRatio + 'dppx)').addEventListener('change', () => { renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); resize() })
+
+// ── Controls and state ───────────────────────────────────────────────────
+let saveTimer = 0
+function save() {
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => lantern.setState({
+    mol: S.mol, mode: S.mode, spin: S.spin, picks: S.picks,
+    cam: [...camera.position.toArray().map((v) => +v.toFixed(3))],
+  }), 250)
+}
+$('mols').innerHTML = ORDER.map((id) => '<button data-mol="' + id + '" aria-pressed="' + (id === S.mol) + '">' + MOLS[id].name + '</button>').join('')
+$('mols').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mol]')
+  if (!b || b.dataset.mol === S.mol) return
+  S.mol = b.dataset.mol
+  S.picks = []
+  $('mols').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+  build(S.mol)
+  save()
+})
+$('modes').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mode]')
+  if (!b) return
+  S.mode = b.dataset.mode
+  $('modes').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+  styleBonds()
+  updatePicks()
+  save()
+})
+const spin = $('spin')
+function setSpin(on) { S.spin = on; controls.autoRotate = on; spin.setAttribute('aria-pressed', String(on)); requestRender() }
+spin.addEventListener('click', () => { setSpin(!S.spin); save() })
+$('reset').addEventListener('click', () => { build(S.mol); save() })
+$('ask').addEventListener('click', () => {
+  const P = S.picks.map((i) => mol.atoms[i])
+  const text = P.length === 2 ? mol.name + 'の ' + P.map((a) => a.label).join('–') + ' 間の距離（' + $('readout').querySelector('b').textContent + '）は、どんな結合や相互作用を表していますか？'
+    : P.length === 3 ? mol.name + 'の ' + P.map((a) => a.label).join('–') + ' の角度（' + $('readout').querySelector('b').textContent + '）がこの値になる理由を説明して'
+    : mol.name + '（' + mol.formula.replace(/<\/?sub>/g, '') + '）の立体構造の特徴を説明して'
+  lantern.send(text).catch(() => {})
+})
+
+document.querySelectorAll('#modes button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.mode === S.mode)))
+applyTheme()
+build(S.mol, !!S.cam)
+if (S.cam) camera.position.fromArray(S.cam)
+setSpin(S.spin)
+resize()
+</script>

@@ -11,6 +11,7 @@
 - **ワークスペースの HTML。** `path` で作業ディレクトリ内の `.html` をサイドバーに表示します。ページのフォルダ内なら相対パスの画像・CSS・モジュール JS・`fetch()` がそのまま動きます。DSH Web と同じアドレス（Cloudflare Tunnel 経由も）で見られます。
 - **回答が戻る。** `await_response: true` ならエージェントは待ち、ユーザーの回答をツール結果として受け取ります。待たない場合、回答や「続きを聞く」ボタンはユーザーの次のメッセージとして届きます。
 - **DSH に合わせる。** DSH のライト/ダーク・色・フォントを各ビジュアルに渡し、切り替えにも即追従します。
+- **触って動かすためのつくり。** 3D・シミュレーション・ドラッグで動かす図・ゲームがカードの中で動きます。ビジュアルをクリックするまでホイールはチャットのスクロールに使われます。カードに専用スクロールバーが出てガタつくことはなく、ビューポート基準のページも際限なく伸びずに高さが固定されます。`lantern.visible` で画面外ではアニメーションを止められ、WebGL が失われたカードには「再開」が出ます。全画面表示とファイル保存もできます。
 - **部品キットはあくまで出発点。** トークンと部品は CSS のカスケードレイヤーで先に読み込むので、ビジュアル側が書いたフォント・色・レイアウトが必ず勝ちます。
 - **システムプロンプトではなくスキル。** デザインガイドは `lantern-visuals` スキルとして同梱し、モデルが必要なときに読みます。システムプロンプトには何も足さず、ツール説明も短くしています。
 
@@ -18,14 +19,24 @@
 
 ![A workspace page in the sidebar](docs/workspace-page.png)
 
+## ショーケース
+
+![チャット内で分子を回す](docs/molecule.gif)
+
+![並べ替えた回答がエージェントに戻る](docs/ranking.gif)
+
+![11 個のショーケース（ダーク）](docs/showcase.png)
+
+[`examples/`](examples) に 11 個のショーケース（three.js の分子ビューア・3D 曲面・太陽系、二重振り子、D3 の概念マップ、経路探索、連動するダッシュボード、行列、ハノイの塔、並べ替え回答、WebGL シェーダー）があります。モデルが `html` として渡す形のまま置いています。
+
 ## インストール
 
 DSH 0.2.1 以降（0.2 系）、Web プロファイル。
 
 ```sh
-dsh plugin --profile web add github:Aero123421/dsh-lantern#v0.1.0
+dsh plugin --profile web add github:Aero123421/dsh-lantern#v0.2.0
 # ダウンロードしたパッケージから
-dsh plugin --profile web add ./dsh-lantern-0.1.0.tgz
+dsh plugin --profile web add ./dsh-lantern-0.2.0.tgz
 ```
 
 `dsh web` を再起動してください。`dsh --profile web --dump-config | grep lantern` で確認できます。
@@ -52,7 +63,7 @@ dsh plugin --profile web add ./dsh-lantern-0.1.0.tgz
 | `await_response` | ユーザーの回答を待って結果として返す |
 | `replace` | 修正版として置き換える以前のビジュアルの `id`。古いカードは新しい版へのリンクに畳まれます |
 
-ビジュアルの中では `window.lantern`（`submit`・`send`・`setState`/`getState`・`expand`・`openLink`・`colors()`・イベント）と、宣言的な属性（`data-lt-choices`・`data-lt-submit`・`data-lt-form`・`data-lt-send`・タブ・ステップ）が使えます。詳しくは [`skills/lantern-visuals`](skills/lantern-visuals/SKILL.md)。
+ビジュアルの中では `window.lantern`（`submit`・`send`・`setState`/`getState`・`expand`・`openLink`・`colors()`・`visible`・イベント）と、宣言的な属性（`data-lt-choices`・`data-lt-submit`・`data-lt-form`・`data-lt-send`・`data-lt-fullscreen`・タブ・ステップ）が使えます。詳しくは [`skills/lantern-visuals`](skills/lantern-visuals/SKILL.md)。
 
 ## 安全性
 

@@ -1,0 +1,291 @@
+<style>
+  :root { --stage-a: #ffffff; --stage-b: #f2f4f8; --glass: color-mix(in srgb, var(--lt-bg) 84%, transparent); }
+  :root[data-theme="dark"] { --stage-a: #1e2026; --stage-b: #131418; }
+  .gr { display: grid; gap: 10px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .title b { font-size: 15px; }
+  .title span { color: var(--lt-fg-2); font-size: 12.5px; margin-left: 8px; }
+  .search { position: relative; width: 200px; }
+  .search input { min-height: 32px; padding-left: 30px; border-radius: 10px; font-size: 13px; }
+  .search svg { position: absolute; left: 9px; top: 9px; width: 14px; height: 14px; color: var(--lt-fg-3); }
+  .stage { position: relative; height: 420px; border-radius: 14px; overflow: hidden; border: 1px solid var(--lt-border-strong);
+    background: radial-gradient(120% 100% at 50% 0%, var(--stage-a), var(--stage-b)); user-select: none; }
+  svg.map { display: block; width: 100%; height: 100%; cursor: grab; }
+  :root[data-lt-mode="panel"] .stage { height: calc(100vh - 200px); min-height: 360px; }
+  svg.map:active { cursor: grabbing; }
+  .link { opacity: .45; fill: none; transition: opacity .15s; }
+  .node { cursor: pointer; }
+  .node circle { stroke: var(--lt-bg); stroke-width: 2; transition: opacity .15s; }
+  .node text { font-size: 11.5px; fill: var(--lt-fg); paint-order: stroke; stroke: var(--lt-bg); stroke-width: 3.5px; stroke-linejoin: round; pointer-events: none; transition: opacity .15s; }
+  .node .pin { fill: var(--lt-fg); stroke: var(--lt-bg); stroke-width: 1.5; }
+  .node .ring { fill: none; stroke: var(--lt-fg); stroke-width: 2; }
+  .dim .link:not(.on) { opacity: .07; }
+  .dim .link.on { opacity: .85; }
+  .dim .node:not(.on) circle, .dim .node:not(.on) text { opacity: .18; }
+  .node.match text { font-weight: 700; }
+  .glass { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--lt-border-strong); border-radius: 10px; }
+  .legend { position: absolute; left: 10px; top: 10px; padding: 5px; display: flex; gap: 4px; flex-wrap: wrap; max-width: calc(100% - 120px); }
+  .legend button { min-height: 26px; padding: 0 9px; border: 0; background: transparent; border-radius: 7px; font-size: 12px; color: var(--lt-fg-2); gap: 6px; }
+  .legend button i { width: 9px; height: 9px; border-radius: 50%; }
+  .legend button[aria-pressed="false"] { opacity: .45; }
+  .legend button[aria-pressed="false"] i { background: transparent !important; box-shadow: inset 0 0 0 1.5px var(--lt-fg-3); }
+  .tools { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+  .icon { width: 34px; min-height: 34px; padding: 0; border-radius: 10px; background: var(--glass); backdrop-filter: blur(8px); border-color: var(--lt-border-strong); color: var(--lt-fg-2); }
+  .icon:hover { background: var(--glass); color: var(--lt-fg); }
+  .icon svg { width: 16px; height: 16px; }
+  .tip { position: absolute; left: 0; top: 0; max-width: 250px; padding: 8px 10px; font-size: 12px; line-height: 1.5; pointer-events: none; opacity: 0; transition: opacity .12s; box-shadow: var(--lt-shadow); }
+  .tip b { font-size: 13px; }
+  .tip small { display: block; color: var(--lt-fg-2); font-size: 11px; }
+  .hint { position: absolute; left: 10px; bottom: 10px; padding: 5px 10px; font-size: 11.5px; color: var(--lt-fg-2); pointer-events: none; transition: opacity .4s; }
+  .detail { display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; align-items: start; min-height: 58px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--lt-border); background: var(--lt-surface); }
+  .detail h3 { margin: 0; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .detail h3 i { width: 10px; height: 10px; border-radius: 50%; }
+  .detail p { margin: 2px 0 0; font-size: 12.5px; color: var(--lt-fg-2); }
+  .detail .rel { grid-column: 1 / 3; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--lt-fg-2); }
+  .detail .rel button { min-height: 24px; padding: 0 9px; border-radius: 999px; font-size: 12px; background: var(--lt-bg); }
+  .detail.empty { color: var(--lt-fg-2); font-size: 13px; display: flex; align-items: center; }
+</style>
+
+<div class="gr">
+  <div class="top">
+    <div class="title"><b>機械学習の概念マップ</b><span>矢印は「前提 → 発展」</span></div>
+    <label class="search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14" stroke-linecap="round"/></svg><input id="q" type="search" placeholder="概念を検索…" autocomplete="off"></label>
+  </div>
+  <div class="stage" id="stage">
+    <svg class="map" id="svg"></svg>
+    <div class="legend glass" id="legend"></div>
+    <div class="tools">
+      <button class="icon" id="fit" title="全体を表示" aria-label="全体を表示"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg></button>
+      <button class="icon" id="unpin" title="固定をすべて解除" aria-label="固定をすべて解除"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="5.5" r="2.5"/><path d="M8 8v5.5M3 3l10 10"/></svg></button>
+    </div>
+    <div class="tip glass" id="tip"></div>
+    <div class="hint glass" id="hint">ドラッグで動かす（固定）· ダブルクリックで固定解除 · クリックで選択</div>
+  </div>
+  <div class="detail empty" id="detail">ノードをクリックすると、説明と前提・発展のつながりが出ます。</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script>
+(() => {
+  const CATS = { math: '数学', frame: '学習の枠組み', model: '古典的モデル', deep: '深層学習', eval: '評価' }
+  const N = [
+    ['線形代数', 'math', 'ベクトルと行列の計算。データもモデルの重みも行列で表す'], ['微分', 'math', '関数の変化率。勾配の計算の土台'],
+    ['確率・統計', 'math', '不確かさを数で扱う。尤度や分布の考え方'], ['最適化', 'math', '目的関数を最小（最大）にする値を探す方法'],
+    ['教師あり学習', 'frame', '正解ラベル付きデータから入力→出力の対応を学ぶ'], ['教師なし学習', 'frame', 'ラベルなしデータから構造やまとまりを見つける'],
+    ['強化学習', 'frame', '試行錯誤と報酬から行動の方針を学ぶ'], ['損失関数', 'frame', '予測の外れ具合を測る関数。これを小さくするのが学習'],
+    ['勾配降下法', 'frame', '損失の勾配と逆向きに少しずつパラメータを動かす'], ['過学習', 'frame', '訓練データに合わせすぎて未知データで外れる状態'],
+    ['正則化', 'frame', '重みの大きさに罰則を与え、過学習を抑える'], ['バイアスと分散', 'frame', '単純すぎる誤差と、ぶれやすさの誤差のトレードオフ'],
+    ['線形回帰', 'model', '入力の重み付き和で数値を予測する最も基本的なモデル'], ['ロジスティック回帰', 'model', 'シグモイドで確率を出す二値分類モデル'],
+    ['決定木', 'model', '質問を枝分かれさせて予測する。解釈しやすい'], ['ランダムフォレスト', 'model', '多数の決定木の多数決で安定させる'],
+    ['勾配ブースティング', 'model', '前の木の誤りを次の木が補う形で積み上げる'], ['SVM', 'model', 'クラス間の余白（マージン）を最大にする境界を引く'],
+    ['k-means', 'model', 'データを k 個のまとまりに分けるクラスタリング'], ['主成分分析', 'model', '分散の大きい方向に軸を取り直して次元を減らす'],
+    ['ニューラルネット', 'deep', '層を重ねた非線形関数。重みを勾配で学習する'], ['誤差逆伝播', 'deep', '連鎖律で各層の勾配を効率よく計算する方法'],
+    ['活性化関数', 'deep', 'ReLU など、層に非線形性を与える関数'], ['CNN', 'deep', '畳み込みで画像の局所パターンを捉えるネットワーク'],
+    ['RNN', 'deep', '前の状態を引き継いで系列を処理するネットワーク'], ['注意機構', 'deep', '入力のどこを重視するかを重みとして学ぶ仕組み'],
+    ['Transformer', 'deep', '注意機構だけで系列を並列に処理する。大規模言語モデルの土台'], ['埋め込み', 'deep', '単語などを意味の近さを保つベクトルに変換する'],
+    ['ドロップアウト', 'deep', '学習中にランダムにニューロンを休ませる正則化'], ['バッチ正規化', 'deep', '層の入力の分布をそろえて学習を安定させる'],
+    ['交差検証', 'eval', 'データを分けて何度も検証し、汎化性能を見積もる'], ['混同行列', 'eval', '予測と正解の組み合わせを数えた表'],
+    ['精度・再現率', 'eval', '見逃しと誤検出のどちらを重視するかを表す指標'], ['ROC/AUC', 'eval', 'しきい値を動かしたときの性能曲線とその面積'],
+  ]
+  const L = [
+    ['線形代数', '主成分分析'], ['線形代数', 'ニューラルネット'], ['線形代数', 'SVM'], ['線形代数', '線形回帰'], ['線形代数', '埋め込み'],
+    ['微分', '勾配降下法'], ['微分', '誤差逆伝播'], ['確率・統計', 'ロジスティック回帰'], ['確率・統計', '損失関数'], ['確率・統計', 'バイアスと分散'],
+    ['最適化', '勾配降下法'], ['最適化', 'SVM'], ['勾配降下法', 'ニューラルネット'], ['勾配降下法', '線形回帰'], ['勾配降下法', 'ロジスティック回帰'],
+    ['損失関数', '勾配降下法'], ['損失関数', '教師あり学習'], ['教師あり学習', '線形回帰'], ['教師あり学習', 'ロジスティック回帰'], ['教師あり学習', '決定木'],
+    ['教師あり学習', 'SVM'], ['教師あり学習', 'ニューラルネット'], ['教師あり学習', '交差検証'], ['教師なし学習', 'k-means'], ['教師なし学習', '主成分分析'],
+    ['教師なし学習', '埋め込み'], ['強化学習', 'ニューラルネット'], ['決定木', 'ランダムフォレスト'], ['決定木', '勾配ブースティング'], ['過学習', '正則化'],
+    ['過学習', 'ドロップアウト'], ['過学習', '交差検証'], ['バイアスと分散', '過学習'], ['正則化', '線形回帰'], ['正則化', 'ニューラルネット'],
+    ['ニューラルネット', '誤差逆伝播'], ['ニューラルネット', '活性化関数'], ['ニューラルネット', 'CNN'], ['ニューラルネット', 'RNN'], ['ニューラルネット', 'Transformer'],
+    ['誤差逆伝播', 'CNN'], ['誤差逆伝播', 'RNN'], ['注意機構', 'Transformer'], ['埋め込み', 'Transformer'], ['RNN', '注意機構'],
+    ['バッチ正規化', 'CNN'], ['ドロップアウト', 'ニューラルネット'], ['混同行列', '精度・再現率'], ['精度・再現率', 'ROC/AUC'], ['ロジスティック回帰', 'ROC/AUC'],
+  ]
+  const $ = (id) => document.getElementById(id)
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const S = Object.assign({ selected: null, pins: {}, hidden: [], view: null }, lantern.getState() || {})
+  const nodes = N.map(([id, cat, about]) => ({ id, cat, about }))
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  const links = L.map(([s, t]) => ({ source: s, target: t }))
+  nodes.forEach((n) => { n.deg = links.filter((l) => l.source === n.id || l.target === n.id).length; n.r = 6 + Math.sqrt(n.deg) * 3.2 })
+  const pre = (id) => links.filter((l) => (l.target.id || l.target) === id).map((l) => l.source.id || l.source)
+  const post = (id) => links.filter((l) => (l.source.id || l.source) === id).map((l) => l.target.id || l.target)
+
+  const stage = $('stage'), svg = d3.select('#svg')
+  let W = stage.clientWidth, H = stage.clientHeight
+  const catKeys = Object.keys(CATS)
+  const anchor = (cat) => { const i = catKeys.indexOf(cat), a = -Math.PI / 2 + i / catKeys.length * Math.PI * 2; return [Math.cos(a) * 250, Math.sin(a) * 140] }
+  let color = {}
+  function readColors() { const c = lantern.colors(); catKeys.forEach((k, i) => { color[k] = c[[0, 2, 1, 4, 3][i]] }) }
+  readColors()
+
+  // Pinned positions come back from saved state; everything else starts near its category
+  // (seeded, so the same layout comes back after a reload).
+  let seed = 11
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  nodes.forEach((n) => {
+    const [ax, ay] = anchor(n.cat), p = S.pins[n.id]
+    n.x = p ? p[0] : ax + (rand() - 0.5) * 60; n.y = p ? p[1] : ay + (rand() - 0.5) * 60
+    if (p) { n.fx = p[0]; n.fy = p[1] }
+  })
+  const defs = svg.append('defs')
+  const root = svg.append('g')
+  const linkG = root.append('g'), nodeG = root.append('g')
+  function arrowFor(cat) {
+    const id = 'arrow-' + cat
+    if (!defs.select('#' + id).size()) defs.append('marker').attr('id', id).attr('viewBox', '0 -4 8 8').attr('refX', 8).attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto').append('path').attr('d', 'M0,-3.5L8,0L0,3.5')
+    defs.select('#' + id + ' path').attr('fill', color[cat])
+    return 'url(#' + id + ')'
+  }
+  const link = linkG.selectAll('path').data(links).join('path').attr('class', 'link').attr('stroke-width', 1.4)
+  const node = nodeG.selectAll('g').data(nodes).join('g').attr('class', 'node')
+  node.append('circle').attr('r', (d) => d.r)
+  node.append('text').attr('text-anchor', 'middle').attr('dy', (d) => d.r + 14).text((d) => d.id)
+  node.append('circle').attr('class', 'pin').attr('r', 3).attr('cx', (d) => d.r * 0.72).attr('cy', (d) => -d.r * 0.72)
+  node.append('circle').attr('class', 'ring').attr('r', (d) => d.r + 4.5)
+  // Labels sit under the nodes; give each node room for its label so the names do not collide.
+  node.select('text').each(function (d) { d.label = this.getComputedTextLength() || d.id.length * 11.5 })
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id((d) => d.id).distance(58).strength(0.3))
+    .force('charge', d3.forceManyBody().strength(-220))
+    .force('collide', d3.forceCollide().radius((d) => Math.max(d.r + 10, d.label * 0.46 + 4)).strength(0.95))
+    .force('x', d3.forceX((d) => anchor(d.cat)[0]).strength(0.12))
+    .force('y', d3.forceY((d) => anchor(d.cat)[1]).strength(0.16))
+    .stop()
+  for (let i = 0; i < 360; i++) sim.tick()   // settle before the first paint: no jumping on load
+
+  function paintColors() {
+    readColors()
+    node.select('circle').attr('fill', (d) => color[d.cat])
+    link.attr('stroke', (d) => color[d.source.cat]).attr('marker-end', (d) => arrowFor(d.source.cat))
+    $('legend').innerHTML = catKeys.map((k) => '<button data-cat="' + k + '" aria-pressed="' + !S.hidden.includes(k) + '"><i style="background:' + color[k] + '"></i>' + CATS[k] + '</button>').join('')
+  }
+  function ticked() {
+    link.attr('d', (d) => {
+      const dx = d.target.x - d.source.x, dy = d.target.y - d.source.y, len = Math.hypot(dx, dy) || 1
+      const sx = d.source.x + dx / len * (d.source.r + 2), sy = d.source.y + dy / len * (d.source.r + 2)
+      const tx = d.target.x - dx / len * (d.target.r + 4), ty = d.target.y - dy / len * (d.target.r + 4)
+      return 'M' + sx + ',' + sy + 'L' + tx + ',' + ty
+    })
+    node.attr('transform', (d) => 'translate(' + d.x + ',' + d.y + ')')
+    node.select('.pin').attr('display', (d) => (d.fx != null ? null : 'none'))
+  }
+  sim.on('tick', ticked)
+
+  // ── Zoom and pan (the wheel works once the card is clicked) ─────────────
+  const zoom = d3.zoom().scaleExtent([0.4, 3]).on('zoom', (e) => {
+    root.attr('transform', e.transform)
+    const k = e.transform.k, fs = 11.5 * Math.min(1.25, Math.max(1, 1 / Math.sqrt(k)))
+    node.select('text').attr('font-size', fs).attr('dy', (d) => d.r + fs + 2)
+    saveSoon()
+  })
+  svg.call(zoom).on('dblclick.zoom', null)
+  function fit(animate) {
+    const vis = nodes.filter((n) => !S.hidden.includes(n.cat))
+    const [x0, x1] = d3.extent(vis, (d) => d.x), [y0, y1] = d3.extent(vis, (d) => d.y)
+    const k = Math.min(1.6, 0.86 / Math.max((x1 - x0 + 60) / W, (y1 - y0 + 70) / H))
+    const t = d3.zoomIdentity.translate(W / 2 - k * (x0 + x1) / 2, H / 2 - k * (y0 + y1) / 2 + 12).scale(k)
+    ;(animate && !reduced ? svg.transition().duration(450) : svg).call(zoom.transform, t)
+  }
+
+  // ── Dragging pins a node; double-click releases it ──────────────────────
+  let dragged = false
+  node.call(d3.drag()
+    .on('start', (e, d) => { dragged = false; if (!e.active) sim.alphaTarget(0.25).restart(); d.fx = d.x; d.fy = d.y; $('hint').style.opacity = 0 })
+    .on('drag', (e, d) => { dragged = true; d.fx = e.x; d.fy = e.y; hideTip() })
+    .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); if (dragged) { S.pins[d.id] = [Math.round(d.fx), Math.round(d.fy)]; saveSoon() } }))
+  node.on('dblclick', (e, d) => { e.stopPropagation(); d.fx = d.fy = null; delete S.pins[d.id]; sim.alpha(0.3).restart(); saveSoon() })
+  node.on('click', (e, d) => { if (dragged) return; select(S.selected === d.id ? null : d.id) })
+  svg.on('click', (e) => { if (e.target === svg.node()) select(null) })
+
+  // ── Hover and selection ─────────────────────────────────────────────────
+  const tip = $('tip')
+  function focus(id) {
+    const keep = new Set(id ? [id, ...pre(id), ...post(id)] : [])
+    root.classed('dim', !!id)
+    node.classed('on', (d) => keep.has(d.id))
+    link.classed('on', (d) => id && (d.source.id === id || d.target.id === id))
+  }
+  function hideTip() { tip.style.opacity = 0 }
+  node.on('mouseenter', (e, d) => {
+    focus(d.id)
+    tip.innerHTML = '<b>' + d.id + '</b><small>' + CATS[d.cat] + '</small>' + d.about
+    const r = stage.getBoundingClientRect(), b = e.currentTarget.getBoundingClientRect()
+    const x = Math.min(b.right - r.left + 8, r.width - tip.offsetWidth - 8), y = Math.max(8, Math.min(b.top - r.top - 8, r.height - tip.offsetHeight - 8))
+    tip.style.transform = 'translate(' + x + 'px,' + y + 'px)'
+    tip.style.opacity = 1
+  }).on('mouseleave', () => { focus(S.selected); hideTip() })
+
+  function select(id) {
+    S.selected = id
+    node.select('.ring').attr('display', (d) => (d.id === id ? null : 'none'))
+    focus(id)
+    const box = $('detail')
+    if (!id) { box.className = 'detail empty'; box.textContent = 'ノードをクリックすると、説明と前提・発展のつながりが出ます。'; saveSoon(); return }
+    const d = byId.get(id), chips = (ids) => ids.length ? ids.map((x) => '<button data-go="' + x + '">' + x + '</button>').join('') : '<span>なし</span>'
+    box.className = 'detail'
+    box.innerHTML = '<div><h3><i style="background:' + color[d.cat] + '"></i>' + d.id + '</h3><p>' + d.about + '</p></div>'
+      + '<button class="small" id="ask">この概念を説明して ↗</button>'
+      + '<div class="rel"><span>前提:</span>' + chips(pre(id)) + '<span style="margin-left:8px">発展:</span>' + chips(post(id)) + '</div>'
+    saveSoon()
+  }
+  $('detail').addEventListener('click', (e) => {
+    const go = e.target.closest('[data-go]')
+    if (go) { select(go.dataset.go); center(go.dataset.go); return }
+    if (e.target.id === 'ask') {
+      const d = byId.get(S.selected), p = pre(d.id)
+      lantern.send(d.id + 'について、' + (p.length ? p.join('・') + 'とのつながりも含めて' : '') + '初学者向けに説明して').catch(() => {})
+    }
+  })
+  function center(id) {
+    const d = byId.get(id), t = d3.zoomTransform(svg.node())
+    const k = Math.max(t.k, 1.1)
+    ;(reduced ? svg : svg.transition().duration(450)).call(zoom.transform, d3.zoomIdentity.translate(W / 2 - k * d.x, H / 2 - k * d.y).scale(k))
+  }
+
+  // ── Search, legend filter, tools ────────────────────────────────────────
+  $('q').addEventListener('input', () => {
+    const q = $('q').value.trim().toLowerCase()
+    node.classed('match', (d) => q && d.id.toLowerCase().includes(q))
+    if (!q) return focus(S.selected)
+    const hits = nodes.filter((d) => d.id.toLowerCase().includes(q))
+    root.classed('dim', true)
+    node.classed('on', (d) => hits.includes(d))
+    link.classed('on', false)
+  })
+  $('q').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return
+    const q = $('q').value.trim().toLowerCase(), hit = nodes.find((d) => d.id.toLowerCase().includes(q))
+    if (hit) { select(hit.id); center(hit.id) }
+  })
+  $('legend').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-cat]'); if (!b) return
+    const k = b.dataset.cat
+    S.hidden = S.hidden.includes(k) ? S.hidden.filter((x) => x !== k) : [...S.hidden, k]
+    applyHidden()
+    saveSoon()
+  })
+  function applyHidden() {
+    node.attr('display', (d) => (S.hidden.includes(d.cat) ? 'none' : null))
+    link.attr('display', (d) => (S.hidden.includes(d.source.cat) || S.hidden.includes(d.target.cat) ? 'none' : null))
+    $('legend').querySelectorAll('[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(!S.hidden.includes(b.dataset.cat))))
+  }
+  $('fit').addEventListener('click', () => fit(true))
+  $('unpin').addEventListener('click', () => { nodes.forEach((n) => { n.fx = n.fy = null }); S.pins = {}; sim.alpha(0.6).restart(); saveSoon() })
+
+  let saveTimer = 0
+  function saveSoon() {
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => { const t = d3.zoomTransform(svg.node()); lantern.setState({ selected: S.selected, pins: S.pins, hidden: S.hidden, view: [+t.x.toFixed(1), +t.y.toFixed(1), +t.k.toFixed(3)] }) }, 300)
+  }
+  // The simulation only runs while the card is on screen.
+  lantern.on('visibility', (v) => { if (!v) sim.stop(); else if (sim.alpha() > sim.alphaMin()) sim.restart() })
+  lantern.on('theme', () => { paintColors(); select(S.selected) })
+  new ResizeObserver(() => { const w = stage.clientWidth, h = stage.clientHeight; if (Math.abs(w - W) > 1 || Math.abs(h - H) > 1) { W = w; H = h; fit(false) } }).observe(stage)
+
+  paintColors()
+  ticked()
+  applyHidden()
+  if (S.view) svg.call(zoom.transform, d3.zoomIdentity.translate(S.view[0], S.view[1]).scale(S.view[2]))
+  else fit(false)
+  select(S.selected)
+})()
+</script>

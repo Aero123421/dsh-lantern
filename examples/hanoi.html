@@ -1,0 +1,270 @@
+<style>
+  :root { --stage-a: #ffffff; --stage-b: #f1f3f7; }
+  :root[data-theme="dark"] { --stage-a: #20232a; --stage-b: #141518; }
+  .hn { display: grid; gap: 10px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .title b { font-size: 15px; }
+  .title span { color: var(--lt-fg-2); font-size: 12.5px; margin-left: 8px; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--lt-surface); border: 1px solid var(--lt-border); border-radius: 10px; }
+  .seg button { min-height: 26px; padding: 0 9px; border: 0; background: transparent; border-radius: 7px; font-size: 12.5px; color: var(--lt-fg-2); }
+  .seg button:hover { background: transparent; color: var(--lt-fg); }
+  .seg button[aria-pressed="true"] { background: var(--lt-bg); color: var(--lt-fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px var(--lt-border-strong); }
+  .stage { position: relative; height: 290px; border-radius: 14px; overflow: hidden; border: 1px solid var(--lt-border-strong);
+    background: radial-gradient(120% 100% at 50% 0%, var(--stage-a), var(--stage-b)); touch-action: none; user-select: none; outline: none; }
+  .stage:focus-visible { box-shadow: inset 0 0 0 2px var(--lt-accent); }
+  .base { position: absolute; left: 4%; right: 4%; bottom: 34px; height: 12px; border-radius: 6px; background: color-mix(in srgb, var(--lt-fg) 22%, transparent); }
+  .peg { position: absolute; bottom: 46px; width: 10px; margin-left: -5px; height: 196px; border-radius: 5px 5px 0 0; background: color-mix(in srgb, var(--lt-fg) 22%, transparent); transition: background .15s; }
+  .zone { position: absolute; top: 0; bottom: 0; width: 33.33%; cursor: pointer; }
+  .zone.target .peg, .peg.target { background: color-mix(in srgb, var(--lt-fg) 45%, transparent); }
+  .plabel { position: absolute; bottom: 9px; transform: translateX(-50%); font: 600 12px var(--lt-font-mono); color: var(--lt-fg-3); }
+  .disk { position: absolute; left: 0; top: 0; height: 22px; border-radius: 11px; display: grid; place-items: center; font: 700 11.5px var(--lt-font-mono); color: rgba(255,255,255,.92);
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,.14), inset 0 2px 0 rgba(255,255,255,.22), 0 1px 2px rgba(0,0,0,.18); transition: transform .28s var(--lt-ease); will-change: transform; }
+  .disk.movable { cursor: grab; }
+  .disk.dragging { transition: none; cursor: grabbing; box-shadow: inset 0 -3px 0 rgba(0,0,0,.14), 0 10px 22px rgba(0,0,0,.25); z-index: 5; }
+  .disk.held { transform: translateY(-8px); }
+  .disk.shake { animation: shake .32s ease; }
+  @keyframes shake { 25% { margin-left: -6px } 75% { margin-left: 6px } }
+  .msg { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); padding: 6px 12px; border-radius: 999px; font-size: 12.5px; white-space: nowrap; opacity: 0; transition: opacity .2s;
+    background: color-mix(in srgb, var(--lt-bg) 88%, transparent); border: 1px solid var(--lt-border-strong); pointer-events: none; }
+  .msg.on { opacity: 1; }
+  .msg.bad { color: var(--lt-danger); }
+  canvas.fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .bar .sp { flex: 1; }
+  .stat { font-size: 12.5px; color: var(--lt-fg-2); }
+  .stat b { color: var(--lt-fg); font-variant-numeric: tabular-nums; font-size: 14px; }
+  .stack { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; min-height: 30px; font-size: 12px; color: var(--lt-fg-3); }
+  .stack span { padding: 2px 8px; border-radius: 7px; background: var(--lt-surface); border: 1px solid var(--lt-border); color: var(--lt-fg-2); font-family: var(--lt-font-mono); font-size: 11.5px; }
+  .stack b + span ~ span:last-child, .stack b + span:last-child { border-color: var(--lt-fg-3); color: var(--lt-fg); font-weight: 600; }
+  .win { display: none; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; background: var(--lt-success-soft); }
+  .win.on { display: flex; }
+  .win b { font-size: 14px; }
+</style>
+
+<div class="hn">
+  <div class="top">
+    <div class="title"><b>ハノイの塔</b><span>全部の円盤を C へ。大きい円盤は小さい円盤の上に置けません</span></div>
+    <div class="seg" id="count" role="group" aria-label="円盤の数"><button data-n="3">3 枚</button><button data-n="4">4 枚</button><button data-n="5">5 枚</button><button data-n="6">6 枚</button></div>
+  </div>
+  <div class="stage" id="stage" tabindex="0" aria-label="ハノイの塔。キー 1 2 3 で柱を選んで移動">
+    <div class="base"></div>
+    <div class="msg" id="msg"></div>
+    <canvas class="fx" id="fx"></canvas>
+  </div>
+  <div class="bar">
+    <span class="stat">手数 <b id="moves">0</b> / 最短 <b id="best"></b></span>
+    <span class="sp"></span>
+    <button class="small" id="undo">↶ 1 手戻す</button>
+    <button class="small" id="reset">最初から</button>
+    <button class="small primary" id="solve">▶ 自動で解く</button>
+  </div>
+  <div class="stack" id="stack"><span style="background:none;border:0;padding:0;color:var(--lt-fg-3);font-family:var(--lt-font)">ドラッグ、クリック、またはキー 1·2·3 で円盤を動かせます</span></div>
+  <div class="win" id="win"><b id="win-text"></b><div class="bar"><button class="small" data-lt-send="ハノイの塔の最短手数が 2ⁿ−1 になる理由を、再帰の考え方で説明して">最短手数の理由 ↗</button><button class="small" id="again">もう一度</button></div></div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id)
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const stage = $('stage'), NAMES = ['A', 'B', 'C']
+  const saved = lantern.getState() || {}
+  let n = saved.n || 4, pegs = saved.pegs || null, moves = saved.moves || 0, history = saved.history || []
+  let disks = [], held = null, solving = null
+  const save = () => lantern.setState({ n, pegs, moves, history: history.slice(-200) })
+
+  function build(fresh) {
+    stage.querySelectorAll('.zone, .disk, .plabel').forEach((e) => e.remove())
+    if (fresh || !pegs) { pegs = [Array.from({ length: n }, (_, k) => n - k), [], []]; moves = 0; history = [] }
+    NAMES.forEach((name, i) => {
+      const z = document.createElement('div'); z.className = 'zone'; z.style.left = (i * 33.33) + '%'; z.dataset.peg = i
+      z.innerHTML = '<div class="peg" style="left:50%"></div>'
+      stage.appendChild(z)
+      const l = document.createElement('div'); l.className = 'plabel'; l.style.left = (16.67 + i * 33.33) + '%'; l.textContent = name
+      stage.appendChild(l)
+    })
+    const cols = lantern.colors()
+    disks = Array.from({ length: n + 1 }, (_, size) => {
+      if (!size) return null
+      const d = document.createElement('div'); d.className = 'disk'; d.textContent = size; d.dataset.size = size
+      d.style.background = cols[(size - 1) % 8]
+      stage.appendChild(d)
+      return d
+    })
+    $('best').textContent = 2 ** n - 1
+    $('win').classList.remove('on')
+    layout()
+  }
+  function geometry() {
+    const W = stage.clientWidth, H = stage.clientHeight
+    const maxW = Math.min(W / 3 - 18, 200), minW = 44
+    return { W, H, x: (i) => W * (i * 2 + 1) / 6, w: (s) => minW + (maxW - minW) * (n === 1 ? 1 : (s - 1) / (n - 1)), y: (h) => H - 46 - 22 * (h + 1) }
+  }
+  function layout() {
+    const g = geometry()
+    pegs.forEach((stack, i) => stack.forEach((s, h) => {
+      const d = disks[s]; if (d === dragEl) return
+      const w = g.w(s)
+      d.style.width = w + 'px'
+      d.style.transform = 'translate(' + (g.x(i) - w / 2) + 'px,' + g.y(h) + 'px)'
+      d.classList.toggle('movable', h === stack.length - 1 && !solving)
+    }))
+    $('moves').textContent = moves
+    const done = pegs[2].length === n
+    if (done && moves) win()
+  }
+  new ResizeObserver(() => layout()).observe(stage)
+
+  function say(text, bad) { const m = $('msg'); m.textContent = text; m.className = 'msg on' + (bad ? ' bad' : ''); clearTimeout(say.t); say.t = setTimeout(() => { m.className = 'msg' }, 1600) }
+  function legal(from, to) { const a = pegs[from], b = pegs[to]; return a.length && (!b.length || b[b.length - 1] > a[a.length - 1]) }
+  function move(from, to, record = true) {
+    if (from === to) return true
+    if (!legal(from, to)) {
+      const d = disks[pegs[from][pegs[from].length - 1]]
+      d.classList.remove('shake'); void d.offsetWidth; d.classList.add('shake')
+      say('大きい円盤は小さい円盤の上に置けません', true)
+      return false
+    }
+    pegs[to].push(pegs[from].pop())
+    moves++
+    if (record) history.push([from, to])
+    layout(); save()
+    return true
+  }
+
+  // ── Drag and drop (top disks only) ──────────────────────────────────────
+  let dragEl = null, drag = null
+  const zoneAt = (x) => Math.max(0, Math.min(2, Math.floor(x / (stage.clientWidth / 3))))
+  stage.addEventListener('pointerdown', (e) => {
+    if (solving) return
+    const d = e.target.closest('.disk.movable')
+    const r = stage.getBoundingClientRect()
+    if (!d) {   // click a peg (or a disk under the top one): pick up / drop
+      if (e.target.closest('.zone, .disk')) clickPeg(zoneAt(e.clientX - r.left))
+      return
+    }
+    const from = pegs.findIndex((p) => p[p.length - 1] === +d.dataset.size)
+    const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(d.style.transform)
+    drag = { from, ox: e.clientX - r.left - +m[1], oy: e.clientY - r.top - +m[2], sx: e.clientX, sy: e.clientY }
+    dragEl = d; d.classList.add('dragging')
+    stage.setPointerCapture(e.pointerId)
+  })
+  stage.addEventListener('pointermove', (e) => {
+    if (!drag) return
+    const r = stage.getBoundingClientRect()
+    dragEl.style.transform = 'translate(' + (e.clientX - r.left - drag.ox) + 'px,' + (e.clientY - r.top - drag.oy) + 'px)'
+    stage.querySelectorAll('.zone').forEach((z, i) => z.classList.toggle('target', i === zoneAt(e.clientX - r.left)))
+  })
+  stage.addEventListener('pointerup', (e) => {
+    if (!drag) return
+    const r = stage.getBoundingClientRect(), d = dragEl, from = drag.from
+    const tap = Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5
+    stage.querySelectorAll('.zone').forEach((z) => z.classList.remove('target'))
+    d.classList.remove('dragging'); dragEl = null; drag = null
+    if (tap) { layout(); clickPeg(from); return }
+    move(from, zoneAt(e.clientX - r.left))
+    layout()
+  })
+  function clickPeg(i) {
+    if (held === null) {
+      if (!pegs[i].length) return
+      held = i; disks[pegs[i][pegs[i].length - 1]].classList.add('held')
+      say(NAMES[i] + ' の円盤を持ち上げました。置く柱を選んでください')
+    } else {
+      const from = held; held = null
+      disks.forEach((d) => d && d.classList.remove('held'))
+      move(from, i)
+    }
+  }
+  stage.addEventListener('keydown', (e) => { const k = '123'.indexOf(e.key); if (k >= 0 && !solving) { e.preventDefault(); clickPeg(k) } })
+
+  // ── Auto-solve from any legal position, showing the recursion ───────────
+  // To bring disks 1..k onto peg t: if disk k is already on t, recurse on k-1; otherwise
+  // move 1..k-1 onto the spare peg, move k to t, then move 1..k-1 onto t.
+  function plan() {
+    const where = []; pegs.forEach((p, i) => p.forEach((s) => { where[s] = i }))
+    const out = []
+    const go = (k, t, depth) => {
+      if (k === 0) return
+      if (where[k] === t) { go(k - 1, t, depth); return }
+      const spare = 3 - where[k] - t
+      out.push({ call: [k, where[k], t], depth })
+      go(k - 1, spare, depth + 1)
+      out.push({ move: [where[k], t], depth })
+      where[k] = t
+      go(k - 1, t, depth + 1)
+      out.push({ ret: true, depth })
+    }
+    go(n, 2, 0)
+    return out
+  }
+  const HINT = $('stack').innerHTML
+  function stackView(frames) {
+    $('stack').innerHTML = frames.length ? '<b style="font-weight:600;color:var(--lt-fg-2)">再帰:</b>' + frames.map(([k, f, t]) => '<span>' + k + ' 枚を ' + NAMES[f] + '→' + NAMES[t] + '</span>').join('') : HINT
+  }
+  function solve() {
+    if (solving) { stopSolve(); return }
+    held = null; disks.forEach((d) => d && d.classList.remove('held'))
+    const steps = plan()
+    if (!steps.some((s) => s.move)) { say('もう解けています'); return }
+    solving = { steps, i: 0, frames: [] }
+    $('solve').textContent = '❚❚ 止める'
+    layout(); tickSolve()
+  }
+  function stopSolve() { clearTimeout(solving && solving.timer); solving = null; $('solve').textContent = '▶ 自動で解く'; stackView([]); layout() }
+  function tickSolve() {
+    if (!solving) return
+    if (!lantern.visible) { solving.timer = setTimeout(tickSolve, 300); return }
+    while (solving.i < solving.steps.length) {
+      const s = solving.steps[solving.i++]
+      if (s.call) { solving.frames.push(s.call); continue }
+      if (s.ret) { solving.frames.pop(); continue }
+      move(s.move[0], s.move[1])
+      stackView(solving.frames)
+      solving.timer = setTimeout(tickSolve, reduced ? 650 : Math.max(140, 520 - n * 55))
+      return
+    }
+    stopSolve()
+  }
+
+  // ── Win ────────────────────────────────────────────────────────────────
+  function win() {
+    const best = 2 ** n - 1
+    $('win-text').textContent = moves === best ? 'クリア！ 最短の ' + moves + ' 手です 🎉' : 'クリア！ ' + moves + ' 手（最短は ' + best + ' 手）'
+    if (!$('win').classList.contains('on')) { $('win').classList.add('on'); if (!reduced) confetti() }
+  }
+  function confetti() {
+    const cv = $('fx'), ctx = cv.getContext('2d'), d = Math.min(devicePixelRatio || 1, 2)
+    cv.width = stage.clientWidth * d; cv.height = stage.clientHeight * d; ctx.setTransform(d, 0, 0, d, 0, 0)
+    const cols = lantern.colors(), W = stage.clientWidth
+    const parts = Array.from({ length: 140 }, () => ({ x: W * (0.7 + Math.random() * 0.25), y: 180, vx: (Math.random() - 0.65) * 9, vy: -6 - Math.random() * 7, r: 3 + Math.random() * 4, c: cols[Math.floor(Math.random() * 8)], a: Math.random() * 6, va: (Math.random() - 0.5) * 0.4 }))
+    let t0 = performance.now()
+    const step = (now) => {
+      const dt = Math.min(0.05, (now - t0) / 1000) * 60; t0 = now
+      ctx.clearRect(0, 0, W, stage.clientHeight)
+      let alive = 0
+      for (const p of parts) {
+        p.vy += 0.25 * dt; p.vx *= 0.99; p.x += p.vx * dt; p.y += p.vy * dt; p.a += p.va * dt
+        if (p.y < stage.clientHeight + 10) alive++
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = p.c; ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); ctx.restore()
+      }
+      if (alive) requestAnimationFrame(step); else ctx.clearRect(0, 0, W, stage.clientHeight)
+    }
+    requestAnimationFrame(step)
+  }
+
+  // ── Buttons ────────────────────────────────────────────────────────────
+  $('solve').addEventListener('click', solve)
+  $('reset').addEventListener('click', () => { stopSolve(); build(true); save() })
+  $('again').addEventListener('click', () => { stopSolve(); build(true); save() })
+  $('undo').addEventListener('click', () => { if (solving || !history.length) return; const [f, t] = history.pop(); pegs[f].push(pegs[t].pop()); moves = Math.max(0, moves - 1); $('win').classList.remove('on'); layout(); save() })
+  $('count').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-n]'); if (!b) return
+    stopSolve(); n = +b.dataset.n
+    $('count').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+    build(true); save()
+  })
+  lantern.on('theme', () => { const cols = lantern.colors(); disks.forEach((d, s) => { if (d) d.style.background = cols[(s - 1) % 8] }) })
+  document.querySelectorAll('#count button').forEach((x) => x.setAttribute('aria-pressed', String(+x.dataset.n === n)))
+  build(false)
+})()
+</script>

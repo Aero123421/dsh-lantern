@@ -27,11 +27,16 @@ export interface FrameProps {
   readonly onSend: (text: string) => Promise<void>
   readonly onExpand?: () => void
   readonly onError?: (message: string) => void
+  /** The visual kept a wheel turn from its own handlers so the chat could scroll. */
+  readonly onWheelHint?: () => void
+  /** The visual's WebGL context was lost (true) or restored (false). */
+  readonly onGlLost?: (lost: boolean) => void
   readonly maxHeight?: number
 }
 
 // No popups and no same-origin: links leave through `open-link`, checked here.
 const SANDBOX = 'allow-scripts allow-forms allow-downloads'
+const MAX_INLINE_HEIGHT = 2400
 const MAX_JSON = 64 * 1024
 const SEND_INTERVAL_MS = 1500
 const MAX_SENDS = 6
@@ -94,6 +99,7 @@ export function Frame(props: FrameProps) {
     const boot: FrameBoot = {
       id: callId, state: initial.current.state, response: initial.current.response ?? null,
       scheme: current.scheme, mode, widgetState, streaming, lang: uiLang(),
+      ...mode === 'inline' ? { maxHeight: latest.current.maxHeight ?? MAX_INLINE_HEIGHT } : {},
     }
     return buildDocument(streaming ? '' : html, boot, current.css)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -140,9 +146,15 @@ export function Frame(props: FrameProps) {
         case 'resize': {
           if (p.mode !== 'inline') return
           const value = Number(data.height)
-          if (Number.isFinite(value)) setHeight(Math.max(24, Math.min(Math.ceil(value), p.maxHeight ?? 2400)))
+          if (Number.isFinite(value)) setHeight(Math.max(24, Math.min(Math.ceil(value), p.maxHeight ?? MAX_INLINE_HEIGHT)))
           return
         }
+        case 'hint':
+          if (p.mode === 'inline' && !p.streaming && data.kind === 'wheel') p.onWheelHint?.()
+          return
+        case 'gl':
+          if (!p.streaming) p.onGlLost?.(data.lost === true)
+          return
         case 'submit':
         case 'send': {
           if (p.streaming) { reply(data.id, false, 'The visual is still being written.'); return }

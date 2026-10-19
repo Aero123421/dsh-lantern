@@ -1,0 +1,190 @@
+<style>
+  .rk { display: grid; gap: 10px; }
+  .rk-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .rk-head b { font-size: 15px; }
+  .rk-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--lt-fg-2); }
+  .cap { min-width: 210px; font-size: 12px; color: var(--lt-fg-2); }
+  .cap .meter { height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--lt-fg) 8%, transparent); overflow: hidden; margin-top: 5px; }
+  .cap .meter i { display: block; height: 100%; border-radius: inherit; background: var(--lt-series-2); transition: width .25s var(--lt-ease), background .25s; }
+  .cap.over .meter i { background: var(--lt-danger); }
+  .cap.over b { color: var(--lt-danger); }
+  .cap b { color: var(--lt-fg); font-variant-numeric: tabular-nums; }
+  .list { position: relative; display: grid; gap: 6px; padding: 0; margin: 0; list-style: none; }
+  .item { position: relative; display: grid; grid-template-columns: 26px 22px 1fr auto auto; align-items: center; gap: 10px; padding: 9px 10px 9px 6px;
+    border-radius: 12px; border: 1px solid var(--lt-border-strong); background: var(--lt-bg); cursor: grab; touch-action: none; user-select: none;
+    transition: transform .2s var(--lt-ease), box-shadow .2s, opacity .2s; }
+  .item:hover { border-color: color-mix(in srgb, var(--lt-fg) 30%, transparent); }
+  .item:focus-visible { outline: 2px solid var(--lt-accent); outline-offset: 2px; }
+  .item.lifted { transition: box-shadow .2s; z-index: 3; cursor: grabbing; box-shadow: 0 12px 28px rgba(0,0,0,.18), 0 0 0 1.5px var(--lt-fg-3); }
+  .item.grabbed { box-shadow: 0 0 0 2px var(--lt-accent); }
+  .item.out { opacity: .55; }
+  .item.out.lifted { opacity: 1; }
+  .grip { color: var(--lt-fg-3); display: grid; place-items: center; }
+  .rank { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 700 11.5px var(--lt-font-mono); background: var(--lt-fg); color: var(--lt-bg); }
+  .item.out .rank { background: var(--lt-surface-2); color: var(--lt-fg-2); }
+  .txt b { font-size: 13.5px; display: block; line-height: 1.35; }
+  .txt span { font-size: 12px; color: var(--lt-fg-2); }
+  .tag { font-size: 11px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .pt { font: 600 11.5px var(--lt-font-mono); color: var(--lt-fg-2); min-width: 34px; text-align: right; }
+  .cut { position: relative; display: flex; align-items: center; gap: 10px; padding: 4px 6px; cursor: ns-resize; touch-action: none; user-select: none; border-radius: 10px; transition: transform .2s var(--lt-ease); }
+  .cut::before, .cut::after { content: ''; flex: 1; border-top: 2px dashed var(--lt-fg-3); }
+  .cut span { font-size: 12px; font-weight: 600; color: var(--lt-fg-2); white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+  .cut.lifted { z-index: 3; transition: none; }
+  .cut:focus-visible { outline: 2px solid var(--lt-accent); }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .foot .help { font-size: 12px; color: var(--lt-fg-3); }
+  .done { display: none; padding: 9px 12px; border-radius: 12px; background: var(--lt-success-soft); font-size: 13px; }
+  :root[data-lt-state="answered"] .done { display: block; }
+  :root[data-lt-state="answered"] .item, :root[data-lt-state="answered"] .cut { cursor: default; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+
+<div class="rk">
+  <div class="rk-head">
+    <div><b>次のスプリントの優先順位</b><p>ドラッグで並べ替え、点線を動かして今回やる範囲を決めてください</p></div>
+    <div class="cap" id="cap"></div>
+  </div>
+  <ol class="list" id="list" aria-label="優先順位のリスト"></ol>
+  <div class="done" id="done"></div>
+  <div class="foot">
+    <span class="help">キーボード: Space で持ち上げ、↑↓ で移動、Space で置く</span>
+    <div class="lt-row"><button class="small ghost" id="shuffle">元の順に戻す</button><button class="primary" id="send">この順番で決定</button></div>
+  </div>
+  <div class="sr" aria-live="assertive" id="live"></div>
+</div>
+
+<script>
+(() => {
+  const ITEMS = [
+    { id: 'login-bug', title: 'ログイン後に白い画面になる不具合', note: '一部の Android で発生。問い合わせが週 40 件', tag: 'バグ', tone: 4, pt: 3 },
+    { id: 'search', title: '検索を 3 倍速くする', note: 'インデックスの見直し。大口顧客から要望', tag: '性能', tone: 1, pt: 5 },
+    { id: 'csv', title: 'CSV エクスポート', note: '管理画面からの一括書き出し', tag: '機能', tone: 2, pt: 2 },
+    { id: 'onboarding', title: '初回ガイドの作り直し', note: '登録後 1 週間の離脱率 38% を改善', tag: 'UX', tone: 5, pt: 5 },
+    { id: 'dark', title: 'ダークモード', note: '要望は多いが売上への影響は小さい', tag: 'UI', tone: 3, pt: 3 },
+    { id: 'notify', title: '通知設定を細かく', note: 'メールとプッシュを種類ごとに選べるように', tag: '機能', tone: 2, pt: 2 },
+  ]
+  const CAPACITY = 10, CUT = '__cut__'
+  const $ = (id) => document.getElementById(id)
+  const list = $('list'), byId = Object.fromEntries(ITEMS.map((x) => [x.id, x]))
+  const initial = () => [...ITEMS.slice(0, 3).map((x) => x.id), CUT, ...ITEMS.slice(3).map((x) => x.id)]
+  // Restore: a submitted answer wins, then an unsent draft, then the default order.
+  const answered = () => lantern.state === 'answered' && lantern.response && Array.isArray(lantern.response.order)
+  let order = answered() ? [...lantern.response.sprint, CUT, ...lantern.response.order.filter((id) => !lantern.response.sprint.includes(id))]
+    : (lantern.getState() && lantern.getState().order) || initial()
+  const locked = () => lantern.state === 'answered' || lantern.state === 'dismissed' || lantern.state === 'closed'
+
+  function render() {
+    const cols = lantern.colors()
+    let rank = 0, inSprint = true
+    list.innerHTML = order.map((id) => {
+      if (id === CUT) { inSprint = false; return '<li class="cut" data-id="' + CUT + '" tabindex="0" aria-label="今回やる範囲の区切り"><span>⇕ ここまでを今回やる</span></li>' }
+      const x = byId[id]; rank++
+      return '<li class="item' + (inSprint ? '' : ' out') + '" data-id="' + id + '" tabindex="0" aria-label="' + rank + ' 位 ' + x.title + '">'
+        + '<span class="grip"><svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor"><circle cx="3" cy="3" r="1.4"/><circle cx="9" cy="3" r="1.4"/><circle cx="3" cy="8" r="1.4"/><circle cx="9" cy="8" r="1.4"/><circle cx="3" cy="13" r="1.4"/><circle cx="9" cy="13" r="1.4"/></svg></span>'
+        + '<span class="rank">' + rank + '</span><span class="txt"><b>' + x.title + '</b><span>' + x.note + '</span></span>'
+        + '<span class="tag" style="background:color-mix(in srgb, ' + cols[x.tone - 1] + ' 16%, transparent);color:' + cols[x.tone - 1] + '">' + x.tag + '</span><span class="pt">' + x.pt + ' pt</span></li>'
+    }).join('')
+    const sprint = order.slice(0, order.indexOf(CUT)), pts = sprint.reduce((a, id) => a + byId[id].pt, 0)
+    $('cap').className = 'cap' + (pts > CAPACITY ? ' over' : '')
+    $('cap').innerHTML = '今回 <b>' + sprint.length + ' 件 · ' + pts + ' pt</b> / 目安 ' + CAPACITY + ' pt' + (pts > CAPACITY ? '（超過）' : '') + '<div class="meter"><i style="width:' + Math.min(100, pts / CAPACITY * 100) + '%"></i></div>'
+    if (answered()) $('done').textContent = '送信しました。今回やる: ' + lantern.response.sprint.map((id) => byId[id].title).join('、')
+  }
+
+  // ── Pointer dragging with FLIP-style shifting ───────────────────────────
+  let drag = null
+  list.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest('.item, .cut')
+    if (!el || locked() || e.button !== 0) return
+    const kids = [...list.children], rects = kids.map((k) => k.getBoundingClientRect())
+    drag = { el, id: el.dataset.id, from: kids.indexOf(el), y0: e.clientY, rects, kids, to: kids.indexOf(el), moved: false }
+    el.setPointerCapture(e.pointerId)
+  })
+  list.addEventListener('pointermove', (e) => {
+    if (!drag) return
+    const dy = e.clientY - drag.y0
+    if (!drag.moved && Math.abs(dy) < 4) return
+    drag.moved = true
+    drag.el.classList.add('lifted')
+    const { rects, from, kids } = drag, gap = 6
+    const minY = rects[0].top - rects[from].top, maxY = rects[rects.length - 1].bottom - rects[from].bottom
+    const y = Math.max(minY - 10, Math.min(maxY + 10, dy))
+    drag.el.style.transform = 'translateY(' + y + 'px)'
+    const mid = (rects[from].top + rects[from].bottom) / 2 + y, h = rects[from].height + gap
+    let to = from
+    for (let j = 0; j < kids.length; j++) {
+      if (j === from) continue
+      const c = (rects[j].top + rects[j].bottom) / 2
+      if (j < from && mid < c) { to = Math.min(to, j) }
+      if (j > from && mid > c) { to = Math.max(to, j) }
+    }
+    drag.to = to
+    kids.forEach((k, j) => {
+      if (j === from) return
+      const shift = to > from && j > from && j <= to ? -h : to < from && j >= to && j < from ? h : 0
+      k.style.transform = shift ? 'translateY(' + shift + 'px)' : ''
+    })
+  })
+  list.addEventListener('pointerup', () => {
+    if (!drag) return
+    const { el, from, to, moved } = drag
+    drag = null
+    if (!moved) return
+    const before = el.getBoundingClientRect().top
+    moveItem(from, to)
+    // FLIP: the dropped row eases from where the pointer left it.
+    const row = list.querySelector('[data-id="' + el.dataset.id + '"]')
+    const after = row.getBoundingClientRect().top
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      row.style.transition = 'none'; row.style.transform = 'translateY(' + (before - after) + 'px)'
+      row.getBoundingClientRect()
+      row.style.transition = ''; row.style.transform = ''
+    }
+    row.focus({ preventScroll: true })
+  })
+  function moveItem(from, to) {
+    const [id] = order.splice(from, 1)
+    order.splice(to, 0, id)
+    render()
+    lantern.setState({ order })
+    const rank = order.filter((x) => x !== CUT).indexOf(id) + 1
+    $('live').textContent = id === CUT ? '区切りを ' + order.indexOf(CUT) + ' 件目の下に移動しました' : byId[id].title + ' を ' + rank + ' 位に移動しました'
+  }
+
+  // ── Keyboard: Space lifts, arrows move, Space/Enter drops ───────────────
+  let grabbed = null
+  list.addEventListener('keydown', (e) => {
+    const el = e.target.closest('.item, .cut')
+    if (!el || locked()) return
+    const i = order.indexOf(el.dataset.id)
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault()
+      grabbed = grabbed ? null : el.dataset.id
+      el.classList.toggle('grabbed', !!grabbed)
+      $('live').textContent = grabbed ? '持ち上げました。↑↓ で移動、Space で置きます' : '置きました'
+    } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && grabbed) {
+      e.preventDefault()
+      const to = Math.max(0, Math.min(order.length - 1, i + (e.key === 'ArrowUp' ? -1 : 1)))
+      if (to === i) return
+      moveItem(i, to)
+      const row = list.querySelector('[data-id="' + grabbed + '"]')
+      row.classList.add('grabbed'); row.focus()
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      const kids = [...list.children], next = kids[kids.indexOf(el) + (e.key === 'ArrowUp' ? -1 : 1)]
+      if (next) next.focus()
+    }
+  })
+
+  // ── Answer ──────────────────────────────────────────────────────────────
+  $('send').addEventListener('click', () => {
+    const items = order.filter((id) => id !== CUT), sprint = order.slice(0, order.indexOf(CUT))
+    const points = sprint.reduce((a, id) => a + byId[id].pt, 0)
+    lantern.submit({ order: items, sprint, points, capacity: CAPACITY, titles: items.map((id) => byId[id].title), sprint_titles: sprint.map((id) => byId[id].title) }).catch((err) => { $('live').textContent = err.message })
+  })
+  $('shuffle').addEventListener('click', () => { if (locked()) return; order = initial(); render(); lantern.setState({ order }) })
+  lantern.on('state', ({ state }) => { $('send').disabled = $('shuffle').disabled = state === 'answered'; render() })
+  lantern.on('theme', render)
+  $('send').disabled = $('shuffle').disabled = locked()
+  render()
+})()
+</script>

@@ -1,0 +1,208 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<style>
+  .mx { display: grid; gap: 10px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .title b { font-size: 15px; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--lt-surface); border: 1px solid var(--lt-border); border-radius: 10px; flex-wrap: wrap; }
+  .seg button { min-height: 28px; padding: 0 9px; border: 0; background: transparent; border-radius: 7px; font-size: 12.5px; color: var(--lt-fg-2); }
+  .seg button:hover { background: transparent; color: var(--lt-fg); }
+  .body { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 12px; }
+  @media (max-width: 600px) { .body { grid-template-columns: 1fr; } }
+  .plane { position: relative; aspect-ratio: 1 / 1; max-height: 420px; border-radius: 14px; overflow: hidden; border: 1px solid var(--lt-border-strong); background: var(--lt-bg); touch-action: none; user-select: none; }
+  .plane svg { display: block; width: 100%; height: 100%; }
+  .handle { cursor: grab; }
+  .handle:active { cursor: grabbing; }
+  .handle circle.hit { fill: transparent; }
+  .lbl { font: italic 600 15px var(--lt-font-serif); paint-order: stroke; stroke: var(--lt-bg); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+  .side { display: grid; gap: 8px; align-content: start; }
+  .box { padding: 10px 12px; border-radius: 12px; background: var(--lt-surface); border: 1px solid var(--lt-border); }
+  .box .k { font-size: 11.5px; color: var(--lt-fg-2); margin-bottom: 2px; }
+  .box .katex { font-size: 1.08em; }
+  .eq { min-height: 52px; display: flex; align-items: center; }
+  .kind { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { padding: 2px 9px; border-radius: 999px; font-size: 12px; background: var(--lt-bg); border: 1px solid var(--lt-border-strong); }
+  .tag.warn { color: var(--lt-warning); border-color: color-mix(in srgb, var(--lt-warning) 45%, transparent); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .hint { position: absolute; left: 8px; bottom: 8px; padding: 4px 9px; font-size: 11.5px; color: var(--lt-fg-2); pointer-events: none; border-radius: 9px;
+    background: color-mix(in srgb, var(--lt-bg) 85%, transparent); border: 1px solid var(--lt-border-strong); transition: opacity .4s; }
+</style>
+
+<div class="mx">
+  <div class="top">
+    <div class="title"><b>2×2 行列と線形変換</b></div>
+    <div class="seg" id="presets"></div>
+  </div>
+  <div class="body">
+    <div class="plane" id="plane">
+      <svg id="svg" viewBox="0 0 400 400"></svg>
+      <div class="hint" id="hint">青と緑の矢印の先をドラッグ</div>
+    </div>
+    <div class="side">
+      <div class="box"><div class="k">行列（列が î と ĵ の行き先）</div><div class="eq" id="m"></div></div>
+      <div class="box"><div class="k">行列式 = 面積の倍率</div><div class="eq" id="det"></div></div>
+      <div class="box"><div class="k">固有値（向きが変わらない方向）</div><div class="eq" id="eig"></div></div>
+      <div class="box"><div class="k">この変換は…</div><div class="kind" id="kind"></div></div>
+      <div class="row"><button class="small" id="morph">▶ 変形を再生</button><button class="small" id="ask">この行列を解説して ↗</button></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id)
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const PRESETS = [
+    ['単位行列', [1, 0, 0, 1]], ['回転 30°', [Math.cos(Math.PI / 6), -Math.sin(Math.PI / 6), Math.sin(Math.PI / 6), Math.cos(Math.PI / 6)]],
+    ['せん断', [1, 1, 0, 1]], ['伸縮', [2, 0, 0, 0.5]], ['鏡映', [-1, 0, 0, 1]], ['つぶす', [1, 0.5, 2, 1]],
+  ]
+  // A = [[a, b], [c, d]] is stored by columns, [a, c, b, d]: î → (a, c), ĵ → (b, d).
+  const saved = lantern.getState()
+  let A = saved && saved.A ? saved.A : [1, 0.5, 1, 1.5]   // [a, c, b, d]
+  const R = 3.1, SZ = 400, k = SZ / (2 * R)
+  const sx = (x) => SZ / 2 + x * k, sy = (y) => SZ / 2 - y * k
+  const apply = (M, [x, y]) => [M[0] * x + M[2] * y, M[1] * x + M[3] * y]
+  const svg = $('svg'), NS = 'http://www.w3.org/2000/svg'
+  const el = (tag, attrs, parent = svg) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e }
+  let C = {}
+  function theme() {
+    const css = getComputedStyle(document.documentElement), v = (n) => css.getPropertyValue(n).trim(), s = lantern.colors()
+    C = { i: s[0], j: s[1], eig: s[2], neg: s[3], v: s[4], fg: v('--lt-fg'), fg2: v('--lt-fg-2'), fg3: v('--lt-fg-3'), line: v('--lt-border'), strong: v('--lt-border-strong') }
+    draw()
+  }
+  lantern.on('theme', theme)
+
+  // ── Drawing ─────────────────────────────────────────────────────────────
+  function arrow(g, from, to, color, width) {
+    const [x0, y0] = [sx(from[0]), sy(from[1])], [x1, y1] = [sx(to[0]), sy(to[1])], len = Math.hypot(x1 - x0, y1 - y0)
+    if (len < 1) return
+    const ux = (x1 - x0) / len, uy = (y1 - y0) / len, h = Math.min(13, len * 0.45)
+    el('line', { x1: x0, y1: y0, x2: x1 - ux * h * 0.8, y2: y1 - uy * h * 0.8, stroke: color, 'stroke-width': width, 'stroke-linecap': 'round' }, g)
+    el('path', { d: 'M' + x1 + ',' + y1 + 'L' + (x1 - ux * h - uy * h * 0.5) + ',' + (y1 - uy * h + ux * h * 0.5) + 'L' + (x1 - ux * h + uy * h * 0.5) + ',' + (y1 - uy * h - ux * h * 0.5) + 'Z', fill: color }, g)
+  }
+  function lineThrough(g, M, p, q, attrs) {
+    // Draw the image of the infinite line p + t q, clipped by the viewBox via long segments.
+    const a = apply(M, p), d = apply(M, q), L = 40
+    el('line', Object.assign({ x1: sx(a[0] - d[0] * L), y1: sy(a[1] - d[1] * L), x2: sx(a[0] + d[0] * L), y2: sy(a[1] + d[1] * L) }, attrs), g)
+  }
+  const F_SHAPE = [[[-1.7, 0.35], [-1.7, 1.55]], [[-1.7, 1.55], [-1.05, 1.55]], [[-1.7, 1.0], [-1.2, 1.0]]]
+  function draw(M = A) {
+    svg.textContent = ''
+    const det = M[0] * M[3] - M[2] * M[1]
+    const bg = el('g', {})
+    for (let n = -4; n <= 4; n++) {   // original grid, faint
+      el('line', { x1: sx(n), y1: 0, x2: sx(n), y2: SZ, stroke: C.line, 'stroke-width': n ? 1 : 1.5 }, bg)
+      el('line', { x1: 0, y1: sy(n), x2: SZ, y2: sy(n), stroke: C.line, 'stroke-width': n ? 1 : 1.5 }, bg)
+    }
+    const g = el('g', {})
+    for (let n = -10; n <= 10; n++) {   // transformed grid
+      lineThrough(g, M, [n, 0], [0, 1], { stroke: n ? C.strong : C.fg3, 'stroke-width': n ? 1 : 1.6 })
+      lineThrough(g, M, [0, n], [1, 0], { stroke: n ? C.strong : C.fg3, 'stroke-width': n ? 1 : 1.6 })
+    }
+    // unit square → parallelogram (signed area = det)
+    const P = [[0, 0], [1, 0], [1, 1], [0, 1]].map((p) => apply(M, p))
+    el('path', { d: 'M' + P.map(([x, y]) => sx(x) + ',' + sy(y)).join('L') + 'Z', fill: det < 0 ? C.neg : C.i, 'fill-opacity': 0.16, stroke: det < 0 ? C.neg : C.i, 'stroke-opacity': 0.5, 'stroke-dasharray': '4 3' }, g)
+    const cxy = apply(M, [0.5, 0.5])
+    const area = el('text', { x: sx(cxy[0]), y: sy(cxy[1]) + 5, 'text-anchor': 'middle', 'font-size': 13, 'font-weight': 700, fill: det < 0 ? C.neg : C.fg2 }, g)
+    area.textContent = (Math.abs(det) < 0.005 ? '0' : det.toFixed(2))
+    // eigenvectors (real eigenvalues only)
+    const tr = M[0] + M[3], disc = tr * tr - 4 * det
+    if (disc >= -1e-9) {
+      const r = Math.sqrt(Math.max(0, disc)), ls = [(tr + r) / 2, (tr - r) / 2]
+      ls.forEach((l, n) => {
+        if (n === 1 && r < 1e-6) return
+        let v = Math.abs(M[2]) > 1e-9 ? [M[2], l - M[0]] : Math.abs(M[1]) > 1e-9 ? [l - M[3], M[1]] : Math.abs(l - M[0]) < 1e-9 ? [1, 0] : [0, 1]
+        const len = Math.hypot(...v); v = [v[0] / len, v[1] / len]
+        el('line', { x1: sx(-v[0] * 9), y1: sy(-v[1] * 9), x2: sx(v[0] * 9), y2: sy(v[1] * 9), stroke: C.eig, 'stroke-width': 1.6, 'stroke-dasharray': '6 5' }, g)
+        const tx = v[0] * 3.75, ty = v[1] * 3.75
+        const t = el('text', { x: sx(tx) + 6, y: sy(ty) - 6, class: 'lbl', fill: C.eig }, g)
+        t.textContent = 'λ' + (n ? '₂' : '₁')
+      })
+    }
+    // "F": shows how shapes (and orientation) move
+    const fpath = F_SHAPE.map(([p, q]) => { const a = apply(M, p), b = apply(M, q); return 'M' + sx(a[0]) + ',' + sy(a[1]) + 'L' + sx(b[0]) + ',' + sy(b[1]) }).join('')
+    el('path', { d: fpath, stroke: C.fg, 'stroke-width': 3, 'stroke-linecap': 'round', fill: 'none', opacity: 0.8 }, g)
+    // basis vectors
+    arrow(g, [0, 0], [M[0], M[1]], C.i, 3.2)
+    arrow(g, [0, 0], [M[2], M[3]], C.j, 3.2)
+    for (const [key, x, y, col, name] of [['i', M[0], M[1], C.i, 'î'], ['j', M[2], M[3], C.j, 'ĵ']]) {
+      const h = el('g', { class: 'handle', 'data-h': key })
+      el('circle', { cx: sx(x), cy: sy(y), r: 16, class: 'hit' }, h)
+      el('circle', { cx: sx(x), cy: sy(y), r: dragging === key ? 8 : 6, fill: col, stroke: 'var(--lt-bg)', 'stroke-width': 2 }, h)
+      const t = el('text', { x: sx(x) + 10, y: sy(y) - 10, class: 'lbl', fill: col }, g)
+      t.textContent = name
+      svg.appendChild(h)
+    }
+    if (M === A) panel()
+  }
+
+  // ── Numbers (KaTeX) ─────────────────────────────────────────────────────
+  const f = (v) => { const r = Math.round(v * 100) / 100; return (Math.abs(r) < 0.005 ? 0 : r).toString() }
+  function panel() {
+    const [a, c, b, d] = A, det = a * d - b * c, tr = a + d, disc = tr * tr - 4 * det
+    const col = (hex, s) => '\\textcolor{' + hex + '}{' + s + '}'
+    katex.render('A = \\begin{pmatrix}' + col(C.i, f(a)) + ' & ' + col(C.j, f(b)) + ' \\\\ ' + col(C.i, f(c)) + ' & ' + col(C.j, f(d)) + '\\end{pmatrix}', $('m'), { throwOnError: false })
+    katex.render('\\det A = ad - bc = ' + f(det), $('det'), { throwOnError: false })
+    if (disc >= -1e-9) { const r = Math.sqrt(Math.max(0, disc)); katex.render('\\lambda_1 = ' + f((tr + r) / 2) + ',\\; \\lambda_2 = ' + f((tr - r) / 2), $('eig'), { throwOnError: false }) }
+    else katex.render('\\lambda = ' + f(tr / 2) + ' \\pm ' + f(Math.sqrt(-disc) / 2) + 'i', $('eig'), { throwOnError: false })
+    const tags = []
+    const orth = Math.abs(a * b + c * d) < 0.02 && Math.abs(a * a + c * c - 1) < 0.03 && Math.abs(b * b + d * d - 1) < 0.03
+    if (Math.abs(det) < 0.01) tags.push(['平面が直線につぶれる（逆行列なし）', 'warn'])
+    else if (det < 0) tags.push(['向きが反転する', 'warn'])
+    if (orth && det > 0 && Math.abs(a - 1) > 0.01) tags.push(['回転 ' + Math.round(Math.atan2(c, a) * 180 / Math.PI) + '°'])
+    else if (orth) tags.push(['長さと角度を保つ'])
+    if (Math.abs(det) >= 0.01) tags.push(['面積が ' + f(Math.abs(det)) + ' 倍'])
+    if (disc < -1e-9) tags.push(['実の固有ベクトルがない（回転を含む）'])
+    $('kind').innerHTML = tags.map(([t, cl]) => '<span class="tag ' + (cl || '') + '">' + t + '</span>').join('')
+  }
+
+  // ── Dragging the basis tips (snaps to halves) ───────────────────────────
+  let dragging = null
+  const toMath = (e) => { const r = svg.getBoundingClientRect(); return [((e.clientX - r.left) / r.width * SZ - SZ / 2) / k, (SZ / 2 - (e.clientY - r.top) / r.height * SZ) / k] }
+  const snap = (v) => { const h = Math.round(v * 2) / 2; return Math.abs(v - h) < 0.09 ? h : Math.round(v * 100) / 100 }
+  svg.addEventListener('pointerdown', (e) => {
+    const h = e.target.closest('[data-h]')
+    if (!h) return
+    dragging = h.dataset.h
+    svg.setPointerCapture(e.pointerId)
+    $('hint').style.opacity = 0
+    stopMorph()
+    draw()
+  })
+  svg.addEventListener('pointermove', (e) => {
+    if (!dragging) return
+    let [x, y] = toMath(e)
+    x = Math.max(-R + 0.2, Math.min(R - 0.2, snap(x))); y = Math.max(-R + 0.2, Math.min(R - 0.2, snap(y)))
+    if (dragging === 'i') { A[0] = x; A[1] = y } else { A[2] = x; A[3] = y }
+    draw()
+  })
+  svg.addEventListener('pointerup', () => { if (dragging) { dragging = null; draw(); save() } })
+
+  // ── Presets and morph animation ─────────────────────────────────────────
+  $('presets').innerHTML = PRESETS.map(([n], i) => '<button data-p="' + i + '">' + n + '</button>').join('')
+  let anim = 0
+  function stopMorph() { cancelAnimationFrame(anim); anim = 0 }
+  function tween(from, to, ms, done) {
+    stopMorph()
+    if (reduced) { A = to.slice(); draw(); done && done(); return }
+    const t0 = performance.now(), ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / ms), e = ease(t), M = from.map((v, i) => v + (to[i] - v) * e)
+      if (t < 1) { draw(M); anim = requestAnimationFrame(step) } else { anim = 0; A = to.slice(); draw(); done && done() }
+    }
+    anim = requestAnimationFrame(step)
+  }
+  $('presets').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-p]'); if (!b) return
+    const m = PRESETS[+b.dataset.p][1], to = [m[0], m[2], m[1], m[3]]   // preset is [[a,b],[c,d]] row-major
+    tween(A.slice(), to, 700, save)
+  })
+  $('morph').addEventListener('click', () => { const target = A.slice(); tween([1, 0, 0, 1], target, 1600) })
+  $('ask').addEventListener('click', () => {
+    const [a, c, b, d] = A
+    lantern.send('行列 [[' + f(a) + ', ' + f(b) + '], [' + f(c) + ', ' + f(d) + ']] は平面をどう変形しますか？ 行列式 ' + f(a * d - b * c) + ' と固有値・固有ベクトルの意味を、図の見え方にそって説明して').catch(() => {})
+  })
+  const save = () => lantern.setState({ A: A.map((v) => Math.round(v * 1000) / 1000) })
+  theme()
+})()
+</script>

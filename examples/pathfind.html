@@ -1,0 +1,314 @@
+<style>
+  :root { --glass: color-mix(in srgb, var(--lt-bg) 84%, transparent); }
+  .pf { display: grid; gap: 10px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .title b { font-size: 15px; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--lt-surface); border: 1px solid var(--lt-border); border-radius: 10px; flex-wrap: wrap; }
+  .seg button { min-height: 28px; padding: 0 10px; border: 0; background: transparent; border-radius: 7px; font-size: 12.5px; color: var(--lt-fg-2); gap: 6px; }
+  .seg button:hover { background: transparent; color: var(--lt-fg); }
+  .seg button[aria-pressed="true"] { background: var(--lt-bg); color: var(--lt-fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px var(--lt-border-strong); }
+  .seg button i { width: 11px; height: 11px; border-radius: 3px; }
+  .board { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--lt-border-strong); background: var(--lt-bg); touch-action: none; user-select: none; }
+  .board canvas { display: block; width: 100%; }
+  .glass { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--lt-border-strong); border-radius: 10px; }
+  .hint { position: absolute; left: 8px; bottom: 8px; padding: 4px 9px; font-size: 11.5px; color: var(--lt-fg-2); pointer-events: none; transition: opacity .4s; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .bar .sp { flex: 1; }
+  .speed { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--lt-fg-2); }
+  .speed input { width: 110px; }
+  .stats { display: flex; gap: 16px; font-size: 12.5px; color: var(--lt-fg-2); flex-wrap: wrap; }
+  .stats b { color: var(--lt-fg); font-variant-numeric: tabular-nums; }
+  .compare { display: none; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--lt-border); background: var(--lt-surface); }
+  .compare.on { display: grid; }
+  .crow { display: grid; grid-template-columns: 92px 1fr auto; align-items: center; gap: 10px; font-size: 12.5px; }
+  .crow .track { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--lt-fg) 7%, transparent); overflow: hidden; }
+  .crow .track i { display: block; height: 100%; border-radius: inherit; transition: width .5s var(--lt-ease); }
+  .crow span:last-child { color: var(--lt-fg-2); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; min-width: 150px; }
+  .crow.best b::after { content: ' ★'; color: var(--lt-warning); }
+  .chead { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--lt-fg-2); }
+</style>
+
+<div class="pf">
+  <div class="top">
+    <div class="title"><b>経路探索アルゴリズム</b></div>
+    <div class="seg" id="algo" role="group" aria-label="アルゴリズム">
+      <button data-a="bfs">幅優先</button><button data-a="dijkstra">ダイクストラ</button><button data-a="astar" aria-pressed="true">A*</button><button data-a="greedy">貪欲法</button>
+    </div>
+  </div>
+  <div class="bar">
+    <div class="seg" id="brush" role="group" aria-label="ペン">
+      <button data-b="wall" aria-pressed="true"><i style="background:var(--lt-fg)"></i>壁</button><button data-b="mud"><i id="mud-swatch"></i>ぬかるみ ×5</button><button data-b="erase">消しゴム</button>
+    </div>
+    <button class="small" id="maze">迷路をつくる</button>
+    <button class="small ghost" id="clear">全部消す</button>
+    <span class="sp"></span>
+    <label class="speed">速さ<input type="range" id="speed" min="1" max="10" value="5"></label>
+  </div>
+  <div class="board" id="board">
+    <canvas id="c"></canvas>
+    <div class="hint glass" id="hint">ドラッグで壁を描く · S と G はドラッグで移動</div>
+  </div>
+  <div class="bar">
+    <button class="primary" id="play" style="min-width:96px">▶ 探索</button>
+    <button id="step">1 歩</button>
+    <button id="cmp">4 つを比較</button>
+    <span class="sp"></span>
+    <div class="stats" id="stats"></div>
+  </div>
+  <div class="compare" id="compare"></div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id)
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const COLS = 36, ROWS = 17, MUD = 5
+  const NAMES = { bfs: '幅優先', dijkstra: 'ダイクストラ', astar: 'A*', greedy: '貪欲法' }
+  const saved = lantern.getState() || {}
+  // Grid: 0 empty, 1 wall, 2 mud (cost 5). Encoded compactly for setState.
+  let grid = saved.grid ? Array.from(saved.grid, Number) : defaultGrid()
+  let start = saved.start || [4, 8], goal = saved.goal || [31, 8]
+  let algo = saved.algo || 'astar', brush = 'wall'
+  function defaultGrid() {
+    const g = new Array(COLS * ROWS).fill(0)
+    for (let r = 2; r < 15; r++) g[r * COLS + 17] = 1
+    for (let c = 10; c < 18; c++) g[14 * COLS + c] = 1
+    for (let r = 4; r < 13; r++) for (let c = 22; c < 27; c++) if ((r + c) % 5) g[r * COLS + c] = 2
+    return g
+  }
+  const idx = (c, r) => r * COLS + c
+  const cost = (i) => (grid[i] === 2 ? MUD : 1)
+
+  // ── Search as a generator: one expansion per step ───────────────────────
+  function* search(kind) {
+    const s = idx(...start), t = idx(...goal)
+    const g = new Float64Array(COLS * ROWS).fill(Infinity), came = new Int32Array(COLS * ROWS).fill(-1)
+    const h = (i) => Math.abs((i % COLS) - goal[0]) + Math.abs(Math.floor(i / COLS) - goal[1])
+    const pri = (i) => (kind === 'astar' ? g[i] + h(i) : kind === 'greedy' ? h(i) : g[i])
+    // Binary heap of [priority, tie-break, cell]; stale entries are skipped when popped.
+    const heap = [], less = (a, b) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])
+    let tie = 0
+    const push = (i) => { heap.push([pri(i), tie++, i]); let k = heap.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (!less(heap[k], heap[p])) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p } }
+    const pop = () => { const top = heap[0], end = heap.pop(); if (heap.length) { heap[0] = end; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && less(heap[l], heap[m])) m = l; if (r < heap.length && less(heap[r], heap[m])) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m } } return top[2] }
+    const queue = [], open = new Set([s]), closed = new Set()
+    g[s] = 0
+    kind === 'bfs' ? queue.push(s) : push(s)
+    let order = 0
+    while (kind === 'bfs' ? queue.length : heap.length) {
+      const u = kind === 'bfs' ? queue.shift() : pop()
+      if (closed.has(u)) continue
+      closed.add(u); open.delete(u)
+      yield { visit: u, order: order++, open }
+      if (u === t) break
+      const c = u % COLS, r = Math.floor(u / COLS)
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nc = c + dc, nr = r + dr
+        if (nc < 0 || nr < 0 || nc >= COLS || nr >= ROWS) continue
+        const v = idx(nc, nr)
+        if (grid[v] === 1 || closed.has(v)) continue
+        const step = kind === 'bfs' ? 1 : cost(v)
+        if (g[u] + step < g[v]) {
+          g[v] = g[u] + step; came[v] = u
+          if (kind === 'bfs') { if (!open.has(v)) queue.push(v) } else push(v)
+          open.add(v)
+        }
+      }
+    }
+    const path = []
+    if (came[t] !== -1 || s === t) for (let i = t; i !== -1; i = came[i]) path.unshift(i)
+    const total = path.slice(1).reduce((a, i) => a + cost(i), 0)
+    return { path, total, visited: closed.size }
+  }
+  function solve(kind) { const it = search(kind); let r; do r = it.next(); while (!r.done); return r.value }
+
+  // ── Run state ───────────────────────────────────────────────────────────
+  let run = null   // { it, visited: Map(cell→order), open: Set, result, playing }
+  function newRun() { run = { it: search(algo), visited: new Map(), open: new Set(), result: null, playing: false }; }
+  function advance(n) {
+    for (let k = 0; k < n && !run.result; k++) {
+      const r = run.it.next()
+      if (r.done) { run.result = r.value; run.playing = false; break }
+      run.visited.set(r.value.visit, r.value.order); run.open = new Set(r.value.open)
+    }
+    updateStats()
+  }
+  function finish() { if (!run) newRun(); advance(1e6); run.pathT = 1; draw(); updatePlay() }
+
+  // ── Canvas ──────────────────────────────────────────────────────────────
+  const board = $('board'), canvas = $('c'), ctx = canvas.getContext('2d')
+  let cell = 18, W = 0, H = 0, C = {}
+  function resize() {
+    const w = board.clientWidth
+    cell = Math.floor(w / COLS); W = cell * COLS; H = cell * ROWS
+    const d = Math.min(devicePixelRatio || 1, 2)
+    canvas.style.height = H + 'px'; canvas.style.width = W + 'px'; canvas.style.margin = '0 auto'
+    canvas.width = Math.round(W * d); canvas.height = Math.round(H * d)
+    ctx.setTransform(d, 0, 0, d, 0, 0)
+    draw()
+  }
+  new ResizeObserver(resize).observe(board)
+  function theme() {
+    const css = getComputedStyle(document.documentElement), v = (n) => css.getPropertyValue(n).trim(), s = lantern.colors()
+    C = { fg: v('--lt-fg'), fg3: v('--lt-fg-3'), bg: v('--lt-bg'), line: v('--lt-border'), visitA: s[5], visitB: s[0], open: s[1], path: s[3], mud: s[2], start: s[1], goal: s[3] }
+    $('mud-swatch').style.background = C.mud
+    draw()
+  }
+  lantern.on('theme', theme)
+  const rgb = (hex) => { const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})/i.exec(hex) || [0, '80', '80', '80']; return [1, 2, 3].map((k) => parseInt(m[k], 16)) }
+  const mix = (a, b, t, alpha) => { const x = rgb(a), y = rgb(b); return 'rgba(' + x.map((v, k) => Math.round(v + (y[k] - v) * t)).join(',') + ',' + alpha + ')' }
+  function draw() {
+    if (!W) return
+    ctx.clearRect(0, 0, W, H)
+    const n = run ? run.visited.size : 0
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const i = idx(c, r), x = c * cell, y = r * cell
+      if (grid[i] === 2) { ctx.fillStyle = mix(C.mud, C.mud, 0, 0.28); ctx.fillRect(x, y, cell, cell); ctx.fillStyle = mix(C.mud, C.mud, 0, 0.6); ctx.beginPath(); ctx.arc(x + cell * 0.32, y + cell * 0.36, 1.4, 0, 7); ctx.arc(x + cell * 0.68, y + cell * 0.64, 1.4, 0, 7); ctx.fill() }
+      if (run && run.visited.has(i)) { const t = n > 1 ? run.visited.get(i) / (n - 1) : 0; ctx.fillStyle = mix(C.visitA, C.visitB, t, grid[i] === 2 ? 0.42 : 0.3); ctx.fillRect(x, y, cell, cell) }
+      else if (run && run.open.has(i)) { ctx.fillStyle = mix(C.open, C.open, 0, 0.16); ctx.fillRect(x, y, cell, cell); ctx.strokeStyle = mix(C.open, C.open, 0, 0.75); ctx.lineWidth = 1.2; ctx.strokeRect(x + 3.5, y + 3.5, cell - 7, cell - 7) }
+      if (grid[i] === 1) { ctx.fillStyle = C.fg; ctx.globalAlpha = 0.86; ctx.fillRect(x + 0.5, y + 0.5, cell - 1, cell - 1); ctx.globalAlpha = 1 }
+    }
+    ctx.strokeStyle = C.line; ctx.lineWidth = 1
+    ctx.beginPath()
+    for (let c = 1; c < COLS; c++) { ctx.moveTo(c * cell + 0.5, 0); ctx.lineTo(c * cell + 0.5, H) }
+    for (let r = 1; r < ROWS; r++) { ctx.moveTo(0, r * cell + 0.5); ctx.lineTo(W, r * cell + 0.5) }
+    ctx.stroke()
+    if (run && run.result && run.result.path.length) {
+      const p = run.result.path, upto = Math.max(2, Math.floor(p.length * (run.pathT ?? 1)))
+      ctx.strokeStyle = C.path; ctx.lineWidth = Math.max(3, cell * 0.24); ctx.lineCap = ctx.lineJoin = 'round'
+      ctx.beginPath()
+      p.slice(0, upto).forEach((i, k) => { const x = (i % COLS + 0.5) * cell, y = (Math.floor(i / COLS) + 0.5) * cell; k ? ctx.lineTo(x, y) : ctx.moveTo(x, y) })
+      ctx.stroke()
+    }
+    for (const [[c, r], col, label] of [[start, C.start, 'S'], [goal, C.goal, 'G']]) {
+      const x = (c + 0.5) * cell, y = (r + 0.5) * cell, big = drag && ((label === 'S' && drag.kind === 'start') || (label === 'G' && drag.kind === 'goal'))
+      ctx.fillStyle = col; ctx.strokeStyle = C.bg; ctx.lineWidth = 2
+      ctx.beginPath(); ctx.arc(x, y, cell * (big ? 0.62 : 0.48), 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+      ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.round(cell * 0.55) + 'px ' + getComputedStyle(document.body).fontFamily
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, x, y + 0.5)
+    }
+  }
+
+  // ── Loop ────────────────────────────────────────────────────────────────
+  let raf = 0
+  function kick() { if (!raf && lantern.visible && run && (run.playing || (run.result && (run.pathT ?? 1) < 1))) raf = requestAnimationFrame(tick) }
+  function tick() {
+    raf = 0
+    const sp = +$('speed').value
+    if (run.playing) advance(Math.round(Math.pow(1.75, sp - 1)))
+    if (run.result && (run.pathT ?? 0) < 1) run.pathT = Math.min(1, (run.pathT ?? 0) + 0.06)
+    draw(); updatePlay(); kick()
+  }
+  lantern.on('visibility', (v) => { if (v) kick() })
+  function updatePlay() { $('play').textContent = run && run.playing ? '❚❚ 一時停止' : run && run.result ? '↺ もう一度' : '▶ 探索' }
+  function updateStats() {
+    const r = run && run.result
+    $('stats').innerHTML = '<span>訪問 <b>' + (run ? run.visited.size : 0) + '</b> マス</span>'
+      + '<span>経路 <b>' + (r ? (r.path.length ? r.path.length - 1 + ' 歩' : '到達できません') : '—') + '</b></span>'
+      + '<span>コスト <b>' + (r && r.path.length ? r.total : '—') + '</b></span>'
+  }
+
+  // ── Editing ─────────────────────────────────────────────────────────────
+  let drag = null
+  function cellAt(e) { const b = canvas.getBoundingClientRect(); return [Math.floor((e.clientX - b.left) / cell), Math.floor((e.clientY - b.top) / cell)] }
+  const same = (a, b) => a[0] === b[0] && a[1] === b[1]
+  canvas.addEventListener('pointerdown', (e) => {
+    const p = cellAt(e)
+    if (p[0] < 0 || p[1] < 0 || p[0] >= COLS || p[1] >= ROWS) return
+    canvas.setPointerCapture(e.pointerId)
+    $('hint').style.opacity = 0
+    const live = run && run.result
+    if (same(p, start)) drag = { kind: 'start', live }
+    else if (same(p, goal)) drag = { kind: 'goal', live }
+    else {
+      const i = idx(...p), want = brush === 'erase' ? 0 : brush === 'mud' ? 2 : 1
+      drag = { kind: 'paint', value: grid[i] === want ? 0 : want, live }
+      paint(p)
+    }
+    if (run && run.playing) run.playing = false
+    draw()
+  })
+  canvas.addEventListener('pointermove', (e) => {
+    const p = cellAt(e)
+    if (!drag) { canvas.style.cursor = same(p, start) || same(p, goal) ? 'grab' : 'crosshair'; return }
+    if (p[0] < 0 || p[1] < 0 || p[0] >= COLS || p[1] >= ROWS) return
+    if (drag.kind === 'paint') paint(p)
+    else if (grid[idx(...p)] !== 1 && !same(p, drag.kind === 'start' ? goal : start)) { if (drag.kind === 'start') start = p; else goal = p; edited() }
+  })
+  canvas.addEventListener('pointerup', () => { if (drag) { drag = null; save(); draw() } })
+  function paint(p) {
+    if (same(p, start) || same(p, goal)) return
+    const i = idx(...p)
+    if (grid[i] === drag.value) return
+    grid[i] = drag.value
+    edited()
+  }
+  // After a finished search, edits re-solve instantly; otherwise they clear the search.
+  function edited() {
+    if (drag && drag.live) { newRun(); advance(1e6); run.pathT = 1 }
+    else run = null
+    $('compare').classList.remove('on')
+    updateStats(); updatePlay(); draw()
+  }
+
+  // ── Buttons ─────────────────────────────────────────────────────────────
+  $('play').addEventListener('click', () => {
+    if (!run || run.result) newRun()
+    if (reduced) { finish(); return }
+    run.playing = !run.playing
+    updatePlay(); kick()
+  })
+  $('step').addEventListener('click', () => { if (!run || run.result) newRun(); run.playing = false; advance(1); if (run.result) run.pathT = 1; draw(); updatePlay() })
+  $('algo').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-a]'); if (!b) return
+    algo = b.dataset.a
+    $('algo').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+    const wasDone = run && run.result
+    run = null
+    if (wasDone) finish()
+    updateStats(); updatePlay(); draw(); save()
+  })
+  $('brush').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-b]'); if (!b) return
+    brush = b.dataset.b
+    $('brush').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+  })
+  $('clear').addEventListener('click', () => { grid.fill(0); run = null; $('compare').classList.remove('on'); updateStats(); updatePlay(); draw(); save() })
+  $('maze').addEventListener('click', () => {
+    // Randomised depth-first maze on odd cells, then knock out a few walls for alternative routes.
+    grid.fill(1)
+    const stack = [[1, 1]], seen = new Set(['1,1'])
+    grid[idx(1, 1)] = 0
+    while (stack.length) {
+      const [c, r] = stack[stack.length - 1]
+      const nb = [[2, 0], [-2, 0], [0, 2], [0, -2]].map(([dc, dr]) => [c + dc, r + dr]).filter(([x, y]) => x > 0 && y > 0 && x < COLS - 1 && y < ROWS - 1 && !seen.has(x + ',' + y))
+      if (!nb.length) { stack.pop(); continue }
+      const [x, y] = nb[Math.floor(Math.random() * nb.length)]
+      grid[idx(x, y)] = 0; grid[idx((x + c) / 2, (y + r) / 2)] = 0
+      seen.add(x + ',' + y); stack.push([x, y])
+    }
+    for (let k = 0; k < 70; k++) { const c = 1 + Math.floor(Math.random() * (COLS - 2)), r = 1 + Math.floor(Math.random() * (ROWS - 2)); if (grid[idx(c, r)] === 1) grid[idx(c, r)] = Math.random() < 0.35 ? 2 : 0 }
+    start = [1, 1]; goal = [COLS % 2 ? COLS - 2 : COLS - 3, ROWS % 2 ? ROWS - 2 : ROWS - 3]
+    grid[idx(...start)] = grid[idx(...goal)] = 0
+    run = null; $('compare').classList.remove('on'); updateStats(); updatePlay(); draw(); save()
+  })
+  $('cmp').addEventListener('click', () => {
+    const res = Object.keys(NAMES).map((k) => ({ k, ...solve(k) }))
+    const max = Math.max(...res.map((r) => r.visited)), best = Math.min(...res.filter((r) => r.path.length).map((r) => r.total))
+    const fewest = Math.min(...res.filter((r) => r.path.length && r.total === best).map((r) => r.visited))
+    const cols = lantern.colors()
+    $('compare').innerHTML = '<div class="chead"><span>訪問したマスの数（少ないほど効率的）</span><button class="small" id="ask">結果を解説して ↗</button></div>'
+      + res.map((r, i) => '<div class="crow' + (r.path.length && r.total === best && r.visited === fewest ? ' best' : '') + '"><b>' + NAMES[r.k] + '</b><div class="track"><i style="width:' + (r.visited / max * 100).toFixed(1) + '%;background:' + cols[[1, 5, 0, 3][i]] + '"></i></div>'
+        + '<span>' + r.visited + ' マス · コスト ' + (r.path.length ? r.total : '—') + (r.path.length && r.total > best ? '・最短でない' : '') + '</span></div>').join('')
+    $('compare').classList.add('on')
+    $('compare').dataset.summary = res.map((r) => NAMES[r.k] + ': 訪問 ' + r.visited + ' マス, 経路コスト ' + (r.path.length ? r.total : 'なし')).join(' / ')
+  })
+  $('compare').addEventListener('click', (e) => {
+    if (e.target.id !== 'ask') return
+    lantern.send('経路探索の比較結果（' + $('compare').dataset.summary + '）。ぬかるみ（コスト 5）のマスもある盤面で、なぜこの差が出たのか説明して').catch(() => {})
+  })
+  const save = () => lantern.setState({ grid: grid.join(''), start, goal, algo })
+
+  document.querySelectorAll('#algo button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.a === algo)))
+  theme(); updateStats(); updatePlay(); resize()
+})()
+</script>

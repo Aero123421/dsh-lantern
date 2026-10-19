@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+  :root { --stage-a: #ffffff; --stage-b: #eef1f6; --glass: color-mix(in srgb, var(--lt-bg) 82%, transparent); }
+  :root[data-theme="dark"] { --stage-a: #20232a; --stage-b: #0f1013; }
+  html, body { height: 100%; }
+  body { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+  header { padding: 16px 18px 10px; display: grid; gap: 10px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 17px; margin: 0; }
+  .sub { color: var(--lt-fg-2); font-size: 12.5px; }
+  .formula { min-height: 44px; display: flex; align-items: center; font-size: 15px; padding: 6px 12px; border-radius: 12px;
+    background: var(--lt-surface); border: 1px solid var(--lt-border); overflow-x: auto; }
+  .formula .katex { font-size: 1.12em; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--lt-surface); border: 1px solid var(--lt-border); border-radius: 10px; flex-wrap: wrap; }
+  .seg button { min-height: 28px; padding: 0 10px; border: 0; background: transparent; border-radius: 7px; font-size: 12.5px; color: var(--lt-fg-2); }
+  .seg button:hover { background: transparent; color: var(--lt-fg); }
+  .seg button[aria-pressed="true"] { background: var(--lt-bg); color: var(--lt-fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px var(--lt-border-strong); }
+  .stage { position: relative; flex: 1 1 auto; min-height: 300px; margin: 0 18px; border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--lt-border-strong); background: radial-gradient(120% 100% at 30% 15%, var(--stage-a), var(--stage-b)); user-select: none; }
+  .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+  .glass { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--lt-border-strong); border-radius: 10px; }
+  .tools { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+  .tools .seg { background: var(--glass); border-color: var(--lt-border-strong); backdrop-filter: blur(8px); }
+  .chip { min-height: 36px; padding: 0 12px; border-radius: 10px; font-size: 12.5px; background: var(--glass); backdrop-filter: blur(8px); border-color: var(--lt-border-strong); color: var(--lt-fg-2); }
+  .chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; margin-right: 2px; }
+  .chip[aria-pressed="true"] { color: var(--lt-fg); font-weight: 600; }
+  .chip[aria-pressed="true"]::before { background: currentColor; }
+  .chip:hover { background: var(--glass); color: var(--lt-fg); }
+  .formula .cap { margin-left: auto; padding-left: 12px; font-size: 11.5px; color: var(--lt-fg-2); white-space: nowrap; }
+  .icon { width: 36px; min-height: 36px; padding: 0; border-radius: 10px; background: var(--glass); backdrop-filter: blur(8px); border-color: var(--lt-border-strong); color: var(--lt-fg-2); }
+  .icon:hover { background: var(--glass); color: var(--lt-fg); }
+  .icon svg { width: 17px; height: 17px; }
+  .bar { position: absolute; left: 10px; top: 10px; padding: 8px 10px; display: grid; grid-template-columns: 10px auto; gap: 4px 8px; font: 11px var(--lt-font-mono); color: var(--lt-fg-2); pointer-events: none; }
+  .bar i { grid-row: 1 / 4; width: 10px; height: 92px; border-radius: 4px; }
+  .bar span:nth-of-type(2) { align-self: center; }
+  .bar span:nth-of-type(3) { align-self: end; }
+  .hint { position: absolute; left: 10px; bottom: 10px; padding: 5px 10px; font-size: 11.5px; color: var(--lt-fg-2); pointer-events: none; transition: opacity .4s; }
+  .tip { position: absolute; left: 0; top: 0; padding: 8px 10px; font: 12px/1.5 var(--lt-font-mono); pointer-events: none; opacity: 0; transition: opacity .12s; white-space: nowrap; box-shadow: var(--lt-shadow); }
+  .tip b { font-family: var(--lt-font); }
+  .axis { position: absolute; transform: translate(-50%, -50%); font: italic 600 14px var(--lt-font-serif); pointer-events: none; transition: opacity .15s; }
+  footer { padding: 12px 18px 16px; display: grid; gap: 10px; }
+  .sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 18px; }
+  .slider { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; font-size: 12.5px; color: var(--lt-fg-2); }
+  .slider output { font: 600 12.5px var(--lt-font-mono); color: var(--lt-fg); min-width: 3.4em; text-align: right; }
+  .slider .katex { color: var(--lt-fg); }
+  .readout { font-size: 13px; color: var(--lt-fg-2); min-height: 20px; }
+  .readout b { color: var(--lt-fg); font-variant-numeric: tabular-nums; }
+  .readout .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--lt-series-4); margin-right: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <div><h1>3D 関数サーフェス</h1><div class="sub">曲面にカーソルを当てると接平面と勾配、クリックでその点から勾配降下</div></div>
+  </div>
+  <div class="seg" id="presets" role="group" aria-label="関数"></div>
+  <div class="formula" id="formula" aria-live="polite"></div>
+</header>
+<div class="stage" id="stage">
+  <div class="bar glass" id="bar"><i id="ramp"></i><span id="zmax"></span><span>z</span><span id="zmin"></span></div>
+  <div class="tools">
+    <button class="chip" id="mesh" aria-pressed="true">メッシュ線</button><button class="chip" id="contour" aria-pressed="true">等高線</button>
+    <button class="icon" data-lt-fullscreen title="全画面" aria-label="全画面"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4"/></svg></button>
+  </div>
+  <div id="axes"></div>
+  <div class="tip glass" id="tip"></div>
+  <div class="hint glass" id="hint">ドラッグで回転 · ホイールで拡大 · クリックで勾配降下</div>
+</div>
+<footer>
+  <div class="sliders" id="sliders"></div>
+  <div class="row">
+    <div class="readout" id="readout"></div>
+    <button class="small" id="ask">この関数の極値を説明して ↗</button>
+  </div>
+</footer>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+
+const $ = (id) => document.getElementById(id)
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+const fmt = (v, d = 2) => (Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d).replace('-', '−')
+
+// ── Functions (domain −3…3) ──────────────────────────────────────────────
+const PRESETS = {
+  ripple: { name: '波紋', a: [1.2, 0.2, 2, 0.05], k: [2.6, 0.8, 6, 0.1],
+    f: (x, y, a, k) => { const u = k * Math.hypot(x, y); return u < 1e-6 ? a : a * Math.sin(u) / u },
+    tex: (a, k) => `z = ${a}\\,\\dfrac{\\sin(${k}\\,r)}{${k}\\,r},\\quad r=\\sqrt{x^2+y^2}` },
+  saddle: { name: '鞍点', a: [0.5, 0.1, 1, 0.05], k: [1, 0.2, 2, 0.1],
+    f: (x, y, a, k) => a * (x * x - k * y * y) / 4,
+    tex: (a, k) => `z = \\dfrac{${a}}{4}\\left(x^2 - ${k}\\,y^2\\right)` },
+  hills: { name: '山と谷', a: [1.3, 0.2, 2, 0.05], k: [0.9, 0.3, 2.5, 0.1],
+    f: (x, y, a, k) => a * (Math.exp(-k * ((x - 1) ** 2 + (y - 0.6) ** 2)) - 0.85 * Math.exp(-k * ((x + 1.1) ** 2 + (y + 0.9) ** 2))),
+    tex: (a, k) => `z = ${a}\\left(e^{-${k}\\,d_1^2} - 0.85\\,e^{-${k}\\,d_2^2}\\right)`, cap: 'd₁, d₂: 山 (1, 0.6)・谷 (−1.1, −0.9) までの距離' },
+  egg: { name: '卵パック', a: [0.6, 0.1, 1.2, 0.05], k: [1.6, 0.5, 3, 0.1],
+    f: (x, y, a, k) => a * Math.sin(k * x) * Math.cos(k * y),
+    tex: (a, k) => `z = ${a}\\,\\sin(${k}\\,x)\\cos(${k}\\,y)` },
+  bowl: { name: '楕円ボウル', a: [0.5, 0.1, 1, 0.05], k: [4, 1, 10, 0.5],
+    f: (x, y, a, k) => a * (x * x + k * y * y) / 6 - 1,
+    tex: (a, k) => `z = \\dfrac{${a}}{6}\\left(x^2 + ${k}\\,y^2\\right) - 1` },
+}
+const ORDER = ['ripple', 'saddle', 'hills', 'egg', 'bowl']
+const S = Object.assign({ preset: 'ripple', a: null, k: null, lr: 0.18, mesh: true, contour: true, cam: null }, lantern.getState() || {})
+const P = () => PRESETS[S.preset]
+if (S.a === null) { S.a = P().a[0]; S.k = P().k[0] }
+const f = (x, y) => P().f(x, y, S.a, S.k)
+const grad = (x, y) => { const h = 1e-4; return [(f(x + h, y) - f(x - h, y)) / (2 * h), (f(x, y + h) - f(x, y - h)) / (2 * h)] }
+
+// ── Theme and colour ramp ────────────────────────────────────────────────
+const probe = document.createElement('i'); probe.style.display = 'none'; document.body.append(probe)
+const pix = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
+function token(name) {
+  probe.style.color = 'var(' + name + ')'
+  pix.clearRect(0, 0, 1, 1); pix.fillStyle = getComputedStyle(probe).color; pix.fillRect(0, 0, 1, 1)
+  const d = pix.getImageData(0, 0, 1, 1).data
+  return '#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join('')
+}
+const dark = () => document.documentElement.dataset.theme === 'dark'
+const RAMP = { light: ['#2c3e9e', '#2f7fd0', '#25b3a5', '#9fd36b', '#f6cf55', '#ef7a45'], dark: ['#4a5fd8', '#3d9cf0', '#2fd0bd', '#aee67a', '#ffd966', '#ff8a57'] }
+let ramp = []
+function buildRamp() { ramp = RAMP[dark() ? 'dark' : 'light'].map((c) => new THREE.Color(c)) }
+function rampAt(t, out) {
+  const x = Math.min(0.9999, Math.max(0, t)) * (ramp.length - 1), i = Math.floor(x)
+  return out.copy(ramp[i]).lerp(ramp[i + 1], x - i)
+}
+
+// ── Scene ────────────────────────────────────────────────────────────────
+const stage = $('stage')
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+stage.prepend(renderer.domElement)
+const scene = new THREE.Scene()
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100)
+const controls = new OrbitControls(camera, renderer.domElement)
+controls.enableDamping = true
+controls.dampingFactor = 0.1
+controls.minDistance = 4
+controls.maxDistance = 22
+controls.maxPolarAngle = Math.PI * 0.49
+controls.target.set(0, -0.3, 0)
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.6))
+const sun = new THREE.DirectionalLight(0xffffff, 1.7)
+sun.position.set(-3, 6, 4)
+scene.add(sun)
+
+const N = 120, SIZE = 6, FLOOR = -1.9
+const geo = new THREE.PlaneGeometry(SIZE, SIZE, N, N)
+geo.rotateX(-Math.PI / 2)
+geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 3), 3))
+const surfMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 })
+const surface = new THREE.Mesh(geo, surfMat)
+scene.add(surface)
+const meshMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.22 })
+const meshLines = new THREE.LineSegments(new THREE.BufferGeometry(), meshMat)
+scene.add(meshLines)
+const contourMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9 })
+const contours = new THREE.LineSegments(new THREE.BufferGeometry(), contourMat)
+const isoMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.45 })
+const isoLines = new THREE.LineSegments(new THREE.BufferGeometry(), isoMat)
+contours.add(isoLines)
+scene.add(contours)
+let grid = null
+function makeGrid(color) {
+  if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose() }
+  grid = new THREE.GridHelper(SIZE, 12, color, color)
+  grid.material.transparent = true
+  grid.material.opacity = dark() ? 0.35 : 0.45
+  grid.position.y = FLOOR
+  scene.add(grid)
+}
+const frameBox = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(SIZE, 1, SIZE)), new THREE.LineBasicMaterial({ transparent: true, opacity: 0.25 }))
+scene.add(frameBox)
+const axisMats = [0, 1, 2].map(() => new THREE.LineBasicMaterial())
+const axisLines = new THREE.Group()
+scene.add(axisLines)
+function buildAxes() {
+  axisLines.clear()
+  const o = toWorld(-3, -3, FLOOR), ends = [toWorld(3.3, -3, FLOOR), toWorld(-3, 3.3, FLOOR), toWorld(-3, -3, zmax + 0.3)]
+  ends.forEach((e, i) => axisLines.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([o, e]), axisMats[i])))
+}
+
+// Hover helpers: marker, drop line, tangent plane, gradient arrow.
+const marker = new THREE.Mesh(new THREE.SphereGeometry(0.06, 20, 14), new THREE.MeshBasicMaterial())
+const drop = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineDashedMaterial({ dashSize: 0.08, gapSize: 0.06, transparent: true, opacity: 0.7 }))
+const tangent = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }))
+const arrowMat = new THREE.MeshBasicMaterial({ depthTest: false, transparent: true })
+const arrow = new THREE.Group()
+const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1, 10).translate(0, 0.5, 0), arrowMat)
+const head = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.2, 16).translate(0, 0.1, 0), arrowMat)
+arrow.add(shaft, head)
+arrow.renderOrder = shaft.renderOrder = head.renderOrder = 10
+const hover = new THREE.Group()
+hover.add(marker, drop, tangent, arrow)
+hover.visible = false
+scene.add(hover)
+// Gradient descent: ball and trail.
+const ball = new THREE.Mesh(new THREE.SphereGeometry(0.09, 24, 16), new THREE.MeshStandardMaterial({ roughness: 0.3 }))
+const trailMat = new THREE.LineBasicMaterial()
+const trail = new THREE.Line(new THREE.BufferGeometry(), trailMat)
+ball.visible = trail.visible = false
+scene.add(ball, trail)
+
+const toWorld = (x, y, z, out = new THREE.Vector3()) => out.set(x, z, -y)
+let zmin = -1, zmax = 1
+
+function rebuild() {
+  const pos = geo.attributes.position, col = geo.attributes.color
+  zmin = Infinity; zmax = -Infinity
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = -pos.getZ(i), z = f(x, y)
+    pos.setY(i, z)
+    if (z < zmin) zmin = z
+    if (z > zmax) zmax = z
+  }
+  const span = Math.max(1e-6, zmax - zmin), c = new THREE.Color()
+  for (let i = 0; i < pos.count; i++) { rampAt((pos.getY(i) - zmin) / span, c); col.setXYZ(i, c.r, c.g, c.b) }
+  pos.needsUpdate = col.needsUpdate = true
+  geo.computeVertexNormals()
+  geo.computeBoundingSphere()
+  // Mesh lines every 10 cells.
+  const lines = [], step = SIZE / N
+  for (let k = 0; k <= N; k += 10) for (let j = 0; j < N; j++) {
+    const u = -SIZE / 2 + k * step, v0 = -SIZE / 2 + j * step, v1 = v0 + step
+    lines.push(u, f(u, -v0) + 0.004, v0, u, f(u, -v1) + 0.004, v1, v0, f(v0, -u) + 0.004, u, v1, f(v1, -u) + 0.004, u)
+  }
+  meshLines.geometry.dispose()
+  meshLines.geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(lines, 3))
+  buildContours()
+  buildAxes()
+  frameBox.scale.set(1, Math.max(0.2, zmax - FLOOR), 1)
+  frameBox.position.y = (zmax + FLOOR) / 2
+  $('zmax').textContent = fmt(zmax)
+  $('zmin').textContent = fmt(zmin)
+  $('ramp').style.background = 'linear-gradient(to top,' + RAMP[dark() ? 'dark' : 'light'].join(',') + ')'
+  renderFormula()
+  requestRender()
+}
+
+// Marching squares on a coarser grid; contours drawn on the floor and faintly on the surface.
+function buildContours() {
+  const M = 80, h = SIZE / M, levels = 14, pts = [], cols = [], iso3 = [], c = new THREE.Color()
+  const val = []
+  for (let j = 0; j <= M; j++) for (let i = 0; i <= M; i++) val.push(f(-SIZE / 2 + i * h, -SIZE / 2 + j * h))
+  const at = (i, j) => val[j * (M + 1) + i]
+  for (let l = 1; l < levels; l++) {
+    const iso = zmin + (zmax - zmin) * l / levels
+    rampAt(l / levels, c)
+    for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) {
+      const q = [at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1)]
+      const xy = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]
+      const cross = []
+      for (let e = 0; e < 4; e++) {
+        const a = q[e], b = q[(e + 1) % 4]
+        if ((a < iso) !== (b < iso)) {
+          const t = (iso - a) / (b - a), p0 = xy[e], p1 = xy[(e + 1) % 4]
+          cross.push([-SIZE / 2 + (p0[0] + (p1[0] - p0[0]) * t) * h, -SIZE / 2 + (p0[1] + (p1[1] - p0[1]) * t) * h])
+        }
+      }
+      for (let s = 0; s + 1 < cross.length; s += 2) {
+        pts.push(cross[s][0], FLOOR + 0.002, -cross[s][1], cross[s + 1][0], FLOOR + 0.002, -cross[s + 1][1])
+        cols.push(c.r, c.g, c.b, c.r, c.g, c.b)
+        iso3.push(cross[s][0], iso + 0.006, -cross[s][1], cross[s + 1][0], iso + 0.006, -cross[s + 1][1])
+      }
+    }
+  }
+  contours.geometry.dispose()
+  contours.geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)).setAttribute('color', new THREE.Float32BufferAttribute(cols, 3))
+  isoLines.geometry.dispose()
+  isoLines.geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(iso3, 3))
+}
+
+function renderFormula() {
+  const a = S.a.toFixed(2), k = S.k.toFixed(1)
+  const box = $('formula')
+  box.innerHTML = '<span></span>' + (P().cap ? '<span class="cap">' + P().cap + '</span>' : '')
+  try { katex.render(P().tex(a, k), box.firstChild, { throwOnError: false, displayMode: false }) } catch { box.firstChild.textContent = '' }
+}
+
+function applyTheme() {
+  buildRamp()
+  const fg = token('--lt-fg'), fg2 = token('--lt-fg-3')
+  meshMat.color.set(dark() ? '#ffffff' : '#0f1115')
+  meshMat.opacity = dark() ? 0.16 : 0.2
+  isoMat.color.set(dark() ? '#ffffff' : '#0f1115')
+  isoMat.opacity = dark() ? 0.4 : 0.38
+  makeGrid(fg2)
+  frameBox.material.color.set(fg2)
+  axisColors = [token('--lt-series-1'), token('--lt-series-2'), token('--lt-fg-2')]
+  axisMats.forEach((m, i) => m.color.set(axisColors[i]))
+  marker.material.color.set(fg)
+  drop.material.color.set(fg)
+  tangent.material.color.set(dark() ? '#ffffff' : '#0f1115')
+  arrowMat.color.set(token('--lt-series-4'))
+  ball.material.color.set(token('--lt-series-4'))
+  trailMat.color.set(token('--lt-series-4'))
+  sun.intensity = dark() ? 1.4 : 1.7
+  rebuild()
+}
+
+// ── Hover: tangent plane and gradient ────────────────────────────────────
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), tip = $('tip')
+function surfacePoint(e) {
+  const r = renderer.domElement.getBoundingClientRect()
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
+  ray.setFromCamera(ndc, camera)
+  const h = ray.intersectObject(surface, false)[0]
+  return h ? { x: h.point.x, y: -h.point.z } : null
+}
+function showHover(p, e) {
+  if (!p) { hover.visible = false; tip.style.opacity = 0; requestRender(); return }
+  const z = f(p.x, p.y), [gx, gy] = grad(p.x, p.y), g = Math.hypot(gx, gy)
+  const P0 = toWorld(p.x, p.y, z)
+  marker.position.copy(P0)
+  drop.geometry.setFromPoints([P0, toWorld(p.x, p.y, FLOOR)])
+  drop.computeLineDistances()
+  const normal = new THREE.Vector3(-gx, 1, gy).normalize()
+  tangent.position.copy(P0)
+  tangent.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal)
+  arrow.visible = g > 1e-3
+  if (arrow.visible) {
+    const dir = new THREE.Vector3(gx / g, g, -gy / g).normalize(), len = 0.35 + Math.min(1.1, g * 0.6)
+    arrow.position.copy(P0).addScaledVector(normal, 0.03)
+    arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir)
+    shaft.scale.set(1, len - 0.2, 1)
+    head.position.y = len - 0.2
+  }
+  hover.visible = true
+  tip.innerHTML = '<b>点 (' + fmt(p.x) + ', ' + fmt(p.y) + ')</b><br>z = ' + fmt(z, 3) + '<br>∇f = (' + fmt(gx) + ', ' + fmt(gy) + ')<br>|∇f| = ' + fmt(g)
+  const r = stage.getBoundingClientRect()
+  const x = Math.min(e.clientX - r.left + 16, r.width - tip.offsetWidth - 8), y = Math.max(8, Math.min(e.clientY - r.top - tip.offsetHeight - 12, r.height - tip.offsetHeight - 8))
+  tip.style.transform = 'translate(' + x + 'px,' + y + 'px)'
+  tip.style.opacity = 1
+  requestRender()
+}
+let down = null
+renderer.domElement.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; $('hint').style.opacity = 0 })
+renderer.domElement.addEventListener('pointermove', (e) => { if (e.buttons) { hover.visible = false; tip.style.opacity = 0; return } showHover(surfacePoint(e), e) })
+renderer.domElement.addEventListener('pointerleave', () => showHover(null))
+renderer.domElement.addEventListener('click', (e) => {
+  if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return
+  const p = surfacePoint(e)
+  if (p) startDescent(p.x, p.y)
+})
+
+// ── Gradient descent ─────────────────────────────────────────────────────
+let gd = null
+function startDescent(x, y) {
+  gd = { x, y, steps: 0, path: [toWorld(x, y, f(x, y) + 0.03)], done: false, start: [x, y] }
+  ball.visible = trail.visible = true
+  stepDescent(reduced ? 400 : 1)
+  requestRender()
+}
+function stepDescent(n) {
+  for (let i = 0; i < n && gd && !gd.done; i++) {
+    const [gx, gy] = grad(gd.x, gd.y)
+    gd.x -= S.lr * gx; gd.y -= S.lr * gy; gd.steps++
+    const out = Math.abs(gd.x) > SIZE / 2 || Math.abs(gd.y) > SIZE / 2
+    if (out) { gd.done = 'out'; gd.x = Math.max(-3, Math.min(3, gd.x)); gd.y = Math.max(-3, Math.min(3, gd.y)) }
+    gd.path.push(toWorld(gd.x, gd.y, f(gd.x, gd.y) + 0.03))
+    if (!out && Math.hypot(gx, gy) < 2e-3) gd.done = 'ok'
+    if (gd.steps >= 400 && !gd.done) gd.done = 'max'
+  }
+  trail.geometry.dispose()
+  trail.geometry = new THREE.BufferGeometry().setFromPoints(gd.path)
+  ball.position.copy(gd.path[gd.path.length - 1])
+  const z = f(gd.x, gd.y)
+  const where = '(' + fmt(gd.x) + ', ' + fmt(gd.y) + ')'
+  $('readout').innerHTML = '<span class="dot"></span>' + (gd.done === 'ok' ? '勾配降下 <b>' + gd.steps + '</b> ステップで ' + where + ' に収束、z = <b>' + fmt(z, 3) + '</b>'
+    : gd.done === 'out' ? '<b>' + gd.steps + '</b> ステップで範囲の外へ出ました。学習率を下げてみてください'
+    : gd.done === 'max' ? '<b>400</b> ステップで止めました（' + where + '、z = ' + fmt(z, 3) + '）。振動していませんか？'
+    : '勾配降下中… <b>' + gd.steps + '</b> ステップ目 ' + where)
+  $('ask').textContent = gd.done ? 'この勾配降下の結果を説明して ↗' : 'この関数の極値を説明して ↗'
+}
+
+// ── Loop ─────────────────────────────────────────────────────────────────
+let raf = 0, last = performance.now()
+function requestRender() { if (!raf && lantern.visible) raf = requestAnimationFrame(frame) }
+function frame(now) {
+  raf = 0
+  const dt = Math.min(0.05, (now - last) / 1000)
+  last = now
+  const moved = controls.update(dt)
+  if (gd && !gd.done) stepDescent(1)
+  renderer.render(scene, camera)
+  placeAxes()
+  if (wasMoving && !moved) save()          // the damped camera has come to rest
+  wasMoving = moved
+  if (moved || (gd && !gd.done)) requestRender()
+}
+let wasMoving = false
+controls.addEventListener('change', requestRender)
+controls.addEventListener('end', save)
+lantern.on('visibility', (v) => { if (v) { last = performance.now(); requestRender() } })
+lantern.on('theme', applyTheme)
+
+const axes = $('axes')
+let axisColors = []
+const occluder = new THREE.Raycaster()
+function placeAxes() {
+  const w = stage.clientWidth, h = stage.clientHeight
+  const pts = [['x', toWorld(3.55, -3, FLOOR)], ['y', toWorld(-3, 3.55, FLOOR)], ['z', toWorld(-3, -3, zmax + 0.5)]]
+  axes.innerHTML = pts.map(([n, p], i) => {
+    const v = p.clone().project(camera)
+    const d = p.clone().sub(camera.position), len = d.length()
+    occluder.set(camera.position, d.normalize())
+    occluder.far = len - 0.05
+    const hidden = occluder.intersectObject(surface, false).length > 0
+    return '<span class="axis" style="left:' + ((v.x + 1) / 2 * w).toFixed(1) + 'px;top:' + ((1 - v.y) / 2 * h).toFixed(1) + 'px;color:' + axisColors[i] + ';opacity:' + (hidden ? 0.25 : 1) + '">' + n + '</span>'
+  }).join('')
+}
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight
+  if (!w || !h) return
+  renderer.setSize(w, h, false)
+  camera.aspect = w / h
+  camera.updateProjectionMatrix()
+  if (!S.cam && !userMoved) camera.position.copy(defaultCam())
+  requestRender()
+}
+let userMoved = false
+controls.addEventListener('start', () => { userMoved = true })
+const defaultCam = () => new THREE.Vector3(0.62, 0.46, 0.74).normalize().multiplyScalar(13.8 / Math.min(1, Math.pow(camera.aspect, 0.75)))
+new ResizeObserver(resize).observe(stage)
+
+// ── UI ───────────────────────────────────────────────────────────────────
+let saveTimer = 0
+function save() {
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => lantern.setState({ preset: S.preset, a: S.a, k: S.k, lr: S.lr, mesh: S.mesh, contour: S.contour, cam: camera.position.toArray().map((v) => +v.toFixed(3)) }), 250)
+}
+$('presets').innerHTML = ORDER.map((id) => '<button data-p="' + id + '" aria-pressed="' + (id === S.preset) + '">' + PRESETS[id].name + '</button>').join('')
+$('presets').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-p]')
+  if (!b || b.dataset.p === S.preset) return
+  S.preset = b.dataset.p
+  S.a = P().a[0]; S.k = P().k[0]
+  $('presets').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+  gd = null; ball.visible = trail.visible = false; $('readout').innerHTML = ''
+  buildSliders(); rebuild(); save()
+})
+function buildSliders() {
+  const defs = [['a', '振幅', 'a', P().a], ['k', '係数', 'k', P().k], ['lr', '学習率', '\\eta', [S.lr, 0.02, 0.6, 0.02]]]
+  $('sliders').innerHTML = defs.map(([key, label, tex, [, min, max, step]]) =>
+    '<label class="slider"><span>' + label + ' <span data-tex="' + tex + '"></span></span><input type="range" data-k="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + S[key] + '"><output>' + (+S[key]).toFixed(2) + '</output></label>').join('')
+  $('sliders').querySelectorAll('[data-tex]').forEach((el) => katex.render(el.dataset.tex, el, { throwOnError: false }))
+}
+$('sliders').addEventListener('input', (e) => {
+  const k = e.target.dataset.k
+  if (!k) return
+  S[k] = +e.target.value
+  e.target.nextElementSibling.textContent = S[k].toFixed(2)
+  if (k !== 'lr') { rebuild(); if (gd) startDescent(...gd.start) }
+  save()
+})
+function toggle(id, key, obj) {
+  const b = $(id)
+  const set = (on) => { S[key] = on; b.setAttribute('aria-pressed', String(on)); obj.visible = on; requestRender() }
+  b.addEventListener('click', () => { set(!S[key]); save() })
+  set(S[key])
+}
+toggle('mesh', 'mesh', meshLines)
+toggle('contour', 'contour', contours)
+$('ask').addEventListener('click', () => {
+  const name = P().name, ab = 'a = ' + S.a.toFixed(2) + ', k = ' + S.k.toFixed(1)
+  const text = gd && gd.done
+    ? `「${name}」（${ab}）で (${fmt(gd.start[0])}, ${fmt(gd.start[1])}) から学習率 ${S.lr.toFixed(2)} の勾配降下をすると、${gd.steps} ステップで (${fmt(gd.x)}, ${fmt(gd.y)}) に着きました。なぜこうなるのか説明して`
+    : `「${name}」の曲面（${ab}）の極値や鞍点を、式から求めて説明して`
+  lantern.send(text).catch(() => {})
+})
+
+buildSliders()
+applyTheme()
+if (S.cam) camera.position.fromArray(S.cam)
+resize()
+</script>
+</body>
+</html>

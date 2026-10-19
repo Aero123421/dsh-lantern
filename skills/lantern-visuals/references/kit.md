@@ -21,7 +21,7 @@ Shape, space, depth, motion
 - `--lt-space-1` 4, `-2` 8, `-3` 12, `-4` 16, `-5` 24, `-6` 32, `-7` 48
 - `--lt-shadow-sm`, `--lt-shadow`, `--lt-ease`, `--lt-dur`
 
-The document root carries `data-theme="light"` or `"dark"`. To define your own palette for both:
+The document root carries `data-theme="light"` or `"dark"`, and `data-lt-mode="inline"` or `"panel"` (an inline card can also be opened in the sidebar, so a stage can grow there with `:root[data-lt-mode="panel"] .stage { height: calc(100vh - 160px) }`). To define your own palette for both:
 
 ```html
 <style>

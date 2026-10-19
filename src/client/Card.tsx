@@ -3,7 +3,7 @@
  * card appears in the tool row while a turn runs, under the final answer once
  * the turn has ended, and in the sidebar.
  */
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { copy } from './i18n.ts'
 import { Frame } from './Frame.tsx'
 import { answer, dismiss, openInSidebar, sendAsUser, workspaceUrl } from './services.ts'
@@ -45,6 +45,13 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
   const [errors, setErrors] = useState<readonly string[]>([])
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [skipping, setSkipping] = useState(false)
+  // A short "click first" hint when the wheel was kept for the chat, and a
+  // paused state when the browser dropped the visual's WebGL context.
+  const [wheelHint, setWheelHint] = useState(false)
+  const [glLost, setGlLost] = useState(false)
+  const [generation, setGeneration] = useState(0)
+  const hintTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => { if (hintTimer.current !== undefined) clearTimeout(hintTimer.current) }, [])
   const args = record.args
   const session = sessionId ?? record.sessionId
   const { state, response } = record.error !== undefined ? { state: 'closed' as const, response: undefined } : visualState(record, phase)
@@ -68,6 +75,13 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
   }, [session])
   const onExpand = useCallback(() => openInSidebar(session, callId), [session, callId])
   const onError = useCallback((message: string) => setErrors(list => list.length >= 3 ? list : [...list, message]), [])
+  const onWheelHint = useCallback(() => {
+    setWheelHint(true)
+    if (hintTimer.current !== undefined) clearTimeout(hintTimer.current)
+    hintTimer.current = window.setTimeout(() => setWheelHint(false), 2200)
+  }, [])
+  const onGlLost = useCallback((lost: boolean) => setGlLost(lost), [])
+  const restart = useCallback(() => { setGlLost(false); setGeneration(value => value + 1) }, [])
   const onSkip = useCallback(() => {
     setSkipping(true)
     dismiss(callId, session)
@@ -120,12 +134,22 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
   const body = record.error !== undefined
     ? <div className="lantern-note" data-kind="error">{record.error}</div>
     : isPath
-      ? <PathFrame record={record} sessionId={session} state={state} response={response} onSubmit={onSubmit} onSend={onSend} onError={onError} />
+      ? <PathFrame key={generation} record={record} sessionId={session} state={state} response={response} onSubmit={onSubmit} onSend={onSend} onError={onError} onGlLost={onGlLost} />
       : args?.html !== undefined || partialHtml !== undefined
-        ? <Frame key={phase === 'preparing' ? 'stream' : 'full'} callId={callId} mode={placement === 'panel' ? 'panel' : 'inline'}
+        ? <Frame key={(phase === 'preparing' ? 'stream' : 'full') + generation} callId={callId} mode={placement === 'panel' ? 'panel' : 'inline'}
             html={phase === 'preparing' ? partialHtml ?? '' : args?.html ?? ''} streaming={phase === 'preparing'}
-            state={state} response={response} onSubmit={onSubmit} onSend={onSend} onExpand={placement === 'panel' ? undefined : onExpand} onError={onError} />
+            state={state} response={response} onSubmit={onSubmit} onSend={onSend} onExpand={placement === 'panel' ? undefined : onExpand} onError={onError}
+            onWheelHint={onWheelHint} onGlLost={onGlLost} />
         : <div className="lantern-note">{c.preparing}</div>
+  const overlays = <>
+    {wheelHint && !glLost && <div className="lantern-hint" role="status">{c.wheelHint}</div>}
+    {glLost && (
+      <div className="lantern-paused">
+        <span>{c.glLost}</span>
+        <button type="button" className="lantern-action lantern-resume" onClick={restart}>{c.resume}</button>
+      </div>
+    )}
+  </>
 
   if (placement === 'panel') {
     return (
@@ -138,7 +162,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
           </div>
         )}
         <Notes notice={notice} errors={errors} />
-        <div className="lantern-panel-body">{body}</div>
+        <div className="lantern-panel-body">{body}{overlays}</div>
       </div>
     )
   }
@@ -157,7 +181,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
           <Icon name="chevron" />
         </button>
       </div>
-      <div className="lantern-body" hidden={collapsed}>{body}</div>
+      <div className="lantern-body" hidden={collapsed}>{body}{overlays}</div>
       <Notes notice={notice} errors={errors} />
     </div>
   )
@@ -182,6 +206,7 @@ function PathFrame(props: {
   onSubmit: (value: unknown) => Promise<void>
   onSend: (text: string) => Promise<void>
   onError: (message: string) => void
+  onGlLost: (lost: boolean) => void
 }) {
   const c = copy()
   const path = props.record.result?.path ?? props.record.args?.path
@@ -197,5 +222,5 @@ function PathFrame(props: {
   if (error) return <div className="lantern-note" data-kind="error">{c.fileError}: {error}</div>
   if (!url) return <div className="lantern-note">{c.loading}</div>
   return <Frame callId={props.record.callId} mode="panel" url={url} state={props.state} response={props.response}
-    onSubmit={props.onSubmit} onSend={props.onSend} onError={props.onError} />
+    onSubmit={props.onSubmit} onSend={props.onSend} onError={props.onError} onGlLost={props.onGlLost} />
 }

@@ -6,7 +6,7 @@ export const SKILL_NAME = 'lantern-visuals'
 export function toolDescription(timeoutMinutes: number): string {
   return [
     'Show an HTML visual to the user in DSH Web, inline in the chat (default) or in the right sidebar.',
-    'Use it when a diagram, chart, explorer, comparison, choice cards or a short form helps more than prose; keep explanations in your reply text.',
+    'Use it when a diagram, chart, explorer, comparison, choice cards, a short form or an interactive tool (3D model, simulation, game, drag-to-rank answer) helps more than prose; keep explanations in your reply text.',
     `Load the \`${SKILL_NAME}\` skill before your first visual in a session: it has the kit (tokens, components), the \`window.lantern\` API and patterns.`,
     'Pass `html` (a fragment or a full document; the kit and the DSH light/dark theme are preloaded, and your own styles override them) or `path` (an HTML file in the workspace, shown in the sidebar with its relative files).',
     `Set \`await_response: true\` to wait for the user's answer (sent with \`lantern.submit\` or a \`data-lt-submit\` button); it returns as this tool's result. Waiting ends after about ${timeoutMinutes} minutes; a later answer arrives as a user message.`,

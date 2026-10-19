@@ -42,8 +42,8 @@ function read(style: CSSStyleDeclaration, names: readonly string[]): string {
 
 let probe: HTMLSpanElement | undefined
 
-/** Relative luminance (0–1) of any CSS color, resolved by the browser. */
-function luminance(color: string): number {
+/** Any CSS color as the browser resolves it (`rgb(…)`). */
+function resolved(color: string): string {
   if (!probe) {
     probe = document.createElement('span')
     probe.style.display = 'none'
@@ -51,7 +51,16 @@ function luminance(color: string): number {
   if (!probe.isConnected) document.body.appendChild(probe)
   probe.style.color = ''
   probe.style.color = color
-  const match = /rgba?\(([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/.exec(getComputedStyle(probe).color)
+  return getComputedStyle(probe).color
+}
+
+function sameColor(a: string, b: string): boolean {
+  return a === b || resolved(a) === resolved(b)
+}
+
+/** Relative luminance (0–1) of any CSS color, resolved by the browser. */
+function luminance(color: string): number {
+  const match = /rgba?\(([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/.exec(resolved(color))
   if (!match) return 0
   const [r, g, b] = [match[1], match[2], match[3]].map(value => {
     const c = Number(value) / 255
@@ -70,6 +79,16 @@ export function readTheme(): ThemeSnapshot {
   for (const [token, sources] of COLORS) {
     const value = read(style, sources)
     if (value !== '') vars[token] = value
+  }
+  // DSH draws its light layers white on white (elevation comes from borders);
+  // the kit's surfaces are fills (stats, progress tracks, code, soft cards),
+  // so a layer that would vanish into the background becomes a light tint.
+  const bg = vars['--lt-bg']
+  const fg = vars['--lt-fg']
+  if (bg !== undefined && fg !== undefined) {
+    const flat = (value: string | undefined) => value === undefined || sameColor(value, bg)
+    if (flat(vars['--lt-surface'])) vars['--lt-surface'] = `color-mix(in srgb, ${fg} 4%, ${bg})`
+    if (flat(vars['--lt-surface-2']) || vars['--lt-surface-2'] === vars['--lt-surface']) vars['--lt-surface-2'] = `color-mix(in srgb, ${fg} 8%, ${bg})`
   }
   for (const [token, base, percent] of SOFT) {
     const value = vars[base]
