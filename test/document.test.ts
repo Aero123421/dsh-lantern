@@ -64,6 +64,22 @@ test('workspace pages get tokens only unless they ask for the kit', () => {
   assert.equal(injectPrelude('<p>x</p>', 'P'), 'P<p>x</p>')
 })
 
+test('streaming previews authorize only their own runtime script', () => {
+  const preview = () => buildDocument('', { ...boot, streaming: true }, '')
+  const html = preview()
+  const policy = /<meta http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)![1]!
+  const nonce = /script-src 'nonce-([^']+)'/.exec(policy)![1]!
+  assert.match(html, new RegExp(`<script nonce="${nonce}">`))
+  assert.equal(policy.includes("'unsafe-inline'"), false)
+  assert.equal(preview().includes(nonce), false)
+  // A slash can separate a tag name from an event handler in parsed HTML;
+  // the regex filter misses it, so the document must block its execution.
+  assert.match(partialMarkup('<svg/onload="alert(1)"></svg>'), /onload=/)
+  // Encoded JavaScript URLs must also remain subject to the same policy.
+  assert.match(partialMarkup('<a href="java&#x73;cript:alert(1)">link</a>'), /java&#x73;cript:/)
+  assert.equal(buildDocument('<script>run()</script>', boot, '').includes('script-src'), false)
+})
+
 test('inline cards never show a scrollbar of their own, unless taller than the largest card', () => {
   const html = buildDocument('<p>x</p>', { ...boot, maxHeight: 1800 }, '')
   // The rule lives in the kit layer, so a visual's own overflow styles still win.

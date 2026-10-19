@@ -14,6 +14,7 @@ import { onTheme, theme } from './theme.ts'
 
 export interface FrameProps {
   readonly callId: string
+  readonly sessionId?: string
   readonly mode: 'inline' | 'panel'
   /** Markup for an `html` visual. */
   readonly html?: string
@@ -67,7 +68,7 @@ function userActed(frame: HTMLIFrameElement | null, focusedAt: number): boolean 
 }
 
 export function Frame(props: FrameProps) {
-  const { callId, mode, html, url, streaming = false, state, response } = props
+  const { callId, sessionId, mode, html, url, streaming = false, state, response } = props
   const frame = useRef<HTMLIFrameElement>(null)
   const ready = useRef(false)
   const [height, setHeight] = useState(mode === 'inline' ? 120 : 0)
@@ -92,7 +93,7 @@ export function Frame(props: FrameProps) {
   const initial = useRef({ state, response })
   const srcDoc = useMemo(() => {
     if (html === undefined) return undefined
-    const local = readLocal(callId)
+    const local = readLocal(callId, sessionId)
     let widgetState: unknown = null
     if (local.state !== undefined) { try { widgetState = JSON.parse(local.state) } catch { widgetState = null } }
     const current = theme()
@@ -103,7 +104,7 @@ export function Frame(props: FrameProps) {
     }
     return buildDocument(streaming ? '' : html, boot, current.css)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streaming ? '' : html, streaming, callId, mode])
+  }, [streaming ? '' : html, streaming, callId, sessionId, mode])
 
   const src = useMemo(() => {
     if (url === undefined) return undefined
@@ -199,7 +200,7 @@ export function Frame(props: FrameProps) {
           return
         }
         case 'set-state':
-          if (!p.streaming && typeof data.json === 'string' && data.json.length <= MAX_JSON) writeLocal(p.callId, { state: data.json })
+          if (!p.streaming && typeof data.json === 'string' && data.json.length <= MAX_JSON) writeLocal(p.callId, { state: data.json }, p.sessionId)
           return
         case 'error':
           if (typeof data.message === 'string') p.onError?.(data.message.slice(0, 300))

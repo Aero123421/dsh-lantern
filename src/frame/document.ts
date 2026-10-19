@@ -36,10 +36,17 @@ const RUNTIME_SOURCE = `(${frameRuntime.toString()})();`
 export const VISUAL_CSP = "connect-src data: blob:; form-action 'none'; base-uri 'none'"
 
 function head(boot: FrameBoot, theme: string): string {
-  return `<meta http-equiv="Content-Security-Policy" content="${VISUAL_CSP}">`
+  // A preview needs our runtime, but must never execute model markup. A
+  // fresh nonce also blocks encoded javascript: URLs and event handlers
+  // that cannot be safely removed by the best-effort markup filter alone.
+  const nonce = boot.streaming
+    ? Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('')
+    : undefined
+  const policy = nonce ? `${VISUAL_CSP}; script-src 'nonce-${nonce}'` : VISUAL_CSP
+  return `<meta http-equiv="Content-Security-Policy" content="${policy}">`
     + '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
     + `<script type="application/json" id="lantern-boot">${scriptJson(boot)}</script>`
-    + `<script>${RUNTIME_SOURCE.replace(/<\/script/gi, '<\\/script')}</script>`
+    + `<script${nonce ? ` nonce="${nonce}"` : ''}>${RUNTIME_SOURCE.replace(/<\/script/gi, '<\\/script')}</script>`
     + `<style id="lantern-kit">${LAYERS}@layer lantern-kit{${kitCss}${BASE}}</style>`
     + `<style id="lantern-theme">${theme}</style>`
 }

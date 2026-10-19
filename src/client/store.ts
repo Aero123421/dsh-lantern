@@ -67,6 +67,11 @@ const tailMounted = new Map<string, number>()
 let version = 0
 const listeners = new Set<() => void>()
 
+/** Forked sessions can contain the same tool call ids. */
+export function visualKey(callId: string, sessionId: string | undefined): string {
+  return JSON.stringify([sessionId ?? '', callId])
+}
+
 function notify(): void {
   version++
   for (const listener of listeners) listener()
@@ -78,7 +83,8 @@ function subscribe(listener: () => void): () => void {
 }
 
 export function upsert(callId: string, patch: Partial<Omit<VisualRecord, 'callId'>>): void {
-  const previous = records.get(callId)
+  const key = visualKey(callId, patch.sessionId)
+  const previous = records.get(key)
   let changed = previous === undefined
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue
@@ -90,7 +96,7 @@ export function upsert(callId: string, patch: Partial<Omit<VisualRecord, 'callId
   if (!changed) return
   const next: Record<string, unknown> = { ...previous, callId }
   for (const [key, value] of Object.entries(patch)) if (value !== undefined) next[key] = value
-  records.set(callId, next as unknown as VisualRecord)
+  records.set(key, next as unknown as VisualRecord)
   queueNotify()
 }
 
@@ -101,8 +107,8 @@ function queueNotify(): void {
   queueMicrotask(() => { pendingNotify = false; notify() })
 }
 
-export function getRecord(callId: string): VisualRecord | undefined {
-  return records.get(callId)
+export function getRecord(callId: string, sessionId?: string): VisualRecord | undefined {
+  return records.get(visualKey(callId, sessionId))
 }
 
 let replacedIndex: { version: number; map: Map<string, string> } | undefined
@@ -114,20 +120,21 @@ function replacements(): Map<string, string> {
   for (const record of records.values()) {
     const old = record.args?.replace
     if (old === undefined || old === record.callId || record.error) continue
-    const previous = map.get(old)
-    if (previous === undefined || (record.seq ?? 0) > (records.get(previous)?.seq ?? 0)) map.set(old, record.callId)
+    const key = visualKey(old, record.sessionId)
+    const previous = map.get(key)
+    if (previous === undefined || (record.seq ?? 0) > (getRecord(previous, record.sessionId)?.seq ?? 0)) map.set(key, record.callId)
   }
   replacedIndex = { version, map }
   return map
 }
 
 /** The visual that replaced `callId`, following chains to the newest. */
-export function replacementOf(callId: string): string | undefined {
+export function replacementOf(callId: string, sessionId?: string): string | undefined {
   const map = replacements()
   let found: string | undefined
   let current = callId
   for (let hops = 0; hops < 20; hops++) {
-    const next = map.get(current)
+    const next = map.get(visualKey(current, sessionId))
     if (next === undefined) break
     found = next
     current = next
@@ -141,19 +148,20 @@ export function useRegistry<T>(select: () => T): T {
   return select()
 }
 
-export function markTail(callId: string): () => void {
-  tailMounted.set(callId, (tailMounted.get(callId) ?? 0) + 1)
+export function markTail(callId: string, sessionId?: string): () => void {
+  const key = visualKey(callId, sessionId)
+  tailMounted.set(key, (tailMounted.get(key) ?? 0) + 1)
   queueNotify()
   return () => {
-    const count = (tailMounted.get(callId) ?? 1) - 1
-    if (count <= 0) tailMounted.delete(callId)
-    else tailMounted.set(callId, count)
+    const count = (tailMounted.get(key) ?? 1) - 1
+    if (count <= 0) tailMounted.delete(key)
+    else tailMounted.set(key, count)
     queueNotify()
   }
 }
 
-export function inTail(callId: string): boolean {
-  return tailMounted.has(callId)
+export function inTail(callId: string, sessionId?: string): boolean {
+  return tailMounted.has(visualKey(callId, sessionId))
 }
 
 // ── per-browser state ─────────────────────────────────────────────────────
@@ -163,20 +171,39 @@ interface Local { answer?: string; state?: string; collapsed?: boolean; at?: num
 const KEY = 'dsh-lantern:v1:'
 /** Visuals remembered in this browser; the oldest are forgotten first. */
 const MAX_ENTRIES = 300
+const memory = new Map<string, Local>()
+const unsaved = new Set<string>()
 
-export function readLocal(callId: string): Local {
+export function readLocal(callId: string, sessionId?: string): Local {
+  const key = visualKey(callId, sessionId)
+  const cached = memory.get(key)
+  if (unsaved.has(key) && cached !== undefined) return cached
   try {
-    const raw = localStorage.getItem(KEY + callId)
-    return raw ? JSON.parse(raw) as Local : {}
-  } catch { return {} }
+    const raw = localStorage.getItem(KEY + key)
+    const value: unknown = raw ? JSON.parse(raw) : undefined
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Local : {}
+  } catch { return cached ?? {} }
 }
 
-export function writeLocal(callId: string, patch: Partial<Local>): void {
+export function writeLocal(callId: string, patch: Partial<Local>, sessionId?: string): void {
+  const key = visualKey(callId, sessionId)
+  const next = { ...readLocal(callId, sessionId), ...patch, at: Date.now() }
+  // Keep answers and widget state even when storage is denied or full.
+  memory.delete(key)
+  memory.set(key, next)
+  if (memory.size > MAX_ENTRIES) {
+    const oldest = memory.keys().next().value!
+    memory.delete(oldest)
+    unsaved.delete(oldest)
+  }
+  let saved = false
   try {
-    const next = { ...readLocal(callId), ...patch, at: Date.now() }
-    localStorage.setItem(KEY + callId, JSON.stringify(next))
+    localStorage.setItem(KEY + key, JSON.stringify(next))
+    saved = true
     prune()
   } catch { /* storage unavailable: state lives for this page only */ }
+  if (saved) unsaved.delete(key)
+  else unsaved.add(key)
   queueNotify()
 }
 
@@ -201,7 +228,7 @@ export function parseJson(text: string | undefined): unknown {
 
 /** The state a visual shows, from its recorded result and this browser's answer. */
 export function visualState(record: VisualRecord, phase: 'preparing' | 'start' | 'result' | 'replay'): { state: VisualState; response: unknown } {
-  const local = readLocal(record.callId)
+  const local = readLocal(record.callId, record.sessionId)
   const result = record.result
   if (result?.status === 'answered') return { state: 'answered', response: parseJson(result.response) }
   if (local.answer !== undefined) return { state: 'answered', response: parseJson(local.answer) }

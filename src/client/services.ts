@@ -4,7 +4,7 @@
  * user, and opening the sidebar.
  */
 import { copy } from './i18n.ts'
-import { getRecord, readLocal, upsert, writeLocal } from './store.ts'
+import { getRecord, readLocal, visualKey, writeLocal } from './store.ts'
 
 export const TAB_ID = 'dsh-lantern/visual'
 export const TAB_KIND = 'lanternVisual'
@@ -82,32 +82,32 @@ function answerText(title: string, value: unknown): string {
 const answering = new Set<string>()
 
 export async function answer(callId: string, sessionId: string | undefined, value: unknown): Promise<void> {
-  const record = getRecord(callId)
+  const record = getRecord(callId, sessionId)
   const session = sessionId ?? record?.sessionId
+  const key = visualKey(callId, session)
   // One answer per visual, even if the user clicks again while it travels.
-  if (answering.has(callId) || readLocal(callId).answer !== undefined || record?.result?.status === 'answered') {
+  if (answering.has(key) || readLocal(callId, session).answer !== undefined || record?.result?.status === 'answered') {
     throw new Error('already answered')
   }
-  answering.add(callId)
+  answering.add(key)
   try {
     if (record?.args?.await && record.result === undefined) {
       const { status } = await call<{ status: string }>('lantern.respond', { sessionId: session, callId, response: value })
       if (status === 'settled') {
-        writeLocal(callId, { answer: JSON.stringify(value) })
+        writeLocal(callId, { answer: JSON.stringify(value) }, session)
         return
       }
     }
     await sendAsUser(session, answerText(record?.args?.title ?? '', value))
-    writeLocal(callId, { answer: JSON.stringify(value) })
+    writeLocal(callId, { answer: JSON.stringify(value) }, session)
   } finally {
-    answering.delete(callId)
+    answering.delete(key)
   }
 }
 
 /** Skip a waiting visual. Returns false when the agent was no longer waiting. */
 export async function dismiss(callId: string, sessionId: string | undefined): Promise<boolean> {
-  const { status } = await call<{ status: string }>('lantern.dismiss', { sessionId: sessionId ?? getRecord(callId)?.sessionId, callId })
-  upsert(callId, {})
+  const { status } = await call<{ status: string }>('lantern.dismiss', { sessionId, callId })
   return status === 'settled'
 }
 

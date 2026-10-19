@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { copy } from './i18n.ts'
 import { Frame } from './Frame.tsx'
 import { answer, dismiss, openInSidebar, sendAsUser, workspaceUrl } from './services.ts'
-import { readLocal, replacementOf, useRegistry, visualState, writeLocal, type VisualRecord } from './store.ts'
+import { readLocal, replacementOf, useRegistry, visualKey, visualState, writeLocal, type VisualRecord } from './store.ts'
 
 export type Placement = 'tool' | 'tail' | 'panel'
 
@@ -31,17 +31,19 @@ function Icon({ name }: { name: 'visual' | 'sidebar' | 'chevron' | 'skip' | 'arr
   return <svg className="lantern-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
 
-function scrollToVisual(callId: string): void {
-  const target = document.querySelector(`[data-lantern-id="${CSS.escape(callId)}"]`)
+function scrollToVisual(callId: string, sessionId: string | undefined): void {
+  const target = document.querySelector(`[data-lantern-key="${CSS.escape(visualKey(callId, sessionId))}"]`)
   target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
 export function VisualCard({ record, sessionId, placement, phase, partialHtml }: CardProps) {
   const c = copy()
   const callId = record.callId
-  const replacedBy = useRegistry(() => replacementOf(callId))
+  const session = sessionId ?? record.sessionId
+  const key = visualKey(callId, session)
+  const replacedBy = useRegistry(() => replacementOf(callId, session))
   // Re-read per-browser state whenever the registry changes (answers, collapse).
-  const local = useRegistry(() => readLocal(callId))
+  const local = useRegistry(() => readLocal(callId, session))
   const [errors, setErrors] = useState<readonly string[]>([])
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [skipping, setSkipping] = useState(false)
@@ -53,7 +55,6 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
   const hintTimer = useRef<number | undefined>(undefined)
   useEffect(() => () => { if (hintTimer.current !== undefined) clearTimeout(hintTimer.current) }, [])
   const args = record.args
-  const session = sessionId ?? record.sessionId
   const { state, response } = record.error !== undefined ? { state: 'closed' as const, response: undefined } : visualState(record, phase)
   const title = args?.title || c.visual
   const isPath = (record.result?.path ?? args?.path) !== undefined
@@ -101,11 +102,11 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
   // Replaced: a stub that leads to the newer version.
   if (replacedBy !== undefined && placement !== 'panel') {
     return (
-      <div className="lantern-row" data-lantern-id={callId} data-replaced="">
+      <div className="lantern-row" data-lantern-id={callId} data-lantern-key={key} data-replaced="">
         <Icon name="visual" />
         <span className="lantern-row-title">{title}</span>
         <span className="lantern-muted">{c.replaced}</span>
-        <button type="button" className="lantern-link" onClick={() => scrollToVisual(replacedBy)}>{c.showNew}<Icon name="arrow" /></button>
+        <button type="button" className="lantern-link" onClick={() => scrollToVisual(replacedBy, session)}>{c.showNew}<Icon name="arrow" /></button>
       </div>
     )
   }
@@ -117,7 +118,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
   // Panel visuals keep a compact row in the chat.
   if (placement !== 'panel' && (display === 'panel' || isPath)) {
     return (
-      <div className="lantern-row" data-lantern-id={callId} data-state={state}>
+      <div className="lantern-row" data-lantern-id={callId} data-lantern-key={key} data-state={state}>
         <Icon name="sidebar" />
         <span className="lantern-row-title">{title}</span>
         {badge && <span className="lantern-badge" data-state={state}>{badge}</span>}
@@ -136,7 +137,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
     : isPath
       ? <PathFrame key={generation} record={record} sessionId={session} state={state} response={response} onSubmit={onSubmit} onSend={onSend} onError={onError} onGlLost={onGlLost} />
       : args?.html !== undefined || partialHtml !== undefined
-        ? <Frame key={(phase === 'preparing' ? 'stream' : 'full') + generation} callId={callId} mode={placement === 'panel' ? 'panel' : 'inline'}
+        ? <Frame key={(phase === 'preparing' ? 'stream' : 'full') + generation} callId={callId} sessionId={session} mode={placement === 'panel' ? 'panel' : 'inline'}
             html={phase === 'preparing' ? partialHtml ?? '' : args?.html ?? ''} streaming={phase === 'preparing'}
             state={state} response={response} onSubmit={onSubmit} onSend={onSend} onExpand={placement === 'panel' ? undefined : onExpand} onError={onError}
             onWheelHint={onWheelHint} onGlLost={onGlLost} />
@@ -168,7 +169,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
   }
 
   return (
-    <div className="lantern-card" data-lantern-id={callId} data-state={state} data-placement={placement}>
+    <div className="lantern-card" data-lantern-id={callId} data-lantern-key={key} data-state={state} data-placement={placement}>
       <div className="lantern-head">
         <Icon name="visual" />
         <span className="lantern-title">{title}</span>
@@ -177,7 +178,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
         {skipButton}
         {phase !== 'preparing' && <button type="button" className="lantern-action icon" onClick={onExpand} title={c.openSidebar} aria-label={c.openSidebar}><Icon name="sidebar" /></button>}
         <button type="button" className="lantern-action icon" data-collapsed={collapsed ? '' : undefined}
-          onClick={() => writeLocal(callId, { collapsed: !collapsed })} title={collapsed ? c.expand : c.collapse} aria-label={collapsed ? c.expand : c.collapse} aria-expanded={!collapsed}>
+          onClick={() => writeLocal(callId, { collapsed: !collapsed }, session)} title={collapsed ? c.expand : c.collapse} aria-label={collapsed ? c.expand : c.collapse} aria-expanded={!collapsed}>
           <Icon name="chevron" />
         </button>
       </div>
@@ -221,6 +222,6 @@ function PathFrame(props: {
   }, [path, props.sessionId])
   if (error) return <div className="lantern-note" data-kind="error">{c.fileError}: {error}</div>
   if (!url) return <div className="lantern-note">{c.loading}</div>
-  return <Frame callId={props.record.callId} mode="panel" url={url} state={props.state} response={props.response}
+  return <Frame callId={props.record.callId} sessionId={props.sessionId} mode="panel" url={url} state={props.state} response={props.response}
     onSubmit={props.onSubmit} onSend={props.onSend} onError={props.onError} onGlLost={props.onGlLost} />
 }

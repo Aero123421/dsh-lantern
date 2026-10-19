@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { VisualCard } from './Card.tsx'
 import { copy } from './i18n.ts'
 import { openInSidebar, parseAddress } from './services.ts'
-import { getRecord, inTail, markTail, parseArgs, parseMeta, upsert, useRegistry, type VisualRecord } from './store.ts'
+import { getRecord, inTail, markTail, parseArgs, parseMeta, upsert, useRegistry, visualKey, type VisualRecord } from './store.ts'
 
 export const TOOL_NAME = 'show_visual'
 export const TURN_KEY = 'lanternVisuals'
@@ -115,6 +115,7 @@ function rawFromPartial(args: PartialArgs | undefined): string | undefined {
 
 export function ToolView(props: ToolViewProps) {
   const { phase, block, callId, sessionId } = props
+  const key = visualKey(callId, sessionId)
   const argsRaw: string | undefined = phase === 'start' ? block.argsRaw : phase === 'result' ? block.call?.argsRaw ?? undefined : undefined
   // When the call itself is outside the loaded history, the result still carries the parsed arguments.
   const fallbackRaw = useMemo(() => argsRaw === undefined && phase === 'result' ? rawFromPartial(block.args as PartialArgs | undefined) : undefined, [argsRaw, phase, block.args])
@@ -134,15 +135,15 @@ export function ToolView(props: ToolViewProps) {
   // A live panel visual opens the sidebar by itself, once.
   const sawLive = useRef(phase !== 'result')
   useEffect(() => {
-    if (phase !== 'preparing' && sawLive.current && parsed?.display === 'panel' && !errorText && !autoOpened.has(callId)) {
-      autoOpened.add(callId)
+    if (phase !== 'preparing' && sawLive.current && parsed?.display === 'panel' && !errorText && !autoOpened.has(key)) {
+      autoOpened.add(key)
       // Let the registry learn the record first.
       queueMicrotask(() => openInSidebar(sessionId, callId))
     }
-  }, [phase, parsed?.display, errorText])
+  }, [phase, parsed?.display, errorText, key, sessionId])
 
-  const shownInTail = useRegistry(() => inTail(callId))
-  const stored = useRegistry(() => getRecord(callId))
+  const shownInTail = useRegistry(() => inTail(callId, sessionId))
+  const stored = useRegistry(() => getRecord(callId, sessionId))
   const c = copy()
 
   const record: VisualRecord = {
@@ -169,7 +170,7 @@ export function ToolView(props: ToolViewProps) {
   }
   return (
     <div className="lantern-tool" data-tool={TOOL_NAME}>
-      <VisualCard record={record} sessionId={sessionId} placement="tool" phase={phase} partialHtml={partialHtml} />
+      <VisualCard key={key} record={record} sessionId={sessionId} placement="tool" phase={phase} partialHtml={partialHtml} />
     </div>
   )
 }
@@ -191,13 +192,13 @@ export function Tail(props: TailProps) {
   if (visible.length === 0) return null
   return (
     <div className="lantern-tail">
-      {visible.map(item => <TailItem key={item.callId} item={item} sessionId={props.sessionId} />)}
+      {visible.map(item => <TailItem key={visualKey(item.callId, props.sessionId)} item={item} sessionId={props.sessionId} />)}
     </div>
   )
 }
 
 function TailItem({ item, sessionId }: { item: TurnCall; sessionId: string | undefined }) {
-  useEffect(() => markTail(item.callId), [item.callId])
+  useEffect(() => markTail(item.callId, sessionId), [item.callId, sessionId])
   const record: VisualRecord = { callId: item.callId, ...recordFromCall(item, sessionId) }
   if (record.args === undefined) return null
   return <VisualCard record={record} sessionId={sessionId} placement="tail" phase={item.settled ? 'result' : 'replay'} />
@@ -213,7 +214,7 @@ interface TabProps {
 export function SidebarTab(props: TabProps) {
   const { tab } = props.useTabInfo()
   const target = parseAddress(tab.navigation.address)
-  const record = useRegistry(() => target ? getRecord(target.callId) : undefined)
+  const record = useRegistry(() => target ? getRecord(target.callId, target.sessionId) : undefined)
   const box = useRef<HTMLDivElement>(null)
   const [shown, setShown] = useState(false)
   // DSH can keep a second, hidden copy of the sidebar; only a copy that is
@@ -230,12 +231,12 @@ export function SidebarTab(props: TabProps) {
   const c = copy()
   let body: ReactNode
   if (!target || !record?.args) body = <div className="lantern-empty">{c.missing}</div>
-  else if (shown) body = <VisualCard record={record} sessionId={target.sessionId} placement="panel" phase={record.result ? 'result' : 'start'} />
+  else if (shown) body = <VisualCard key={visualKey(target.callId, target.sessionId)} record={record} sessionId={target.sessionId} placement="panel" phase={record.result ? 'result' : 'start'} />
   return <div ref={box} className="lantern-tab">{body}</div>
 }
 
 export function tabTitle(address: string): string {
   const target = parseAddress(address)
-  const record = target ? getRecord(target.callId) : undefined
+  const record = target ? getRecord(target.callId, target.sessionId) : undefined
   return record?.args?.title || copy().visual
 }
