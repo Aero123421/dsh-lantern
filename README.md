@@ -122,7 +122,14 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 # then restart `dsh web`
 ```
 
-This needs DSH 0.2.1 or later (0.2.x) with the Web profile. You can also install the `.tgz` from a release. Check that it loaded with `dsh --profile web --dump-config | grep lantern`.
+This needs DSH 0.2.1 or later (0.2.x) with the Web profile. A version tag publishes `dsh-lantern-<version>.tgz` and `SHA256SUMS` on the GitHub release (the archive is not published until that tag is pushed). Check the checksum, then install the archive:
+
+```sh
+sha256sum -c SHA256SUMS
+dsh plugin --profile web add ./dsh-lantern-0.2.1.tgz
+```
+
+Check that it loaded with `dsh --profile web --dump-config | grep lantern`.
 
 Then just ask. For example:
 
@@ -170,10 +177,9 @@ Inside a visual, `window.lantern` offers `submit`, `send`, `setState` / `getStat
 Every token can be overridden, and your own styles always beat the kit:
 
 ```html
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap">
 <style>
   :root {
-    --lt-font: "Zen Maru Gothic", var(--lt-font-sans);
+    --lt-font: "Iowan Old Style", var(--lt-font-serif);
     --lt-accent: #e8590c;
     --lt-radius: 18px;
   }
@@ -191,7 +197,7 @@ The tokens cover fonts, sizes, surfaces, text, borders, accent, success/warning/
 
 ## Workspace pages
 
-`path: "report/index.html"` opens a real file from the working directory in a sidebar tab. It is served from a folder-scoped, expiring link, so relative `<link>`, `<img>`, `<script type="module">` and `fetch()` work as they would on a static server. The page keeps its own look. It also gets `window.lantern` and the `--lt-*` theme tokens, and can opt into the kit's components with `<meta name="lantern-kit">`.
+`path: "report/index.html"` opens a real file from the working directory in a sidebar tab. It is served from a folder-scoped, expiring link, so relative `<link>`, `<img>`, `<script type="module">` and `fetch()` of files in that folder work as they would on a static server. Requests to any other site — `fetch`, XHR, images, CSS `url()`, forms, prefetch, WebSocket, `sendBeacon`, navigation — are refused. The page keeps its own look. It also gets `window.lantern` and the `--lt-*` theme tokens, and can opt into the kit's components with `<meta name="lantern-kit">`.
 
 <img src="docs/workspace-page.png" alt="A workspace report page with relative CSS, image, module JS and JSON, open in the sidebar (dark)" width="100%">
 
@@ -201,7 +207,8 @@ A visual is model-written code, so Lantern treats it as untrusted:
 
 - **Isolated.** Visuals run in a sandboxed iframe (`allow-scripts allow-forms allow-downloads`, never `allow-same-origin`). They have an opaque origin and cannot reach DSH's cookies, DOM or API. The only way out is `postMessage` to the card, which checks the sender.
 - **The user decides.** Answers, messages, links and sidebar requests are honoured only right after a real user action inside that visual. One answer per visual; follow-up messages are throttled and capped.
-- **Nothing leaks out.** HTML visuals get a CSP that blocks `fetch`, XHR, WebSockets, form posts and `<base>`. Libraries still load with `<script src>`. The live preview strips scripts, event handlers, `javascript:` URLs and embedded frames.
+- **Nothing leaks out.** HTML visuals and workspace pages both refuse external `fetch`, XHR, `sendBeacon`, WebSockets, images, CSS `url()`, stylesheets, prefetch/preload, form posts, `<base>`, and navigation. `data:` and `blob:` images still work. HTML visuals may still load a library with `<script src="https://…">`. The live preview strips scripts, event handlers, `javascript:` URLs and embedded frames.
+- **Restored cards stay still.** Scripts run on their own only the first time a visual appears in the page that created it. Reopening a conversation, reloading, or a card that is still waiting after a reload shows the page paused until you press Run. A loop can still freeze that first view; reload brings DSH back and does not run the loop again.
 - **Files stay scoped.** Workspace links are random, cover only the page's own folder, expire after 8 hours and are issued only through DSH's authenticated API. Symlinks are resolved and re-checked on the opened file, and hidden files and folders are refused.
 
 ## Configuration

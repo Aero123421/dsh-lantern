@@ -28,6 +28,8 @@ const ja = {
   wheelHint: 'クリックするとホイールで操作できます',
   glLost: '3D 表示を一時停止しました（同時に動かせる数の上限）',
   resume: '再開',
+  run: '実行',
+  paused: '停止中です。実行するまでスクリプトは動きません。',
 }
 
 type Copy = typeof ja
@@ -60,6 +62,8 @@ const en: Copy = {
   wheelHint: 'Click the visual to use the scroll wheel in it',
   glLost: 'The 3D view was paused (too many running at once)',
   resume: 'Resume',
+  run: 'Run',
+  paused: 'Paused. Scripts stay off until you run it.',
 }
 
 const zh: Copy = {
@@ -90,21 +94,26 @@ const zh: Copy = {
   wheelHint: '点击后即可在其中使用滚轮',
   glLost: '3D 视图已暂停（同时运行的数量已达上限）',
   resume: '继续',
+  run: '运行',
+  paused: '已暂停。点击运行前不会执行脚本。',
 }
 
+/** BCP 47 tag Lantern should follow: the document language DSH set, nothing from the browser. */
 export function lang(): string {
-  const value = (typeof document !== 'undefined' && document.documentElement.lang) || (typeof navigator !== 'undefined' && navigator.language) || 'en'
-  return value.toLowerCase()
+  return (typeof document !== 'undefined' && document.documentElement.lang || 'en').toLowerCase()
 }
 
-/** The language Lantern speaks: DSH's UI language, except that a Japanese browser gets Japanese. */
-export function uiLang(): 'ja' | 'zh' | 'en' {
-  const value = lang()
+/** Map a document language to Lantern's copy. Japanese is not inferred from navigator. */
+export function uiLangFrom(documentLang: string): 'ja' | 'zh' | 'en' {
+  const value = documentLang.toLowerCase()
   if (value.startsWith('ja')) return 'ja'
   if (value.startsWith('zh')) return 'zh'
-  // DSH Web's own UI is English or Chinese; a Japanese browser still gets Japanese.
-  if (typeof navigator !== 'undefined' && navigator.languages?.some(item => item.toLowerCase().startsWith('ja'))) return 'ja'
   return 'en'
+}
+
+/** The language Lantern speaks: only `document.documentElement.lang`. */
+export function uiLang(): 'ja' | 'zh' | 'en' {
+  return uiLangFrom(typeof document !== 'undefined' ? document.documentElement.lang : '')
 }
 
 export function copy(): Copy {

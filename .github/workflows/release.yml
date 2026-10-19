@@ -1,0 +1,33 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Pack the plugin and write SHA256SUMS
+        run: |
+          mkdir -p dist
+          npm pack --pack-destination dist
+          (cd dist && sha256sum ./*.tgz > SHA256SUMS)
+      - name: Attach the tarball and checksums to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/*.tgz dist/SHA256SUMS \
+            --title "${GITHUB_REF_NAME}" \
+            --notes "dsh-lantern ${GITHUB_REF_NAME}. Verify with \`sha256sum -c SHA256SUMS\`, then \`dsh plugin --profile web add\` the tgz."

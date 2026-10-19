@@ -122,7 +122,14 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 # 然后重启 `dsh web`
 ```
 
-需要 DSH 0.2.1 及以上（0.2.x）的 Web 配置。也可以从 Release 的 `.tgz` 安装。用 `dsh --profile web --dump-config | grep lantern` 确认是否已加载。
+需要 DSH 0.2.1 及以上（0.2.x）的 Web 配置。推送版本标签后，GitHub Release 会附上 `dsh-lantern-<version>.tgz` 和 `SHA256SUMS`（在推送标签之前不会发布）。先核对校验和，再安装压缩包：
+
+```sh
+sha256sum -c SHA256SUMS
+dsh plugin --profile web add ./dsh-lantern-0.2.1.tgz
+```
+
+用 `dsh --profile web --dump-config | grep lantern` 确认是否已加载。
 
 然后直接提要求即可，例如：
 
@@ -170,10 +177,9 @@ sequenceDiagram
 所有设计变量都可以覆盖，你自己写的样式永远优先于组件库：
 
 ```html
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap">
 <style>
   :root {
-    --lt-font: "Zen Maru Gothic", var(--lt-font-sans);
+    --lt-font: "Iowan Old Style", var(--lt-font-serif);
     --lt-accent: #e8590c;
     --lt-radius: 18px;
   }
@@ -191,7 +197,7 @@ sequenceDiagram
 
 ## 工作区页面
 
-`path: "report/index.html"` 会在侧边栏标签页中打开工作目录里的真实文件。页面通过按文件夹限定、会过期的链接提供，因此相对路径的 `<link>`、`<img>`、`<script type="module">` 和 `fetch()` 都像在静态服务器上一样工作。页面保留自己的外观，同时可以使用 `window.lantern` 和 `--lt-*` 主题变量；写上 `<meta name="lantern-kit">` 即可使用组件库。
+`path: "report/index.html"` 会在侧边栏标签页中打开工作目录里的真实文件。页面通过按文件夹限定、会过期的链接提供，因此该文件夹内相对路径的 `<link>`、`<img>`、`<script type="module">` 和 `fetch()` 都像在静态服务器上一样工作。发往其他站点的 `fetch`、XHR、图片、CSS `url()`、表单、prefetch、WebSocket、`sendBeacon` 和导航一律拒绝。页面保留自己的外观，同时可以使用 `window.lantern` 和 `--lt-*` 主题变量；写上 `<meta name="lantern-kit">` 即可使用组件库。
 
 <img src="docs/workspace-page.png" alt="在侧边栏打开的工作区报告页，加载了相对路径的 CSS、图片、模块 JS 和 JSON（暗色）" width="100%">
 
@@ -201,7 +207,8 @@ sequenceDiagram
 
 - **隔离。** 可视化运行在沙箱 iframe 中（`allow-scripts allow-forms allow-downloads`，从不带 `allow-same-origin`）。它没有自己的源，无法访问 DSH 的 Cookie、DOM 或 API。唯一的出口是向卡片发送 `postMessage`，卡片还会校验发送方。
 - **由用户决定。** 回答、消息、链接和侧边栏请求只在用户于该可视化内真实操作后才被接受。每个可视化只能回答一次；追问消息有间隔和次数限制。
-- **不外泄。** HTML 可视化带有 CSP，禁止 `fetch`、XHR、WebSocket、表单提交和 `<base>`。库仍可通过 `<script src>` 加载。流式预览会去除脚本、事件属性、`javascript:` URL 和嵌入框架。
+- **不外泄。** HTML 可视化和工作区页面都会拒绝对外的 `fetch`、XHR、`sendBeacon`、WebSocket、图片、CSS `url()`、样式表、prefetch/preload、表单提交、`<base>` 和导航。页面自己生成的 `data:` 和 `blob:` 图片仍然可用。HTML 可视化仍可用 `<script src="https://…">` 加载库。流式预览会去除脚本、事件属性、`javascript:` URL 和嵌入框架。
+- **重新打开的卡片保持静止。** 脚本只会在创建它的那个页面里第一次出现时自动运行。重新打开对话、刷新页面，或刷新后仍在等待回答的卡片，都会停在那里，直到按下运行。死循环仍可能冻住第一次出现的那一屏；刷新后 DSH 会恢复，并且不会再自动运行那个循环。
 - **文件不越界。** 工作区链接是随机的，只覆盖页面所在文件夹，8 小时后失效，并且只能通过 DSH 的已认证 API 签发。符号链接会被解析，并在打开文件后再次校验；隐藏文件和文件夹一律拒绝。
 
 ## 配置

@@ -29,11 +29,38 @@ export function themeCss(vars: Readonly<Record<string, string>>): string {
 const RUNTIME_SOURCE = `(${frameRuntime.toString()})();`
 
 /**
- * Network policy for `html` visuals. Libraries load from any CDN with
- * <script>/<link>, but the page cannot fetch, open sockets, post forms or
- * change its base URL, so what a user types into a visual stays in it.
+ * Network policy for `html` visuals.
+ *
+ * Script libraries may still load over http(s). Everything else that can
+ * leave the page is closed: fetch, XHR, sendBeacon, WebSocket, images,
+ * fonts, CSS `url()`, stylesheets, prefetch/preload, forms, and navigation.
+ * `data:` and `blob:` stay available for images the page builds itself.
+ * A streaming preview replaces `script-src` with a nonce so model markup
+ * cannot run while the arguments are still arriving.
  */
-export const VISUAL_CSP = "connect-src data: blob:; form-action 'none'; base-uri 'none'"
+export function visualCsp(nonce?: string): string {
+  const script = nonce
+    ? `script-src 'nonce-${nonce}'`
+    : "script-src https: http: 'unsafe-inline' data: blob:"
+  return [
+    "default-src 'none'",
+    script,
+    "style-src 'unsafe-inline' data: blob:",
+    "img-src data: blob:",
+    "font-src data: blob:",
+    "connect-src data: blob:",
+    "media-src data: blob:",
+    "worker-src 'none'",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+    "navigate-to 'none'",
+  ].join('; ')
+}
+
+/** Policy for a finished `html` visual (no nonce). */
+export const VISUAL_CSP = visualCsp()
 
 function head(boot: FrameBoot, theme: string): string {
   // A preview needs our runtime, but must never execute model markup. A
@@ -42,7 +69,7 @@ function head(boot: FrameBoot, theme: string): string {
   const nonce = boot.streaming
     ? Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('')
     : undefined
-  const policy = nonce ? `${VISUAL_CSP}; script-src 'nonce-${nonce}'` : VISUAL_CSP
+  const policy = visualCsp(nonce)
   return `<meta http-equiv="Content-Security-Policy" content="${policy}">`
     + '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
     + `<script type="application/json" id="lantern-boot">${scriptJson(boot)}</script>`

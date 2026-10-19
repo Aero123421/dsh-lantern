@@ -4,7 +4,8 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { confine, FileRefusal, FileServer, FILE_ROUTE, resolveEntry } from '../src/host/files.ts'
+import { confine, fileContentSecurityPolicy, FileRefusal, FileServer, FILE_ROUTE, requestOrigin, resolveEntry } from '../src/host/files.ts'
+import type { IncomingMessage } from 'node:http'
 
 async function workspace() {
   const base = await mkdtemp(join(tmpdir(), 'lantern-'))
@@ -40,6 +41,17 @@ test('confine keeps reads inside the working directory', async () => {
   } finally { await rm(base, { recursive: true, force: true }) }
 })
 
+test('file CSP uses the request origin and the token prefix', () => {
+  const req = { headers: { host: '192.168.1.20:8765', 'x-forwarded-proto': 'https' } } as unknown as IncomingMessage
+  assert.equal(requestOrigin(req), 'https://192.168.1.20:8765')
+  const policy = fileContentSecurityPolicy('https://192.168.1.20:8765', 'tok_en')
+  assert.match(policy, /default-src https:\/\/192\.168\.1\.20:8765\/lantern\/files\/tok_en\//)
+  assert.equal(policy.includes("'self'"), false)
+  assert.match(policy, /navigate-to 'none'/)
+  assert.equal(requestOrigin({ headers: { host: 'evil\r\nX' } } as unknown as IncomingMessage), undefined)
+  assert.match(fileContentSecurityPolicy('not a url', 'tok'), /default-src 'none'/)
+})
+
 test('the file route serves a granted root with sandbox headers', async () => {
   const { base, root } = await workspace()
   const files = new FileServer()
@@ -52,14 +64,24 @@ test('the file route serves a granted root with sandbox headers', async () => {
     assert.notEqual(files.grant(root), token)
     const page = await get(`${token}/site/index.html?lt=c1&theme=dark&lang=ja`)
     assert.equal(page.status, 200)
-    assert.equal(page.headers.get('content-security-policy'), 'sandbox allow-scripts allow-forms allow-downloads')
+    const origin = `http://127.0.0.1:${port}`
+    const policy = fileContentSecurityPolicy(origin, token)
+    assert.equal(page.headers.get('content-security-policy'), policy)
+    assert.equal(policy.includes("'self'"), false)
+    assert.match(policy, new RegExp(`default-src ${origin}${FILE_ROUTE}/${token}/`))
+    assert.match(policy, /form-action 'none'/)
+    assert.match(policy, /base-uri 'none'/)
+    assert.match(policy, /img-src [^;]*data: blob:/)
+    assert.match(policy, /connect-src /)
+    const script = await get(`${token}/site/assets/app.js`)
+    assert.equal(script.headers.get('content-security-policy'), policy)
     assert.equal(page.headers.get('access-control-allow-origin'), '*')
     assert.equal(page.headers.get('referrer-policy'), 'no-referrer')
     const html = await page.text()
     assert.match(html, /<head><meta charset="utf-8"><script type="application\/json" id="lantern-boot">\{"id":"c1","state":"idle","response":null,"scheme":"dark"/)
     assert.equal(html.includes('.lt-card'), false)
     assert.ok((await (await get(`${token}/site/kit.html`)).text()).includes('.lt-card'))
-    const js = await get(`${token}/site/assets/app.js`)
+    const js = script
     assert.equal(js.headers.get('content-type'), 'text/javascript; charset=utf-8')
     assert.equal(await js.text(), 'export const x = 1')
     assert.equal((await get(`${token}/.secret/a.html`)).status, 403)

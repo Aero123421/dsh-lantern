@@ -12,6 +12,53 @@ import { extname, isAbsolute, relative, resolve, sep } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { filePrelude, injectPrelude } from '../frame/document.ts'
 
+function headerOne(value: string | string[] | undefined): string {
+  const raw = Array.isArray(value) ? value[0] : value
+  return (raw ?? '').split(',')[0]!.trim()
+}
+
+/** Absolute origin the browser used for this request (`http://host:port`). */
+export function requestOrigin(req: IncomingMessage): string | undefined {
+  const host = headerOne(req.headers.host)
+  if (host === '' || /[\s/"'<>;]/.test(host)) return undefined
+  const forwarded = headerOne(req.headers['x-forwarded-proto'])
+  const proto = forwarded === 'https' ? 'https' : 'http'
+  const origin = `${proto}://${host}`
+  return /^https?:\/\/[^/\s;"']+$/.test(origin) ? origin : undefined
+}
+
+/**
+ * CSP for one granted folder. Sources are the absolute URL prefix
+ * `/lantern/files/<token>/`, not `'self'`: a sandboxed page has an opaque
+ * origin, and `'self'` would not match those requests (or would match the
+ * whole host). Relative CSS, images, modules and `fetch()` under the token
+ * still match. fetch, XHR, images, CSS `url()`, forms, prefetch, WebSocket,
+ * sendBeacon and navigation to anywhere else do not.
+ */
+export function fileContentSecurityPolicy(origin: string, token: string): string {
+  const prefix = /^https?:\/\/[^/\s;"']+$/.test(origin) && /^[\w-]+$/.test(token)
+    ? `${origin}${FILE_ROUTE}/${token}/`
+    : undefined
+  const self = prefix ?? "'none'"
+  const extra = prefix ?? "'none'"
+  return [
+    `default-src ${self}`,
+    `script-src ${extra} 'unsafe-inline'`,
+    `style-src ${extra} 'unsafe-inline'`,
+    `img-src ${extra} data: blob:`,
+    `font-src ${extra} data:`,
+    `connect-src ${extra}`,
+    `media-src ${extra} data: blob:`,
+    `worker-src 'none'`,
+    `frame-src 'none'`,
+    `object-src 'none'`,
+    `form-action 'none'`,
+    `base-uri 'none'`,
+    `navigate-to 'none'`,
+    'sandbox allow-scripts allow-forms allow-downloads',
+  ].join('; ')
+}
+
 export const FILE_ROUTE = '/lantern/files'
 
 /** Links work for this long after they are issued; the sidebar asks again when it reopens. */
@@ -114,7 +161,7 @@ export class FileServer {
         if (opened.dev !== file.dev || opened.ino !== file.ino || !opened.isFile()) return finish(res, 403, 'Forbidden')
         const ext = extname(file.abs).toLowerCase()
         const type = MIME[ext] ?? 'application/octet-stream'
-        setHeaders(res, type)
+        setHeaders(res, type, requestOrigin(req), token)
         if (ext === '.html' || ext === '.htm') {
           if (opened.size > MAX_HTML_BYTES) return finish(res, 413, 'File too large')
           const source = await handle.readFile('utf8')
@@ -146,14 +193,16 @@ export class FileServer {
   }
 }
 
-function setHeaders(res: ServerResponse, type: string): void {
+function setHeaders(res: ServerResponse, type: string, origin: string | undefined, token: string): void {
   res.setHeader('Content-Type', type)
   res.setHeader('Cache-Control', 'private, no-store')
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Referrer-Policy', 'no-referrer')
   // The page and everything it loads runs in an opaque origin, even when the
   // URL is opened directly in a tab. No popups: links leave through DSH.
-  res.setHeader('Content-Security-Policy', 'sandbox allow-scripts allow-forms allow-downloads')
+  // The source list is this token's absolute prefix, so a page cannot use
+  // the response as a way to request other sites.
+  res.setHeader('Content-Security-Policy', fileContentSecurityPolicy(origin ?? '', token))
   // Opaque-origin pages need CORS for module scripts, fonts and fetch().
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')

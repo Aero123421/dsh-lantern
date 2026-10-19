@@ -58,6 +58,25 @@ export function frameRuntime(): void {
   const MAX_JSON = 64 * 1024
   const bootNode = document.getElementById('lantern-boot')
   const boot = JSON.parse((bootNode && bootNode.textContent) || '{}')
+  // Script-driven navigations (location, meta refresh where the browser
+  // routes them here) may stay inside a workspace page's own folder.
+  // Anything else — another host, or the rest of DSH — is cancelled.
+  try {
+    const nav = (window as unknown as { navigation?: { addEventListener: (type: string, listener: (event: { destination?: { url?: string }; cancelable?: boolean; preventDefault: () => undefined }) => undefined) => undefined } }).navigation
+    if (nav && typeof nav.addEventListener === 'function') {
+      nav.addEventListener('navigate', (event) => {
+        let allow = false
+        try {
+          const next = new URL(String(event.destination && event.destination.url || ''))
+          if (location.protocol === 'http:' || location.protocol === 'https:') {
+            const dir = new URL('./', location.href)
+            allow = (next.protocol === 'http:' || next.protocol === 'https:') && next.href.indexOf(dir.href) === 0
+          }
+        } catch { allow = false }
+        if (!allow && event.cancelable) event.preventDefault()
+      })
+    }
+  } catch { /* Navigation API missing */ }
   let state = boot.state || 'idle'
   let response = boot.response
   let scheme = boot.scheme || 'light'
@@ -415,11 +434,17 @@ export function frameRuntime(): void {
         if (dest) dest.scrollIntoView({ behavior: 'smooth' })
         return
       }
-      // Workspace pages (served from a real URL) navigate between their own
-      // files normally; everything else leaves through DSH.
-      let sameSite = false
-      try { sameSite = location.protocol.startsWith('http') && new URL(anchor.href).origin === location.origin } catch { sameSite = false }
-      if (sameSite) return
+      // Workspace pages navigate between files in their own folder.
+      // Same host is not enough: the rest of DSH must not be reachable.
+      let sameFolder = false
+      try {
+        if (location.protocol === 'http:' || location.protocol === 'https:') {
+          const next = new URL(anchor.href)
+          const dir = new URL('./', location.href)
+          sameFolder = next.href.indexOf(dir.href) === 0
+        }
+      } catch { sameFolder = false }
+      if (sameFolder) return
       event.preventDefault()
       if (/^https?:\/\//i.test(anchor.href)) lantern.openLink(anchor.href)
     }

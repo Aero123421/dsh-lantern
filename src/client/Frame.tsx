@@ -22,6 +22,8 @@ export interface FrameProps {
   readonly url?: string
   /** Show `html` as a streaming preview: markup only, no scripts. */
   readonly streaming?: boolean
+  /** Restored card: paint the markup, but do not run its scripts. */
+  readonly paused?: boolean
   readonly state: VisualState
   readonly response: unknown
   readonly onSubmit: (value: unknown) => Promise<void>
@@ -68,10 +70,10 @@ function userActed(frame: HTMLIFrameElement | null, focusedAt: number): boolean 
 }
 
 export function Frame(props: FrameProps) {
-  const { callId, sessionId, mode, html, url, streaming = false, state, response } = props
+  const { callId, sessionId, mode, html, url, streaming = false, paused = false, state, response } = props
   const frame = useRef<HTMLIFrameElement>(null)
   const ready = useRef(false)
-  const [height, setHeight] = useState(mode === 'inline' ? 120 : 0)
+  const [height, setHeight] = useState(mode === 'inline' ? (paused ? 220 : 120) : 0)
   const latest = useRef(props)
   latest.current = props
   const lastAction = useRef(0)
@@ -97,14 +99,18 @@ export function Frame(props: FrameProps) {
     let widgetState: unknown = null
     if (local.state !== undefined) { try { widgetState = JSON.parse(local.state) } catch { widgetState = null } }
     const current = theme()
+    const preview = streaming && !paused
     const boot: FrameBoot = {
       id: callId, state: initial.current.state, response: initial.current.response ?? null,
-      scheme: current.scheme, mode, widgetState, streaming, lang: uiLang(),
+      scheme: current.scheme, mode, widgetState, streaming: preview, lang: uiLang(),
       ...mode === 'inline' ? { maxHeight: latest.current.maxHeight ?? MAX_INLINE_HEIGHT } : {},
     }
-    return buildDocument(streaming ? '' : html, boot, current.css)
+    // A paused card keeps the markup and CSS, with scripts and handlers removed
+    // so a reload cannot run them even if the sandbox attribute is ignored.
+    const source = preview ? '' : paused ? partialMarkup(html) : html
+    return buildDocument(source, boot, current.css)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streaming ? '' : html, streaming, callId, sessionId, mode])
+  }, [html, streaming, paused, callId, sessionId, mode])
 
   const src = useMemo(() => {
     if (url === undefined) return undefined
@@ -240,7 +246,8 @@ export function Frame(props: FrameProps) {
       className="lantern-frame"
       data-mode={mode}
       title={callId}
-      sandbox={SANDBOX}
+      sandbox={paused ? 'allow-downloads' : SANDBOX}
+      data-scripts={paused ? 'off' : 'on'}
       onLoad={() => {
         // A built document loads once; a second load means it navigated
         // itself somewhere else, so stop listening to it.

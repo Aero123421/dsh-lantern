@@ -17,10 +17,11 @@
 }
 .lantern-card:has(.lantern-body[hidden]) .lantern-head { border-bottom-color: transparent; }
 .lantern-title {
+  flex: 1 1 auto; min-width: 4.5em;
   color: var(--dsw-alias-label-primary, inherit); font-weight: 500;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.lantern-spacer { flex: 1 1 auto; }
+.lantern-spacer { flex: 1 1 0; min-width: 0; }
 .lantern-icon { flex: none; color: var(--dsw-alias-label-secondary, currentColor); }
 .lantern-badge {
   flex: none; font-size: 11.5px; line-height: 18px; padding: 0 7px; border-radius: 999px;

@@ -23,9 +23,10 @@ description: Design guide for the show_visual tool. How to build inline diagrams
 - No fixed positioning and no nested scroll areas in inline visuals; the card grows to fit the content. Give canvases and 3D stages an explicit height, never `100vh` or `innerHeight`.
 - Interactive visuals: drag with pointer events and `setPointerCapture`, render only while something moves and `lantern.visible` is true, respect `prefers-reduced-motion`, and save what the user built with `lantern.setState`. The card is re-created when the turn ends and on reload.
 - Round every number you display. Validate input before submitting and show inline errors.
-- Libraries load from any CDN with `<script src>` / `<link>` (Chart.js, D3, Mermaid, KaTeX, three.js). Load them before scripts that use them. `fetch()`, XHR and WebSockets are blocked in `html` visuals: put the data in the page.
-- The visual cannot reach DSH, its files or its APIs. `http(s)` links open in a new browser tab.
-- `path` shows an HTML file from the workspace in the sidebar instead of `html`. Relative images, styles, module scripts and `fetch()` of files in the page's folder and its subfolders load normally (not above it, and not hidden files). The page keeps its own look; it gets `window.lantern` and the `--lt-*` tokens, and adds the kit's components with `<meta name="lantern-kit">`. In module scripts, fetch with `new URL('data.json', import.meta.url)`.
+- Libraries load from any CDN with `<script src>` (Chart.js, D3, Mermaid, KaTeX, three.js). Load them before scripts that use them. Do not use `<link>` stylesheets, external images, or web fonts: `fetch()`, XHR, `sendBeacon`, WebSockets, images, CSS `url()`, prefetch and form posts are blocked in `html` visuals. Put the data in the page.
+- The visual cannot reach DSH, its files or its APIs. `http(s)` links open in a new browser tab only after a real click.
+- Scripts run on their own only the first time the card appears in the page that created it. After a reload, or when a past conversation is opened — including a card that is still waiting for an answer — the card stays paused until the user presses Run. Do not depend on scripts having run in a restored card.
+- `path` shows an HTML file from the workspace in the sidebar instead of `html`. Relative images, styles, module scripts and `fetch()` of files in the page's folder and its subfolders load normally (not above it, and not hidden files). Requests to other sites are blocked. The page keeps its own look; it gets `window.lantern` and the `--lt-*` tokens, and adds the kit's components with `<meta name="lantern-kit">`. In module scripts, fetch with `new URL('data.json', import.meta.url)`.
 
 ## References
 
