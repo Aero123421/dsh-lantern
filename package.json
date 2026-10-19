@@ -1,0 +1,67 @@
+{
+  "name": "dsh-lantern",
+  "version": "0.1.0",
+  "description": "Lantern: interactive HTML visuals in the DSH (DeepSeek Harness) chat and sidebar, with answers that flow back to the agent. Unofficial.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Aero123421/dsh-lantern.git"
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js"
+  },
+  "files": [
+    "lib",
+    "skills",
+    "cordis.patch.yml",
+    "README.md",
+    "README.ja.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-tool",
+        "@deepseek-ai/dsh-client-ui-chat",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ],
+      "external": [
+        "react",
+        "react/jsx-runtime",
+        "react-dom"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": ">=0.2.1-alpha.2 <0.3.0-0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types --no-warnings --import ./test/register.mjs test/*.test.ts",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^18.3.31",
+    "esbuild": "^0.25.12",
+    "react": "^18.3.1",
+    "typescript": "5.9"
+  }
+}
