@@ -31,17 +31,19 @@ const RUNTIME_SOURCE = `(${frameRuntime.toString()})();`
 /**
  * Network policy for `html` visuals.
  *
- * Script libraries may still load over http(s). Everything else that can
- * leave the page is closed: fetch, XHR, sendBeacon, WebSocket, images,
- * fonts, CSS `url()`, stylesheets, prefetch/preload, forms, and navigation.
- * `data:` and `blob:` stay available for images the page builds itself.
+ * Nothing that can leave the page is left open: fetch, XHR, sendBeacon,
+ * WebSocket, images, fonts, CSS `url()`, stylesheets, scripts, prefetch,
+ * forms, and navigation. A CDN `<script src>` is refused as well — in
+ * current Chrome a script source that allows http also lets `prefetch`
+ * through. `data:` and `blob:` stay available for images and scripts the
+ * page builds itself.
  * A streaming preview replaces `script-src` with a nonce so model markup
  * cannot run while the arguments are still arriving.
  */
 export function visualCsp(nonce?: string): string {
   const script = nonce
     ? `script-src 'nonce-${nonce}'`
-    : "script-src https: http: 'unsafe-inline' data: blob:"
+    : "script-src 'unsafe-inline' data: blob:"
   return [
     "default-src 'none'",
     script,
@@ -121,6 +123,29 @@ export function injectPrelude(html: string, prelude: string): string {
 const FULL_DOCUMENT =/^\s*(?:<!--[\s\S]*?-->\s*)*(?:<!doctype[^>]*>|<html[\s>])/i
 
 /**
+ * Classic inline scripts get a local `location` / `window` / `document` so
+ * they cannot navigate the iframe. Chrome does not implement `navigate-to`,
+ * and the real `location` object is not replaceable. Module scripts that
+ * contain `import` or `export` are left alone so workspace modules keep
+ * loading; a meta refresh is removed outright.
+ */
+export function cageScripts(html: string): string {
+  const noRefresh = html.replace(/<meta\b[^>]*>/gi, (tag) => /http-equiv\s*=\s*["']?\s*refresh/i.test(tag) ? '' : tag)
+  return noRefresh.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (full, attrs: string, body: string) => {
+    const type = /\btype\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(attrs)
+    const kind = (type?.[1] || type?.[2] || type?.[3] || '').trim().toLowerCase()
+    if (kind !== '' && kind !== 'text/javascript' && kind !== 'application/javascript' && kind !== 'module') return full
+    if (/\bsrc\s*=/i.test(attrs)) return full
+    if (kind === 'module' && /(^|\n)\s*(import|export)\b/.test(body)) return full
+    const cleaned = kind === 'module' && type ? attrs.replace(type[0], 'type="text/javascript"') : attrs
+    // Arguments are read from the real global before the inner names exist.
+    // Shadowing `globalThis` in the same list would hit its temporal dead zone.
+    const wrapped = `(function(__ltLoc,__ltWin,__ltDoc){const location=__ltLoc,window=__ltWin,top=window,parent=window,self=window,globalThis=window,frames=window,document=__ltDoc;\n${body}\n}).call(globalThis.__ltWin,globalThis.__ltLoc,globalThis.__ltWin,globalThis.__ltDoc)`
+    return `<script${cleaned}>${wrapped.replace(/<\/script/gi, '<\\/script')}</script>`
+  })
+}
+
+/**
  * @param html - the model's markup: a fragment or a complete document.
  * @param boot - state handed to the runtime.
  * @param theme - CSS from {@link themeCss}.
@@ -131,8 +156,9 @@ export function buildDocument(html: string, boot: FrameBoot, theme: string): str
   if (boot.streaming) {
     return `<!doctype html><html data-theme="${scheme}"><head>${prelude}</head><body><div id="lantern-stream"></div></body></html>`
   }
-  if (FULL_DOCUMENT.test(html) && (findTag(html, 'head') || findTag(html, 'html'))) return injectPrelude(html, prelude)
-  return `<!doctype html><html data-theme="${scheme}"><head>${prelude}</head><body>${html}</body></html>`
+  const caged = cageScripts(html)
+  if (FULL_DOCUMENT.test(caged) && (findTag(caged, 'head') || findTag(caged, 'html'))) return injectPrelude(caged, prelude)
+  return `<!doctype html><html data-theme="${scheme}"><head>${prelude}</head><body>${caged}</body></html>`
 }
 
 /**

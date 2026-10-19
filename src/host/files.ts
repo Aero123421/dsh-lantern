@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto'
 import { open, realpath, stat } from 'node:fs/promises'
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { filePrelude, injectPrelude } from '../frame/document.ts'
+import { cageScripts, filePrelude, injectPrelude } from '../frame/document.ts'
 
 function headerOne(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value
@@ -169,7 +169,7 @@ export class FileServer {
           const scheme = url.searchParams.get('theme') === 'dark' ? 'dark' : 'light'
           const lang = (url.searchParams.get('lang') ?? '').replace(/[^\w-]/g, '').slice(0, 16)
           const withKit = /<meta\s+[^>]*name\s*=\s*["']?lantern-kit/i.test(source)
-          const body = Buffer.from(injectPrelude(source, filePrelude({
+          const body = Buffer.from(injectPrelude(cageScripts(source), filePrelude({
             id, state: 'idle', response: null, scheme, mode: 'panel', widgetState: null, streaming: false, lang,
           }, withKit)), 'utf8')
           res.setHeader('Content-Length', body.length)

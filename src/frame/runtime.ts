@@ -58,6 +58,85 @@ export function frameRuntime(): void {
   const MAX_JSON = 64 * 1024
   const bootNode = document.getElementById('lantern-boot')
   const boot = JSON.parse((bootNode && bootNode.textContent) || '{}')
+  // Chrome does not ship CSP `navigate-to`, and `window.location` cannot be
+  // replaced. Give caged scripts (see cageScripts) a stand-in that only
+  // follows links inside a workspace page's own folder.
+  const realLocation = location
+  const realDocument = document
+  function sameFolder(url: string): boolean {
+    try {
+      const next = new URL(String(url), realLocation.href)
+      if (realLocation.protocol !== 'http:' && realLocation.protocol !== 'https:') return false
+      const dir = new URL('./', realLocation.href)
+      return (next.protocol === 'http:' || next.protocol === 'https:') && next.href.indexOf(dir.href) === 0
+    } catch { return false }
+  }
+  const realAssign = realLocation.assign.bind(realLocation)
+  const realReplace = realLocation.replace.bind(realLocation)
+  const ltLoc = {
+    assign(url: string) { if (sameFolder(url)) realAssign(url) },
+    replace(url: string) { if (sameFolder(url)) realReplace(url) },
+    reload() {},
+    toString() { return realLocation.href },
+    valueOf() { return realLocation.href },
+  }
+  for (const key of ['href', 'origin', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash']) {
+    Object.defineProperty(ltLoc, key, {
+      configurable: true, enumerable: true,
+      get() { return (realLocation as unknown as Record<string, string>)[key] },
+      set(value: string) { if (key === 'href' && sameFolder(value)) realAssign(value) },
+    })
+  }
+  const ltWin: typeof window = new Proxy(window, {
+    get(target, key) {
+      if (key === 'location') return ltLoc
+      if (key === 'document') return ltDoc
+      if (key === 'top' || key === 'parent' || key === 'self' || key === 'frames' || key === 'globalThis') return ltWin
+      const value = (target as unknown as Record<PropertyKey, unknown>)[key]
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value
+    },
+    set(target, key, value) {
+      if (key === 'location') { if (sameFolder(String(value))) realAssign(String(value)); return true }
+      ;(target as unknown as Record<PropertyKey, unknown>)[key] = value
+      return true
+    },
+  })
+  function cageInline(html: string): string {
+    return String(html).replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (full, attrs: string, body: string) => {
+      if (/\bsrc\s*=/i.test(attrs)) return full
+      if (/\btype\s*=\s*["']?module/i.test(attrs) && /(^|\n)\s*(import|export)\b/.test(body)) return full
+      const wrapped = `(function(__ltLoc,__ltWin,__ltDoc){const location=__ltLoc,window=__ltWin,top=window,parent=window,self=window,globalThis=window,frames=window,document=__ltDoc;\n${body}\n}).call(globalThis.__ltWin,globalThis.__ltLoc,globalThis.__ltWin,globalThis.__ltDoc)`
+      return `<script${attrs}>${wrapped}</script>`
+    })
+  }
+  const ltDoc: Document = new Proxy(realDocument, {
+    get(target, key) {
+      if (key === 'location') return ltLoc
+      if (key === 'defaultView') return ltWin
+      const value = (target as unknown as Record<PropertyKey, unknown>)[key]
+      if ((key === 'write' || key === 'writeln') && typeof value === 'function') {
+        const write = value as (html: string) => void
+        return (html: string) => write.call(target, cageInline(html))
+      }
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value
+    },
+    set(target, key, value) {
+      if (key === 'location') { if (sameFolder(String(value))) realAssign(String(value)); return true }
+      ;(target as unknown as Record<PropertyKey, unknown>)[key] = value
+      return true
+    },
+  })
+  ;(window as unknown as Record<string, unknown>).__ltLoc = ltLoc
+  ;(window as unknown as Record<string, unknown>).__ltWin = ltWin
+  ;(window as unknown as Record<string, unknown>).__ltDoc = ltDoc
+  try {
+    const owner = Object.getOwnPropertyDescriptor(Node.prototype, 'ownerDocument')
+    if (owner && owner.configurable) Object.defineProperty(Node.prototype, 'ownerDocument', { configurable: true, get() { return ltDoc } })
+  } catch { /* ignore */ }
+  try {
+    const view = Object.getOwnPropertyDescriptor(Document.prototype, 'defaultView')
+    if (view && view.configurable) Object.defineProperty(Document.prototype, 'defaultView', { configurable: true, get() { return ltWin } })
+  } catch { /* ignore */ }
   // Script-driven navigations (location, meta refresh where the browser
   // routes them here) may stay inside a workspace page's own folder.
   // Anything else — another host, or the rest of DSH — is cancelled.

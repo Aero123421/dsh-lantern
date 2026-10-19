@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildDocument, filePrelude, injectPrelude, partialMarkup, scriptJson, themeCss, visualCsp } from '../src/frame/document.ts'
+import { buildDocument, cageScripts, filePrelude, injectPrelude, partialMarkup, scriptJson, themeCss, visualCsp } from '../src/frame/document.ts'
 import type { FrameBoot } from '../src/frame/runtime.ts'
 
 const boot: FrameBoot = { id: 'c1', state: 'idle', response: null, scheme: 'dark', mode: 'inline', widgetState: null, streaming: false, lang: 'ja' }
@@ -16,6 +16,14 @@ test('themeCss keeps only --lt-* names and safe values', () => {
   const css = themeCss({ '--lt-bg': '#fff', '--lt-fg': 'red;} body{display:none', 'color': 'blue', '--lt-accent': 'color-mix(in srgb, #000 10%, transparent)', '--lt-x': '<x>' })
   assert.equal(css, '@layer lantern-theme{:root{--lt-bg:#fff;--lt-accent:color-mix(in srgb, #000 10%, transparent)}}')
   assert.equal(themeCss({}), '')
+})
+
+test('inline scripts are caged and meta refresh is removed', () => {
+  const html = cageScripts('<meta http-equiv="refresh" content="0;url=https://e.x"><script>location.href="https://e.x"</script><script type="module">import x from "./a.js"\nlocation.href=1</script><script type="application/json">{"a":1}</script>')
+  assert.equal(/http-equiv\s*=\s*"refresh"/i.test(html), false)
+  assert.match(html, /const location=__ltLoc/)
+  assert.match(html, /import x from/)
+  assert.match(html, /<script type="application\/json">\{"a":1\}<\/script>/)
 })
 
 test('a fragment is wrapped with the runtime, the kit layers and the theme', () => {
@@ -83,8 +91,10 @@ test('streaming previews authorize only their own runtime script', () => {
   // Encoded JavaScript URLs must also remain subject to the same policy.
   assert.match(partialMarkup('<a href="java&#x73;cript:alert(1)">link</a>'), /java&#x73;cript:/)
   const finished = buildDocument('<script>run()</script>', boot, '')
-  assert.match(finished, /script-src https: http: 'unsafe-inline'/)
+  assert.match(finished, /script-src 'unsafe-inline' data: blob:/)
+  assert.equal(/script-src[^;]*https:/.test(finished), false)
   assert.match(finished, /img-src data: blob:;/)
+  assert.match(finished, /const location=__ltLoc/)
 })
 
 test('inline cards never show a scrollbar of their own, unless taller than the largest card', () => {
