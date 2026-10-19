@@ -158,7 +158,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
     {paused && record.error === undefined && (args?.html !== undefined || isPath) && (
       <div className="lantern-paused" data-kind="hold">
         <span>{c.paused}</span>
-        <span className="lantern-paused-warn">{c.leave}</span>
+        <span className="lantern-paused-warn">{isPath ? c.leave : c.leaveInline}</span>
         <button type="button" className="lantern-action lantern-resume" onClick={onRun}>{c.run}</button>
       </div>
     )}

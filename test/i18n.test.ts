@@ -15,9 +15,9 @@ test('Lantern follows only the document language', () => {
 test('run, badges and the permission line are real sentences in ja, en and zh-CN', () => {
   const previous = globalThis.document
   const cases = [
-    ['ja', '実行', '回答待ち', '遷移'],
-    ['en', 'Run', 'Waiting for you', 'navigat'],
-    ['zh-CN', '运行', '等待回答', '跳转'],
+    ['ja', '実行', '回答待ち', '許可したフォルダ'],
+    ['en', 'Run', 'Waiting for you', 'allowed folder'],
+    ['zh-CN', '运行', '等待回答', '文件夹'],
   ] as const
   try {
     for (const [lang, run, waiting, leave] of cases) {

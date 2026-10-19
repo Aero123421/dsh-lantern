@@ -31,7 +31,8 @@ const ja = {
   resume: '再開',
   run: '実行',
   paused: '停止中です。実行するまでスクリプトは動きません。',
-  leave: 'スクリプトを許可したカードは、自分の遷移でデータを外へ送れます。',
+  leave: 'スクリプトを動かすと、カード自身の遷移で、許可したフォルダの中身を外へ送れます。',
+  leaveInline: 'スクリプトを動かすと、カード自身の遷移でデータを外へ送れます。',
 }
 
 type Copy = typeof ja
@@ -66,7 +67,8 @@ const en: Copy = {
   resume: 'Resume',
   run: 'Run',
   paused: 'Paused. Scripts stay off until you run it.',
-  leave: 'A card with scripts allowed can send data out by navigating itself.',
+  leave: 'Running scripts lets this card send the contents of the allowed folder out by navigating itself.',
+  leaveInline: 'Running scripts lets this card send data out by navigating itself.',
 }
 
 const zh: Copy = {
@@ -99,7 +101,8 @@ const zh: Copy = {
   resume: '继续',
   run: '运行',
   paused: '已暂停。点击运行前不会执行脚本。',
-  leave: '允许脚本的卡片可以通过自身跳转把数据送出去。',
+  leave: '运行脚本后，卡片可以通过自身跳转，把已允许文件夹中的内容送出去。',
+  leaveInline: '运行脚本后，卡片可以通过自身跳转把数据送出去。',
 }
 
 /** BCP 47 tag Lantern should follow: the document language DSH set, nothing from the browser. */

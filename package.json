@@ -16,6 +16,7 @@
     "lib",
     "skills",
     "cordis.patch.yml",
+    "CHANGELOG.md",
     "README.md",
     "README.ja.md",
     "README.zh.md",
