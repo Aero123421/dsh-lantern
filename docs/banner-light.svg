@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffb347" stop-opacity=".95"/>
+      <stop offset=".45" stop-color="#ffb347" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="p" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#efece5" stroke-width="1"/></pattern>
+  </defs>
+  <rect width="1200" height="300" rx="20" fill="#fbfaf7"/>
+  <rect width="1200" height="300" rx="20" fill="url(#p)" opacity=".9"/>
+  <circle cx="190" cy="160" r="150" fill="url(#g)"/>
+  <g transform="translate(190 150)" fill="none" stroke="#2a2c33" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-14 -88 a14 14 0 0 1 28 0"/>
+    <path d="M-34 -70 h68 l10 18 h-88 z" fill="#2a2c33"/>
+    <path d="M-40 -52 c-14 30 -14 78 0 106 h80 c14 -28 14 -76 0 -106 z" fill="#ffb347" fill-opacity=".18"/>
+    <path d="M-40 -52 c10 30 10 78 0 106 M40 -52 c-10 30 -10 78 0 106"/>
+    <path d="M-44 54 h88 l-10 16 h-68 z" fill="#2a2c33"/>
+    <circle cx="0" cy="4" r="13" fill="#ffb347" stroke="none"/>
+  </g>
+  <text x="330" y="150" font-family="Inter, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="76" font-weight="700" fill="#17181c" letter-spacing="-1">dsh-lantern</text>
+  <text x="333" y="204" font-family="Inter, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="27" fill="#5b6372">Interactive visuals inside the DeepSeek Harness chat.</text>
+  <text x="333" y="242" font-family="Inter, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="27" fill="#5b6372">Drag, rotate, play — and the answer flows back to the agent.</text>
+</svg>
