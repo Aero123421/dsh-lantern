@@ -127,6 +127,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
         {skipButton}
         {phase !== 'preparing' && <button type="button" className="lantern-action" onClick={onExpand} title={c.openSidebar}><Icon name="sidebar" /><span>{c.openSidebar}</span></button>}
         {record.error && <div className="lantern-note" data-kind="error">{record.error}</div>}
+        <Notes notice={notice} errors={errors} />
       </div>
     )
   }
@@ -216,10 +217,11 @@ function PathFrame(props: {
   useEffect(() => {
     if (!path || !props.sessionId) return
     let live = true
+    setUrl(undefined)
     setError(undefined)
-    workspaceUrl(props.sessionId, path).then(value => { if (live) setUrl(value) }, (failure: Error) => { if (live) setError(failure.message) })
+    workspaceUrl(props.sessionId, props.record.callId).then(value => { if (live) setUrl(value) }, (failure: Error) => { if (live) setError(failure.message) })
     return () => { live = false }
-  }, [path, props.sessionId])
+  }, [path, props.sessionId, props.record.callId])
   if (error) return <div className="lantern-note" data-kind="error">{c.fileError}: {error}</div>
   if (!url) return <div className="lantern-note">{c.loading}</div>
   return <Frame callId={props.record.callId} sessionId={props.sessionId} mode="panel" url={url} state={props.state} response={props.response}

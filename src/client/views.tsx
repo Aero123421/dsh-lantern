@@ -5,82 +5,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { VisualCard } from './Card.tsx'
 import { copy } from './i18n.ts'
-import { openInSidebar, parseAddress } from './services.ts'
+import { fetchVisual, openInSidebar, parseAddress } from './services.ts'
 import { getRecord, inTail, markTail, parseArgs, parseMeta, upsert, useRegistry, visualKey, type VisualRecord } from './store.ts'
 
-export const TOOL_NAME = 'show_visual'
-export const TURN_KEY = 'lanternVisuals'
+import { TOOL_NAME, textOf, type TurnCall } from './definition.ts'
 
-// ── turn data ─────────────────────────────────────────────────────────────
-
-interface TurnCall {
-  readonly callId: string
-  readonly seq: number
-  readonly argsRaw: string
-  readonly meta?: unknown
-  readonly settled: boolean
-  readonly isError: boolean
-  readonly errorText?: string
-}
-
-interface TurnState {
-  readonly turn: number
-  readonly calls: readonly TurnCall[]
-}
-
-interface ConvEvent {
-  readonly type: string
-  readonly seq: number
-  readonly data: Record<string, any>
-}
-
-function textOf(content: unknown): string {
-  if (!Array.isArray(content)) return ''
-  return content.map(item => (item && typeof item === 'object' && (item as { type?: string }).type === 'text') ? String((item as { text?: unknown }).text ?? '') : '').join('\n').trim()
-}
-
-/** Collects this turn's `show_visual` calls and results for the turn tail. */
-export const turnDefinition = {
-  kind: TURN_KEY,
-  match: (event: ConvEvent) => {
-    if (event.type === 'turn/start') return { id: String(event.data.turn), role: 'start' as const }
-    if (event.type === 'tool/call' && event.data.name === TOOL_NAME) return { id: String(event.data.turn), role: 'update' as const }
-    if (event.type === 'tool/result') return { id: String(event.data.turn), role: 'update' as const }
-    return null
-  },
-  start: (_context: unknown, match: { event: ConvEvent }): TurnState => ({ turn: Number(match.event.data.turn), calls: [] }),
-  update: (context: { state: TurnState }, match: { event: ConvEvent }): TurnState => {
-    const state = context.state
-    const event = match.event
-    if (event.type === 'tool/call') {
-      const callId = String(event.data.callId)
-      if (state.calls.some(item => item.callId === callId)) return state
-      return { ...state, calls: [...state.calls, { callId, seq: event.seq, argsRaw: String(event.data.arguments ?? ''), settled: false, isError: false }] }
-    }
-    if (event.type === 'tool/result') {
-      const callId = String(event.data.message?.source?.callId ?? event.data.message?.toolCallId ?? '')
-      const index = state.calls.findIndex(item => item.callId === callId)
-      if (index < 0) return state
-      const isError = event.data.message?.isError === true
-      const next: TurnCall = {
-        ...state.calls[index]!,
-        settled: true,
-        isError,
-        meta: event.data.meta,
-        ...isError ? { errorText: textOf(event.data.message?.content) || String(event.data.error?.code ?? 'error') } : {},
-      }
-      const calls = state.calls.slice()
-      calls[index] = next
-      return { ...state, calls }
-    }
-    return state
-  },
-  buildLocationData: (context: { state?: TurnState }, scope: string, previous: any) => {
-    if (scope !== 'turn' || context.state === undefined || context.state.calls.length === 0) return null
-    if (previous?.kind === 'turn' && previous.turn === context.state.turn && previous.key === TURN_KEY && previous.value === context.state.calls) return previous
-    return { kind: 'turn', turn: context.state.turn, key: TURN_KEY, value: context.state.calls }
-  },
-}
+export { TOOL_NAME, turnDefinition } from './definition.ts'
 
 function recordFromCall(item: TurnCall, sessionId: string | undefined): Omit<VisualRecord, 'callId'> {
   return {
@@ -178,13 +108,14 @@ export function ToolView(props: ToolViewProps) {
 // ── turn tail ─────────────────────────────────────────────────────────────
 
 interface TailProps {
-  readonly turn: { readonly data: { get(key: string): unknown } }
+  readonly turn: { readonly turn: number }
   readonly seq: number
   readonly sessionId?: string
+  readonly useVisuals: (turn: string) => readonly TurnCall[] | undefined
 }
 
 export function Tail(props: TailProps) {
-  const calls = (props.turn.data.get(TURN_KEY) as readonly TurnCall[] | undefined) ?? []
+  const calls = props.useVisuals(String(props.turn.turn)) ?? EMPTY_CALLS
   const visible = calls.filter(item => item.seq < props.seq && !item.isError)
   useEffect(() => {
     for (const item of calls) upsert(item.callId, recordFromCall(item, props.sessionId))
@@ -197,9 +128,11 @@ export function Tail(props: TailProps) {
   )
 }
 
+const EMPTY_CALLS: readonly TurnCall[] = []
+
 function TailItem({ item, sessionId }: { item: TurnCall; sessionId: string | undefined }) {
-  useEffect(() => markTail(item.callId, sessionId), [item.callId, sessionId])
-  const record: VisualRecord = { callId: item.callId, ...recordFromCall(item, sessionId) }
+  const record = useMemo<VisualRecord>(() => ({ callId: item.callId, ...recordFromCall(item, sessionId) }), [item, sessionId])
+  useEffect(() => record.args === undefined ? undefined : markTail(item.callId, sessionId), [item.callId, sessionId, record.args])
   if (record.args === undefined) return null
   return <VisualCard record={record} sessionId={sessionId} placement="tail" phase={item.settled ? 'result' : 'replay'} />
 }
@@ -215,6 +148,21 @@ export function SidebarTab(props: TabProps) {
   const { tab } = props.useTabInfo()
   const target = parseAddress(tab.navigation.address)
   const record = useRegistry(() => target ? getRecord(target.callId, target.sessionId) : undefined)
+  const targetKey = target ? visualKey(target.callId, target.sessionId) : undefined
+  const hasArguments = record?.args !== undefined
+  const [load, setLoad] = useState<{ key: string; error?: string } | undefined>(undefined)
+  useEffect(() => {
+    if (!target || !targetKey || hasArguments) return
+    let live = true
+    setLoad({ key: targetKey })
+    fetchVisual(target.sessionId, target.callId).then(value => {
+      if (!live) return
+      const args = parseArgs(value.arguments)
+      if (args === undefined) { setLoad({ key: targetKey, error: copy().missing }); return }
+      upsert(target.callId, { sessionId: target.sessionId, args, seq: value.seq, result: parseMeta(value.meta), error: value.error })
+    }, (error: Error) => { if (live) setLoad({ key: targetKey, error: error.message }) })
+    return () => { live = false }
+  }, [targetKey, hasArguments])
   const box = useRef<HTMLDivElement>(null)
   const [shown, setShown] = useState(false)
   // DSH can keep a second, hidden copy of the sidebar; only a copy that is
@@ -230,7 +178,10 @@ export function SidebarTab(props: TabProps) {
   }, [])
   const c = copy()
   let body: ReactNode
-  if (!target || !record?.args) body = <div className="lantern-empty">{c.missing}</div>
+  if (!target) body = <div className="lantern-empty">{c.missing}</div>
+  else if (!record?.args) body = load && load.key === targetKey && load.error
+    ? <div className="lantern-empty" role="alert">{c.missing} {load.error}</div>
+    : <div className="lantern-empty" role="status">{c.loading}</div>
   else if (shown) body = <VisualCard key={visualKey(target.callId, target.sessionId)} record={record} sessionId={target.sessionId} placement="panel" phase={record.result ? 'result' : 'start'} />
   return <div ref={box} className="lantern-tab">{body}</div>
 }

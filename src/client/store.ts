@@ -19,6 +19,7 @@ export interface VisualResultMeta {
   readonly status: 'shown' | 'answered' | 'dismissed' | 'timeout' | 'closed'
   readonly response?: string
   readonly path?: string
+  readonly source?: { readonly kind: 'local'; readonly root: string; readonly path: string }
 }
 
 export interface VisualRecord {
@@ -53,10 +54,13 @@ export function parseMeta(meta: unknown): VisualResultMeta | undefined {
   const m = meta as Record<string, unknown>
   const status = m.status
   if (status !== 'shown' && status !== 'answered' && status !== 'dismissed' && status !== 'timeout' && status !== 'closed') return undefined
+  const source = m.source !== null && typeof m.source === 'object' ? m.source as Record<string, unknown> : undefined
   return {
     status,
     ...typeof m.response === 'string' ? { response: m.response } : {},
     ...typeof m.path === 'string' ? { path: m.path } : {},
+    ...source?.kind === 'local' && typeof source.root === 'string' && typeof source.path === 'string'
+      ? { source: { kind: 'local' as const, root: source.root, path: source.path } } : {},
   }
 }
 
@@ -173,6 +177,22 @@ const KEY = 'dsh-lantern:v1:'
 const MAX_ENTRIES = 300
 const memory = new Map<string, Local>()
 const unsaved = new Set<string>()
+
+/** Publish same-origin changes from other tabs and discard the superseded memory copy. */
+export function watchLocalStorage(): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== null && !event.key.startsWith(KEY)) return
+    if (event.key === null) { memory.clear(); unsaved.clear() }
+    else {
+      const key = event.key.slice(KEY.length)
+      memory.delete(key)
+      unsaved.delete(key)
+    }
+    queueNotify()
+  }
+  window.addEventListener('storage', onStorage)
+  return () => window.removeEventListener('storage', onStorage)
+}
 
 export function readLocal(callId: string, sessionId?: string): Local {
   const key = visualKey(callId, sessionId)

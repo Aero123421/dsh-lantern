@@ -4,26 +4,34 @@
  */
 import css from './style.css'
 import { bind, TAB_ID, TAB_KIND } from './services.ts'
+import { watchLocalStorage } from './store.ts'
+import { Settings, type SettingsForm, type SettingsLocale } from './Settings.tsx'
 import { SidebarTab, Tail, tabTitle, ToolView, TOOL_NAME, turnDefinition } from './views.tsx'
 
 export const name = 'dsh-lantern'
-export const inject = ['slots', 'uiConversation', 'sidebarRight', 'sidebarRightTabs', 'sessions']
+export const inject = ['slots', 'uiConversation', 'sidebarRight', 'sidebarRightTabs', 'sessions', 'configForms', 'locale']
 
 interface ClientContext {
   slots: {
     inject(name: string, register: () => unknown): unknown
     register(options: Record<string, unknown>, component: unknown): unknown
   }
-  uiConversation: { events: { register(definition: unknown): unknown } }
+  uiConversation: {
+    events: { register(definition: unknown): unknown }
+    binding(binding: unknown): { target(name: string): { getSnapshot(): { nodes: { turnDataSource(turn: number, kind: string): unknown } } | undefined } }
+  }
   sidebarRight: unknown
   sidebarRightTabs: { register(definition: Record<string, unknown>): unknown }
-  sessions: unknown
+  sessions: { binding(sessionId: string): unknown }
+  configForms: { get(entryId: string): SettingsForm }
+  locale: SettingsLocale
   effect(execute: () => unknown, label?: string): unknown
 }
 
 export function apply(rawCtx: unknown): void {
   const ctx = rawCtx as ClientContext
   bind({ sidebarRight: ctx.sidebarRight, sessions: ctx.sessions })
+  ctx.effect(watchLocalStorage, 'dsh-lantern: other browser tabs')
 
   ctx.effect(() => {
     const style = document.createElement('style')
@@ -39,8 +47,29 @@ export function apply(rawCtx: unknown): void {
     { name: 'tool.call.toolview', key: TOOL_NAME }, ToolView,
   ))
 
+  const form = ctx.configForms.get('dsh-lantern')
+  ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register(
+    { name: 'plugins.bundle.config', key: 'dsh-lantern', inject: () => ({ form, locale: ctx.locale }) }, Settings,
+  ))
+
   ctx.slots.inject('conversation.chat.turnTail', () => ctx.slots.register(
-    { name: 'conversation.chat.turnTail', id: 'dsh-lantern' }, Tail,
+    {
+      name: 'conversation.chat.turnTail', id: 'dsh-lantern',
+      inject: (sessionId: string) => {
+        const binding = ctx.sessions.binding(sessionId)
+        if (binding === undefined) throw new Error('dsh-lantern: session binding unavailable')
+        const chat = ctx.uiConversation.binding(binding).target('chat')
+        return {
+          keyedHooks: {
+            visuals: (turn: string) => {
+              const snapshot = chat.getSnapshot()
+              if (snapshot === undefined) throw new Error('dsh-lantern: Chat target unavailable')
+              return snapshot.nodes.turnDataSource(Number(turn), 'lanternVisuals')
+            },
+          },
+        }
+      },
+    }, Tail,
   ))
 
   ctx.effect(() => ctx.sidebarRightTabs.register({

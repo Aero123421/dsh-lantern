@@ -27,7 +27,16 @@ const ja = {
   notWaiting: 'エージェントはもう待っていません',
   wheelHint: 'クリックするとホイールで操作できます',
   glLost: '3D 表示を一時停止しました（同時に動かせる数の上限）',
+  navigated: 'ページが移動したため操作を停止しました。DSH を再読み込みすると、このビジュアルの操作を再開できます。',
   resume: '再開',
+  automaticVisuals: '会話内ビジュアルを自動で使う',
+  automaticVisualsDescription: '説明や比較に役立つとき、図や操作できる UI をチャット内に表示します。',
+  automaticVisualsTiming: '変更は自動で保存され、次の回答から反映されます。スキルの読み込みは必要ありません。',
+  automaticVisualsOff: 'オフでも、図やインタラクティブな表示を直接依頼できます。',
+  settingsSaving: '保存中…',
+  settingsUnavailable: '設定を読み込めません。接続を確認してプラグイン画面を開き直してください。',
+  settingsReadOnly: 'このプロファイルでは設定を変更できません。',
+  settingsSaveFailed: '保存できませんでした。現在の設定を確認して、もう一度お試しください。',
 }
 
 type Copy = typeof ja
@@ -59,7 +68,16 @@ const en: Copy = {
   notWaiting: 'The agent is no longer waiting',
   wheelHint: 'Click the visual to use the scroll wheel in it',
   glLost: 'The 3D view was paused (too many running at once)',
+  navigated: 'This page navigated and its visual controls stopped. Reload DSH to restore them.',
   resume: 'Resume',
+  automaticVisuals: 'Use conversation visuals automatically',
+  automaticVisualsDescription: 'Show diagrams and interactive UI in the chat when they help explain or compare.',
+  automaticVisualsTiming: 'Changes save automatically and apply to the next response. No skill loading is required.',
+  automaticVisualsOff: 'When off, you can still ask for diagrams or interactive visuals directly.',
+  settingsSaving: 'Saving…',
+  settingsUnavailable: 'Settings are unavailable. Check the connection and reopen the plugin page.',
+  settingsReadOnly: 'Settings cannot be changed in this profile.',
+  settingsSaveFailed: 'Could not save. Check the current setting and try again.',
 }
 
 const zh: Copy = {
@@ -89,7 +107,16 @@ const zh: Copy = {
   notWaiting: '智能体已不再等待',
   wheelHint: '点击后即可在其中使用滚轮',
   glLost: '3D 视图已暂停（同时运行的数量已达上限）',
+  navigated: '页面已跳转，交互已停止。请重新加载 DSH 以恢复此可视化的操作。',
   resume: '继续',
+  automaticVisuals: '自动使用对话可视化',
+  automaticVisualsDescription: '有助于解释或比较时，在对话中显示图表和可交互的界面。',
+  automaticVisualsTiming: '更改会自动保存，并从下一次回答生效。无需加载技能。',
+  automaticVisualsOff: '关闭后，仍可直接请求图表或交互式可视化。',
+  settingsSaving: '保存中…',
+  settingsUnavailable: '无法加载设置。请检查连接并重新打开插件页面。',
+  settingsReadOnly: '此配置无法修改设置。',
+  settingsSaveFailed: '保存失败。请检查当前设置后重试。',
 }
 
 export function lang(): string {
@@ -98,8 +125,8 @@ export function lang(): string {
 }
 
 /** The language Lantern speaks: DSH's UI language, except that a Japanese browser gets Japanese. */
-export function uiLang(): 'ja' | 'zh' | 'en' {
-  const value = lang()
+export function uiLang(locale?: string): 'ja' | 'zh' | 'en' {
+  const value = locale?.toLowerCase() ?? lang()
   if (value.startsWith('ja')) return 'ja'
   if (value.startsWith('zh')) return 'zh'
   // DSH Web's own UI is English or Chinese; a Japanese browser still gets Japanese.
@@ -107,7 +134,7 @@ export function uiLang(): 'ja' | 'zh' | 'en' {
   return 'en'
 }
 
-export function copy(): Copy {
-  const value = uiLang()
+export function copy(locale?: string): Copy {
+  const value = uiLang(locale)
   return value === 'ja' ? ja : value === 'zh' ? zh : en
 }

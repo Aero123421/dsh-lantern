@@ -28,12 +28,34 @@ export function themeCss(vars: Readonly<Record<string, string>>): string {
 
 const RUNTIME_SOURCE = `(${frameRuntime.toString()})();`
 
+/** The examples use npm packages on jsDelivr, including three.js modules. */
+const LIBRARY_CDN = 'https://cdn.jsdelivr.net/npm/'
+
 /**
- * Network policy for `html` visuals. Libraries load from any CDN with
- * <script>/<link>, but the page cannot fetch, open sockets, post forms or
- * change its base URL, so what a user types into a visual stays in it.
+ * Restrict subresource requests, not arbitrary JavaScript. Allowed CDNs
+ * still receive requests, and CSP does not block a frame navigating itself.
+ * Workspace documents additionally need their own origin for relative files.
  */
-export const VISUAL_CSP = "connect-src data: blob:; form-action 'none'; base-uri 'none'"
+function contentPolicy(workspace: boolean, nonce?: string): string {
+  const local = workspace ? "'self' " : ''
+  const scripts = nonce ? `'nonce-${nonce}'` : `${local}'unsafe-inline' ${LIBRARY_CDN}`
+  return [
+    "default-src 'none'",
+    `script-src ${scripts}`,
+    `style-src ${local}'unsafe-inline' ${LIBRARY_CDN} https://fonts.googleapis.com`,
+    `font-src ${local}data: blob: ${LIBRARY_CDN} https://fonts.gstatic.com`,
+    `img-src ${local}data: blob:`,
+    `media-src ${local}data: blob:`,
+    `connect-src ${local}data: blob:`,
+    "frame-src 'none'",
+    "object-src 'none'",
+    "worker-src 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+  ].join('; ')
+}
+
+export const VISUAL_CSP = contentPolicy(false)
 
 function head(boot: FrameBoot, theme: string): string {
   // A preview needs our runtime, but must never execute model markup. A
@@ -42,9 +64,10 @@ function head(boot: FrameBoot, theme: string): string {
   const nonce = boot.streaming
     ? Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('')
     : undefined
-  const policy = nonce ? `${VISUAL_CSP}; script-src 'nonce-${nonce}'` : VISUAL_CSP
+  const policy = nonce ? contentPolicy(false, nonce) : VISUAL_CSP
   return `<meta http-equiv="Content-Security-Policy" content="${policy}">`
     + '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<meta name="referrer" content="no-referrer">'
     + `<script type="application/json" id="lantern-boot">${scriptJson(boot)}</script>`
     + `<script${nonce ? ` nonce="${nonce}"` : ''}>${RUNTIME_SOURCE.replace(/<\/script/gi, '<\\/script')}</script>`
     + `<style id="lantern-kit">${LAYERS}@layer lantern-kit{${kitCss}${BASE}}</style>`
@@ -57,38 +80,23 @@ function head(boot: FrameBoot, theme: string): string {
  * for them with `<meta name="lantern-kit">`, so existing pages keep their look.
  */
 export function filePrelude(boot: FrameBoot, withKit: boolean): string {
-  return '<meta charset="utf-8">'
+  return `<meta http-equiv="Content-Security-Policy" content="${contentPolicy(true)}">`
+    + '<meta charset="utf-8"><meta name="referrer" content="no-referrer">'
     + `<script type="application/json" id="lantern-boot">${scriptJson(boot)}</script>`
     + `<script>${RUNTIME_SOURCE.replace(/<\/script/gi, '<\\/script')}</script>`
     + `<style id="lantern-kit">${LAYERS}@layer lantern-kit{${withKit ? kitCss + BASE : TOKENS}}</style>`
     + '<style id="lantern-theme"></style>'
 }
 
-/** `html` with comments and script bodies blanked out, same length, for finding real tags. */
-function masked(html: string): string {
-  return html
-    .replace(/<!--[\s\S]*?(-->|$)/g, match => ' '.repeat(match.length))
-    .replace(/(<script\b[^>]*>)([\s\S]*?)(<\/script>|$)/gi, (_m, open: string, body: string, close: string) => open + ' '.repeat(body.length) + close)
-}
-
-/** The first real `<tag …>` in `html`, ignoring comments and script text. */
-function findTag(html: string, name: 'head' | 'html'): RegExpExecArray | null {
-  const match = new RegExp(`<${name}(\\s[^>]*)?>`, 'i').exec(masked(html))
-  if (!match) return null
-  const found = [html.slice(match.index, match.index + match[0].length)] as unknown as RegExpExecArray
-  found.index = match.index
-  return found
-}
-
-/** Insert a prelude at the start of an HTML file's head. */
+/**
+ * Start with a trusted head before parsing any supplied markup. Searching
+ * for a head tag is unsafe: a script can precede it, or a matching tag can
+ * be inside raw text, a template, or an attribute. HTML parsing merges later
+ * html attributes and head metadata into this document; a later doctype is
+ * ignored. The fixed doctype also keeps fragments in standards mode.
+ */
 export function injectPrelude(html: string, prelude: string): string {
-  const headOpen = findTag(html, 'head')
-  if (headOpen) return html.slice(0, headOpen.index + headOpen[0].length) + prelude + html.slice(headOpen.index + headOpen[0].length)
-  const htmlOpen = findTag(html, 'html')
-  if (htmlOpen) return html.slice(0, htmlOpen.index + htmlOpen[0].length) + `<head>${prelude}</head>` + html.slice(htmlOpen.index + htmlOpen[0].length)
-  const doctype = /^\s*<!doctype[^>]*>/i.exec(html)
-  if (doctype) return doctype[0] + prelude + html.slice(doctype[0].length)
-  return prelude + html
+  return `<!doctype html><head>${prelude}</head>${html.replace(/^\uFEFF/, '')}`
 }
 
 const FULL_DOCUMENT =/^\s*(?:<!--[\s\S]*?-->\s*)*(?:<!doctype[^>]*>|<html[\s>])/i
@@ -104,7 +112,7 @@ export function buildDocument(html: string, boot: FrameBoot, theme: string): str
   if (boot.streaming) {
     return `<!doctype html><html data-theme="${scheme}"><head>${prelude}</head><body><div id="lantern-stream"></div></body></html>`
   }
-  if (FULL_DOCUMENT.test(html) && (findTag(html, 'head') || findTag(html, 'html'))) return injectPrelude(html, prelude)
+  if (FULL_DOCUMENT.test(html)) return injectPrelude(html, prelude)
   return `<!doctype html><html data-theme="${scheme}"><head>${prelude}</head><body>${html}</body></html>`
 }
 

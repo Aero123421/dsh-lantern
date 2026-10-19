@@ -118,7 +118,10 @@ export class FileServer {
         if (ext === '.html' || ext === '.htm') {
           if (opened.size > MAX_HTML_BYTES) return finish(res, 413, 'File too large')
           const source = await handle.readFile('utf8')
-          const id = (url.searchParams.get('lt') ?? '').replace(/[^\w.:-]/g, '').slice(0, 128)
+          // Call ids are opaque. Keep the same 200-character bound as the
+          // authenticated routes, but never rewrite an id before bootstrap.
+          const id = url.searchParams.get('lt') ?? ''
+          if (id.length > 200) return finish(res, 400, 'Invalid visual id')
           const scheme = url.searchParams.get('theme') === 'dark' ? 'dark' : 'light'
           const lang = (url.searchParams.get('lang') ?? '').replace(/[^\w-]/g, '').slice(0, 16)
           const withKit = /<meta\s+[^>]*name\s*=\s*["']?lantern-kit/i.test(source)

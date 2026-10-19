@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getRecord, inTail, markTail, readLocal, replacementOf, upsert, visualKey, visualState, writeLocal } from '../src/client/store.ts'
+import { getRecord, inTail, markTail, readLocal, replacementOf, upsert, visualKey, visualState, watchLocalStorage, writeLocal } from '../src/client/store.ts'
 
 const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
 test.afterEach(() => {
@@ -78,4 +78,29 @@ test('available storage still picks up answers written by another tab', () => {
   const key = [...values.keys()][0]!
   values.set(key, '{"state":"{\\"step\\":1}","answer":"true"}')
   assert.equal(readLocal('other-tab', 'session').answer, 'true')
+})
+
+test('storage events discard a superseded fallback and unsubscribe on plugin disposal', t => {
+  let listener: ((event: { key: string | null }) => void) | undefined
+  let removed = false
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: {
+    addEventListener: (_name: string, callback: typeof listener) => { listener = callback },
+    removeEventListener: (_name: string, callback: typeof listener) => { removed = callback === listener },
+  } })
+  t.after(() => {
+    if (descriptor) Object.defineProperty(globalThis, 'window', descriptor)
+    else Reflect.deleteProperty(globalThis, 'window')
+  })
+  setStorage({ getItem() { throw new Error('denied') }, setItem() { throw new Error('denied') } })
+  writeLocal('storage-event', { state: 'old' }, 'session')
+  const stop = watchLocalStorage()
+  listener!({ key: 'unrelated-plugin' })
+  assert.equal(readLocal('storage-event', 'session').state, 'old')
+  setStorage({ getItem() { return '{"state":"new","answer":"true"}' } })
+  listener!({ key: 'dsh-lantern:v1:' + visualKey('storage-event', 'session') })
+  assert.equal(readLocal('storage-event', 'session').state, 'new')
+  assert.equal(readLocal('storage-event', 'session').answer, 'true')
+  stop()
+  assert.equal(removed, true)
 })
