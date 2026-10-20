@@ -2,7 +2,7 @@
 
 ## 0.2.3
 
-0.2.2 was not published. It stayed a draft GitHub Release and was withdrawn. 0.2.3 includes every change from that unpublished 0.2.2. The notes below are the complete set of changes since 0.2.1.
+0.2.2 was not published. It stayed a draft GitHub Release and was withdrawn. 0.2.3 includes every change from that unpublished 0.2.2. The notes in this section are the complete set of changes since 0.2.1.
 
 Conversation visuals from PR #1, ported onto 0.2.1. Automatic visuals are on by default (`automaticVisuals`). The system prompt section `ui:lantern-interactive` (order 10110) adds a short English guidance string when that setting is on and `show_visual` is registered. The bundled skill stays user-invocable only (`modelInvocable: false`); load it with `/lantern-visuals`.
 
@@ -32,7 +32,13 @@ Folder (path) cards created before 0.2.3 (that is, with 0.2.1 or earlier) stored
 
 pnpm 12 でプラグインを追加・更新すると、プロファイルの lockfile に公開から24時間たっていない依存が含まれている場合、ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION で失敗することがあります。このとき pnpm がプロファイルの node_modules を空にし、DSH も元に戻さないため、同じプロファイルのすべてのプラグインが読み込まれなくなります。プラグインの追加・更新は pnpm 10 で行ってください。壊れたときは pnpm 10 で `dsh plugin --profile web install` を実行すると戻ります。pnpm 11 では ERR_PNPM_UNEXPECTED_STORE で止まりますが、node_modules は壊れません。
 
-The 0.2.1 residual risks below are unchanged.
+### Residual risks (unchanged from 0.2.1)
+
+Running scripts lets a card send the contents of the allowed folder out by navigating itself. This applies only to workspace (`/lantern/files/<token>/`) pages after the user presses Run. Classic scripts that rewrite `location` are stopped; module scripts are outside that wrapper and can navigate with the real `location`. Chromium does not support CSP `navigate-to`.
+
+`/lantern/files/<token>/` pages keep scripts stopped until Run is pressed. Inline cards still run automatically on first display, and cannot read an allowed folder or `/lantern/files/` contents.
+
+A tight loop on first display can freeze that tab only; close the tab and reopen the conversation.
 
 ## 0.2.2
 
