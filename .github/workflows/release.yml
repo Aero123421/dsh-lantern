@@ -25,7 +25,7 @@ jobs:
           npm pack --pack-destination dist
           (cd dist && sha256sum ./*.tgz > SHA256SUMS)
       # A tag push creates a draft only. Publishing stays a manual step.
-      # An existing draft for this tag keeps its title and notes; only the assets are replaced.
+      # An existing draft keeps its title, notes, and any asset that is already attached.
       - name: Create a draft release or attach assets to the existing draft
         env:
           GH_TOKEN: ${{ github.token }}
