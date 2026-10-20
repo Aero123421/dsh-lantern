@@ -190,6 +190,7 @@ For WebGL, render a frame and call `toBlob` in the same task (the drawing buffer
 
 ## State that survives
 
+- Treat saved inputs as a convenience: storage is best effort in this browser, with no cross-device sync. Provide usable defaults if `getState()` is empty. Storage limits or clearing browser data may remove earlier state.
 - Restore from `lantern.getState()` before the first render. Save at the end of a gesture (`pointerup`, OrbitControls `end`, the brush `end`), or throttled to about 4 per second. Never save on every `pointermove`.
 - The card is created again when the turn ends (it moves under the final answer), on reload, and in the sidebar. Save what makes the view yours: selection, camera, filters, parameters. Leave out transient simulation state.
 - After an answer, render from `lantern.response` and lock the inputs.

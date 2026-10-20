@@ -1,6 +1,6 @@
 // Builds lib/: a Node ESM host entry and a browser module for DSH Web.
-// Nothing from DSH is bundled or imported at runtime; React comes from DSH
-// Web's module loader, the same way first-party client plugins get it.
+// Host schema support stays external; React comes from DSH Web's module
+// loader, the same way first-party client plugins get it.
 import { build } from 'esbuild'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'

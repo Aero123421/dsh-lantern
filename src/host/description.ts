@@ -1,16 +1,16 @@
-/** Model-facing text for `show_visual`. Kept short: the design guide is the `lantern-visuals` skill. */
+/** Self-contained tool instructions; the bundled design guide is optional. */
 
 export const TOOL_NAME = 'show_visual'
 export const SKILL_NAME = 'lantern-visuals'
 
 export function toolDescription(timeoutMinutes: number): string {
   return [
-    'Show an HTML visual to the user in DSH Web, inline in the chat (default) or in the right sidebar.',
-    'Use it when a diagram, chart, explorer, comparison, choice cards, a short form or an interactive tool (3D model, simulation, game, drag-to-rank answer) helps more than prose; keep explanations in your reply text.',
-    `Load the \`${SKILL_NAME}\` skill before your first visual in a session: it has the kit (tokens, components), the \`window.lantern\` API and patterns.`,
-    'Pass `html` (a fragment or a full document; the kit and the DSH light/dark theme are preloaded, and your own styles override them) or `path` (an HTML file in the workspace, shown in the sidebar with its relative files).',
-    `Set \`await_response: true\` to wait for the user's answer (sent with \`lantern.submit\` or a \`data-lt-submit\` button); it returns as this tool's result. Waiting ends after about ${timeoutMinutes} minutes; a later answer arrives as a user message.`,
-    'Pass `replace` with an earlier visual\'s `id` to show a revised version instead of a new card.',
+    'Render HTML in DSH Web: inline in chat, or `display:"panel"` for more space. Pass exactly one of `html` or workspace `path` (HTML plus relative assets, always in the panel).',
+    'The light/dark theme and CSS kit are preloaded: --lt-* tokens; lt-card, lt-stack, lt-row classes. Use native labeled controls and local JavaScript for live changes.',
+    'window.lantern provides submit(JSON), send(text) for a follow-up message, setState(JSON)/getState() for saved inputs, and expand(). Submit/send require a user action.',
+    'Embed data, images and libraries in html: external fetch, images and CDN scripts are blocked. A path page can fetch relative files in its own folder.',
+    'A button can use data-lt-submit=\'"yes"\'; a form with data-lt-form submits its named fields. Set await_response:true only to wait for the answer as this tool result.',
+    `Waiting expires after ${timeoutMinutes} minutes. Keep the conclusion and sources in prose. Use replace with an earlier visual id to revise it. No skill loading is needed.`,
   ].join(' ')
 }
 

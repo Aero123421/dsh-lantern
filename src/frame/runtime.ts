@@ -1,9 +1,9 @@
 /**
  * The script that runs first inside every visual's iframe. It defines
  * `window.lantern`, wires the kit's declarative attributes, reports the
- * content height, routes links to DSH, and talks to DSH only through
- * `parent.postMessage`. The iframe has an opaque origin (sandbox without
- * allow-same-origin), so this channel is the only thing it can reach.
+ * content height, routes links to DSH, and connects a private message port
+ * to DSH before model scripts run. The iframe has an opaque origin (sandbox without
+ * allow-same-origin), so it cannot read the host DOM, cookies or storage.
  *
  * The function below is serialized with `toString()` and inlined into the
  * iframe document, so it must stay self-contained: no imports, no references
@@ -12,12 +12,16 @@
 
 /** Marker carried by every message in both directions. */
 export const MESSAGE_TAG = '__lantern'
+/** Temporary iframe name consumed by the trusted workspace-page prelude. */
+export const RESTORE_PREFIX = 'dsh-lantern:boot:'
 
 export type VisualState = 'idle' | 'waiting' | 'answered' | 'dismissed' | 'timeout' | 'closed'
 
 /** Data the parent embeds in the document for the runtime to read at start. */
 export interface FrameBoot {
   readonly id: string
+  /** Per-document parent nonce, consumed before model scripts execute. */
+  readonly bridge?: string
   readonly state: VisualState
   readonly response: unknown
   readonly scheme: 'light' | 'dark'
@@ -54,6 +58,7 @@ export type ParentMessage =
   | { type: 'partial'; html: string }
 
 export function frameRuntime(): void {
+  'use strict'
   const TAG = '__lantern'
   const MAX_JSON = 64 * 1024
   // Taken before any visual script runs. Later replacements of `URL` or
@@ -155,25 +160,68 @@ export function frameRuntime(): void {
       })
     }
   } catch { /* Navigation API missing */ }
+  let bridge = boot.bridge
   let state = boot.state || 'idle'
   let response = boot.response
   let scheme = boot.scheme || 'light'
   let widgetState = boot.widgetState === undefined ? null : boot.widgetState
+  // Workspace HTML is served without browser-local state. Its parent sets
+  // a one-use browsing-context name before navigation; consume it before
+  // any page script can call getState(), and do not carry it to later URLs.
+  const restorePrefix = 'dsh-lantern:boot:'
+  if (window.name.startsWith(restorePrefix)) {
+    const raw = window.name.slice(restorePrefix.length)
+    window.name = ''
+    try {
+      const saved = raw.length <= MAX_JSON * 3 ? JSON.parse(raw) : null
+      if (saved && saved.id === boot.id) {
+        bridge = saved.bridge
+        if (['idle', 'waiting', 'answered', 'dismissed', 'timeout', 'closed'].includes(saved.state)) state = saved.state
+        response = saved.response
+        widgetState = saved.widgetState === undefined ? null : saved.widgetState
+      }
+    } catch { /* ignore stale or damaged restoration data */ }
+  }
   let nextId = 1
-  const waits: Record<number, { resolve: (v: boolean) => void, reject: (e: Error) => void }> = {}
+  const waits: Record<number, { resolve: (v: boolean) => void, reject: (e: Error) => void }> = Object.create(null)
+
+  // Capture native methods before model scripts can replace prototypes.
+  // A parent click activates the parent, but not this opaque child; read
+  // the child's native activation through a getter the page cannot replace.
+  const activation = navigator.userActivation
+  const activeGetter = activation && Object.getOwnPropertyDescriptor(Object.getPrototypeOf(activation), 'isActive')?.get
+  const userIsActive = activeGetter?.bind(activation)
+  const NativePromise = Promise
+  const rejectPromise = Promise.reject.bind(Promise)
+  const readMessageData = Function.prototype.call.bind(Object.getOwnPropertyDescriptor(MessageEvent.prototype, 'data')!.get!) as (event: MessageEvent) => any
+  const channel = new MessageChannel()
+  const sendMessage = channel.port1.postMessage.bind(channel.port1)
+  const onMessage = channel.port1.addEventListener.bind(channel.port1)
+  const startMessages = channel.port1.start.bind(channel.port1)
+  const connect = parent.postMessage.bind(parent)
+  connect({ [TAG]: 1, type: 'connect', bridge }, '*', [channel.port2])
+  delete boot.bridge
+  if (bootNode) bootNode.textContent = ''
+  bootNode?.remove()
 
   function post(message: Record<string, unknown>) {
-    message[TAG] = 1
-    parent.postMessage(message, '*')
+    // Literal properties/spread define own properties without invoking a
+    // setter a model script might later add to Object.prototype.
+    const envelope: Record<string, unknown> = { ...message, [TAG]: 1 }
+    // Keep authorization at the final send as well as the public method.
+    if (envelope.type === 'submit' || envelope.type === 'send' || envelope.type === 'open-link' || envelope.type === 'expand') requireUser()
+    sendMessage(envelope)
+  }
+
+  function requireUser(): void {
+    if (!userIsActive?.()) throw new Error('Only a user action inside the visual can do this.')
   }
 
   function call(type: string, payload: Record<string, unknown>): Promise<boolean> {
     const id = nextId++
-    return new Promise((resolve, reject) => {
+    return new NativePromise((resolve, reject) => {
       waits[id] = { resolve, reject }
-      const message: Record<string, unknown> = { type, id }
-      for (const key of Object.keys(payload)) message[key] = payload[key]
-      post(message)
+      post({ type, id, ...payload })
     })
   }
 
@@ -193,13 +241,31 @@ export function frameRuntime(): void {
     document.documentElement.setAttribute('data-lt-state', state)
     // A visual that timed out still accepts a late answer (it reaches the
     // agent as a user message), so only settled answers lock the buttons.
-    const locked = state === 'answered' || state === 'dismissed' || state === 'closed'
-    document.querySelectorAll('[data-lt-submit], form[data-lt-form] button:not([type="button"]), form[data-lt-form] input[type="submit"]').forEach((el) => {
+    const locked = isLocked()
+    document.querySelectorAll('[data-lt-choice], [data-lt-submit], form[data-lt-form] button:not([type="button"]), form[data-lt-form] input[type="submit"]').forEach((el) => {
       const button = el as HTMLButtonElement
-      if (locked) { button.disabled = true; button.setAttribute('data-lt-locked', '') }
-      else if (button.hasAttribute('data-lt-locked')) { button.disabled = false; button.removeAttribute('data-lt-locked') }
+      if (locked && !button.disabled && button.getAttribute('aria-disabled') !== 'true') {
+        button.disabled = true
+        button.setAttribute('data-lt-locked', '')
+        button.setAttribute('aria-disabled', 'true')
+      } else if (!locked && button.hasAttribute('data-lt-locked')) {
+        button.disabled = false
+        button.removeAttribute('data-lt-locked')
+        button.removeAttribute('aria-disabled')
+      }
     })
+    if (state === 'answered' && response !== undefined) {
+      const wanted = ([] as unknown[]).concat(response as unknown)
+      document.querySelectorAll('[data-lt-choices]').forEach((group) => {
+        group.querySelectorAll('[data-lt-choice]').forEach((el) => {
+          const value = parseValue(el.getAttribute('data-lt-choice'))
+          el.setAttribute('aria-pressed', String(wanted.some((item) => JSON.stringify(item) === JSON.stringify(value))))
+        })
+      })
+    }
   }
+
+  function isLocked() { return state === 'answered' || state === 'dismissed' || state === 'closed' }
 
   function readColors(): string[] {
     const style = getComputedStyle(document.documentElement)
@@ -218,18 +284,20 @@ export function frameRuntime(): void {
     get mode() { return boot.mode as string },
     get visible() { return visible },
     submit(value: unknown) {
-      try { return call('submit', { json: toJson(value, 'submit') }) } catch (error) { return Promise.reject(error) }
+      if (isLocked()) return rejectPromise(new Error('This visual is already settled.'))
+      try { requireUser(); return call('submit', { json: toJson(value, 'submit') }) } catch (error) { return rejectPromise(error) }
     },
     send(text: string) {
-      if (typeof text !== 'string' || text.trim() === '') return Promise.reject(new TypeError('lantern.send: text must be a non-empty string'))
-      return call('send', { text: text.slice(0, 4000) })
+      if (typeof text !== 'string' || text.trim() === '') return rejectPromise(new TypeError('lantern.send: text must be a non-empty string'))
+      try { requireUser(); return call('send', { text: text.slice(0, 4000) }) } catch (error) { return rejectPromise(error) }
     },
-    openLink(url: string) { post({ type: 'open-link', url: String(url) }) },
-    expand() { post({ type: 'expand' }) },
+    openLink(url: string) { if (userIsActive?.()) post({ type: 'open-link', url: String(url) }) },
+    expand() { if (userIsActive?.()) post({ type: 'expand' }) },
     getState() { return widgetState as unknown },
     setState(value: unknown) {
+      const json = toJson(value, 'setState')
       widgetState = value
-      post({ type: 'set-state', json: toJson(value, 'setState') })
+      post({ type: 'set-state', json })
     },
     colors: readColors,
     on(name: string, handler: (detail: unknown) => void) {
@@ -240,9 +308,9 @@ export function frameRuntime(): void {
   }
   Object.defineProperty(window, 'lantern', { value: Object.freeze(lantern), configurable: false, writable: false, enumerable: true })
 
-  window.addEventListener('message', (event) => {
-    if (event.source !== parent) return
-    const data = event.data
+  onMessage('message', (event) => {
+    const message = event as MessageEvent
+    const data = readMessageData(message)
     if (!data || data[TAG] !== 1) return
     if (data.type === 'reply') {
       const wait = waits[data.id]
@@ -266,6 +334,7 @@ export function frameRuntime(): void {
       if (root) root.innerHTML = data.html
     }
   })
+  startMessages()
 
   // Height: report the document's content height whenever it changes. An
   // inline card is as tall as its content, which sets two traps. A classic
@@ -449,6 +518,7 @@ export function frameRuntime(): void {
     if (!target || !target.closest) return
     const choice = target.closest('[data-lt-choice]')
     if (choice) {
+      if (isLocked() || (choice as HTMLButtonElement).disabled || choice.getAttribute('aria-disabled') === 'true') return
       const group = choice.closest('[data-lt-choices]')
       const multi = !!group && group.hasAttribute('data-lt-multi')
       const pressed = choice.getAttribute('aria-pressed') === 'true'
@@ -456,7 +526,7 @@ export function frameRuntime(): void {
       choice.setAttribute('aria-pressed', multi ? String(!pressed) : 'true')
       if (group) { emit('select', selection(group)); const box = group.parentElement && group.parentElement.querySelector('.lt-error[data-lt-auto]'); if (box) box.textContent = '' }
       if (group && group.hasAttribute('data-lt-instant') && !multi) {
-        lantern.submit(selection(group)).catch(() => undefined)
+        lantern.submit(selection(group)).catch((error: Error) => showError(choice, error.message))
       }
       return
     }
@@ -547,15 +617,6 @@ export function frameRuntime(): void {
       if (first) (first as HTMLElement).click()
     })
     document.querySelectorAll('[data-lt-steps]').forEach((steps) => stepTo(steps, 0))
-    if (state === 'answered' && response !== undefined) {
-      document.querySelectorAll('[data-lt-choices]').forEach((group) => {
-        const wanted = ([] as unknown[]).concat(response as unknown)
-        group.querySelectorAll('[data-lt-choice]').forEach((el) => {
-          const value = parseValue(el.getAttribute('data-lt-choice'))
-          if (wanted.some((w) => JSON.stringify(w) === JSON.stringify(value))) el.setAttribute('aria-pressed', 'true')
-        })
-      })
-    }
     if (typeof ResizeObserver === 'function' && document.body) new ResizeObserver(schedule).observe(document.body)
     started = true
     schedule()

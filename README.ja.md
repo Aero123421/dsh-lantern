@@ -12,7 +12,7 @@
 <p align="center">
   <img alt="DSH 0.2.x" src="https://img.shields.io/badge/DSH-0.2.x-4d6bfe?style=flat-square">
   <img alt="Web profile" src="https://img.shields.io/badge/profile-web-555?style=flat-square">
-  <img alt="System prompt +0 tokens" src="https://img.shields.io/badge/system%20prompt-%2B0%20tokens-2ea44f?style=flat-square">
+  <img alt="スキルは任意" src="https://img.shields.io/badge/skills-optional-2ea44f?style=flat-square">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-555?style=flat-square">
 </p>
 
@@ -24,12 +24,12 @@
 
 ## ここが違う
 
-- 🪟 **会話の中に残る。** カードは回答の下に表示され、ターンの経過が折りたたまれても残ります。ページを再読み込みしても、回答やスライダーの位置ごと戻ります。
+- 🪟 **会話の中に残る。** カードは回答の下に表示され、ターンの経過が折りたたまれても残ります。記録された回答は会話から復元し、入力値も同じブラウザ内で保存・復元できます。
 - 🔁 **答えが戻る。** `await_response: true` ならエージェントは待ち、ユーザーが選んだもの、並べた順番、入力した内容がツール結果として返ります。「続きを聞く」ボタンはユーザーのメッセージとして送られます。
 - 🎨 **DSH になじむ。** DSH のライト/ダーク・色・フォントをそのまま受け取り、切り替えにも再読み込みなしで即追従します。
-- 🧰 **部品キットはあくまで出発点。** トークンと部品は CSS のカスケードレイヤーで先に読み込むので、ビジュアル側のフォント・色・レイアウトが必ず勝ちます。Three.js・D3・KaTeX・Chart.js も CDN からそのまま読み込めます。
-- 🗂️ **手元の HTML も。** `path` でワークスペースのページを指定すると、相対パスの CSS・画像・モジュール・JSON ごとサイドバーに表示します。DSH Web が開ける場所ならどこでも使え、Cloudflare Tunnel 越しでも動きます。
-- 🪶 **プロンプトを汚さない。** システムプロンプトには何も足しません。デザインガイドはスキル（`lantern-visuals`）として同梱し、モデルは必要なときだけ読みます。
+- 🧰 **部品キットはあくまで出発点。** トークンと部品は CSS のカスケードレイヤーで先に読み込み、ビジュアル側のフォント・色・レイアウトで上書きできます。Three.js・D3・KaTeX・Chart.js はページに埋め込んでください。CDN のスクリプトは拒否します。
+- 🗂️ **手元の HTML も。** `path` で DSH ホストのローカルワークスペースにあるページを指定すると、相対パスの CSS・画像・モジュール・JSON ごとサイドバーに表示します。
+- 🪶 **スキルを読まずに、役立つビジュアルを。** 短いシステムプロンプトをオン／オフでき、図や操作が役立つ場面での利用を促します。基本的な使い方はツール説明に含まれ、同梱の `lantern-visuals` スキルは任意の上級ガイドです。
 
 ## ギャラリー
 
@@ -122,11 +122,11 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 # その後 `dsh web` を再起動
 ```
 
-必要なのは DSH 0.2.1 以降（0.2 系）の Web プロファイルです。バージョンタグを push すると、GitHub の Release に `dsh-lantern-<version>.tgz` と `SHA256SUMS` が付きます（タグを push するまでは公開されません）。チェックサムを確かめてからアーカイブを入れます。
+必要なのは Web プロファイルと DSH `>=0.2.1-rc.2 <0.3.0-0` です。バージョンタグを push すると、GitHub の Release に `dsh-lantern-<version>.tgz` と `SHA256SUMS` が付きます（タグを push するまでは公開されません）。チェックサムを確かめてからアーカイブを入れます。
 
 ```sh
 sha256sum -c SHA256SUMS
-dsh plugin --profile web add ./dsh-lantern-0.2.1.tgz
+dsh plugin --profile web add ./dsh-lantern-0.2.2.tgz
 ```
 
 読み込まれたかは `dsh --profile web --dump-config | grep lantern` で確認できます。
@@ -138,6 +138,14 @@ dsh plugin --profile web add ./dsh-lantern-0.2.1.tgz
 - 「A\* とダイクストラを、壁を描けるグリッドで比べたい」
 - 「今スプリントのチケット、ドラッグで優先順位をつけさせて」
 - 「`report/index.html` をサイドバーで開いて」
+
+## 会話内ビジュアルの自動利用
+
+**Plugins → dsh-lantern → 会話内ビジュアルを自動で使う** から切り替えます。既定はオンです。変更は自動で保存され、DSH が次のモデル実行ステップのプロンプトを組み立てるときから反映されます。再起動やスキルの読み込みは必要ありません。
+
+オンのときは、[英語 102 語の短いガイダンス](src/host/prompt.ts) をシステムプロンプト層に登録します。説明・比較・探索には目的を絞った小さなカードを使い、操作への反応は画面内で処理し、会話へはユーザーが決定してから送るよう促します。簡単な回答は文章のままで構いません。このガイダンスは SKILLS の本文に依存しません。トークン数はモデルのトークナイザーによって変わり、ツール説明もコンテキストを使います。同梱の上級ガイドは自動スキル一覧には載せず、メッセージを `/lantern-visuals` から始めたときだけ明示的に読み込めます。
+
+この設定をオフにするとガイダンスが外れます。`show_visual` は使えるので、図や操作できる表示を直接依頼できます。Plugins でプラグイン全体を無効にすると、ツール・ルート・プロンプトセクション・UI がアンロードされます。任意のデザインガイドを読むことは、ツールを使う条件ではありません。
 
 ## しくみ
 
@@ -152,7 +160,7 @@ sequenceDiagram
     H-->>C: ツール行が流れてくる（書きながらプレビュー）
     C->>V: 文書 + キット + 今の DSH テーマ
     Note over V: ユーザーがドラッグ・回転・選択…
-    V->>C: lantern.submit(value)（実際の操作の直後だけ）
+    V->>C: lantern.submit(value)（ユーザーの操作から）
     C->>H: POST /api/lantern.respond（認証つき）
     H-->>A: ツール結果「ユーザーの回答は…」
     Note over C: ターンが終わると、カードは最終回答の下へ
@@ -169,7 +177,7 @@ sequenceDiagram
 | `await_response` | ユーザーの回答を待って結果として返す |
 | `replace` | 修正版として置き換える以前のビジュアルの `id`。古いカードは新しい版へのリンクに畳まれる |
 
-ビジュアルの中では `window.lantern`（`submit`・`send`・`setState` / `getState`・`expand`・`openLink`・`colors()`・`visible`・イベント）が使えます。よくある操作はスクリプトなしでも書けます: `data-lt-choices`・`data-lt-submit`・`data-lt-form`・`data-lt-send`・`data-lt-fullscreen`・タブ・ステップ。書き方の全体（パターン・3D・操作）は [`skills/lantern-visuals`](skills/lantern-visuals/SKILL.md) にあります。
+`html` と `path` はどちらか一方を指定します。ビジュアルの中では `window.lantern`（`submit`・`send`・`setState` / `getState`・`expand`・`openLink`・`colors()`・`visible`・イベント）が使えます。よくある操作はスクリプトなしでも書けます: `data-lt-choices`・`data-lt-submit`・`data-lt-form`・`data-lt-send`・`data-lt-fullscreen`・タブ・ステップ。任意の上級ガイド（パターン・3D・操作）は [`skills/lantern-visuals`](skills/lantern-visuals/SKILL.md) にあります。
 
 <details>
 <summary><b>見た目は自由自在: キットはあくまで出発点</b></summary>
@@ -197,9 +205,21 @@ sequenceDiagram
 
 ## ワークスペースのページ
 
-`path: "report/index.html"` で、作業ディレクトリの実ファイルをサイドバーのタブに開きます。フォルダ単位で期限つきのリンクから配信するので、そのフォルダ内の相対パス `<link>`・`<img>`・`<script type="module">`・`fetch()` は普通の静的サーバーと同じように動きます。ほかのサイトへの `fetch`・XHR・画像・CSS の `url()`・フォーム・prefetch・WebSocket・`sendBeacon` は拒否します。このページのスクリプトは、実行を押すまで止まります。スクリプトを動かすと、カード自身の遷移で、許可したフォルダの中身を外へ送れます。ページの見た目はそのままに、`window.lantern` と `--lt-*` のテーマ変数も使えます。`<meta name="lantern-kit">` を書けばキットの部品も使えます。
+`path: "report/index.html"` で、作業ディレクトリの実ファイルをサイドバーのタブに開きます。フォルダ単位で期限つきのリンクから配信するので、そのフォルダ内の相対パス `<link>`・`<img>`・`<script type="module">`・`fetch()` は普通の静的サーバーと同じように動きます。ほかのサイトへの `fetch`・XHR・画像・CSS の `url()`・フォーム・prefetch・WebSocket・`sendBeacon` は拒否します。このページのスクリプトは、実行を押すまで止まります。スクリプトを動かすと、カード自身の遷移で、許可したフォルダの中身を外へ送れます。ページの見た目はそのままに、`window.lantern` と `--lt-*` のテーマ変数も使えます。`<meta name="lantern-kit">` を書けばキットの部品も使えます。モジュール内では `new URL('data.json', import.meta.url)` でデータの場所を解決してください。
+
+ツール実行時のディレクトリと入口パスを記録します。カードを開き直すとき、保存したディレクトリがセッションの現在の作業ディレクトリの中にある場合だけ、その時点のファイルを読みます。外にあるフォルダは拒否します。編集は次に読み込んだときに反映され、移動・削除したファイルは開けません。リモート実行先のファイルシステムには対応しないため、その場合はデータを埋め込んだ `html` を渡してください。
+
+0.2.0 より前の、相対パスだけを保存した `path` の結果にはソースがありません。no-source になり、開けません。
+
+ワークスペースページが iframe 自体を別ページへ移動したり `location.reload()` を実行したりすると、Lantern との接続は新しい文書へ引き継がれません。サイドバーのタブを閉じてチャットから開き直すか、DSH 全体を再読み込みすると、接続と残っている保存済みの状態を復元できます。
 
 <img src="docs/workspace-page.png" alt="相対パスの CSS・画像・モジュール JS・JSON を読み込んだレポートをサイドバーに表示（ダーク）" width="100%">
+
+## 入力値と回答の保存
+
+ビジュアルの再生成時に入力値を戻すには、`lantern.setState()` / `getState()` を使います。状態は同じブラウザの `localStorage` に、最大 300 件のビジュアルについて可能な範囲で保存します。機器間の同期はありません。ブラウザのデータ削除や保存容量の制限で失われる場合があり、ストレージを使えない場合は現在のページ内だけで保持します。
+
+`await_response: true` では、ホストが待機を 1 回だけ確定し、回答済み・取り消し済み・終了済みの待機への再送信を拒否します。受け付けた回答は会話にも記録されます。回答待ちを指定しなかった場合やタイムアウト後の送信は、新しいユーザーメッセージになります。この経路では、複数のブラウザからの送信を全体で必ず 1 回にする保証はありません。
 
 ## 安全性
 
@@ -210,18 +230,21 @@ sequenceDiagram
 - **止められる通信。** HTML ビジュアルとワークスペースのページは、外部への `fetch`・XHR・`sendBeacon`・WebSocket・画像・CSS の `url()`・スタイルシート・`<script src>`・prefetch/preload・フォーム送信・`<base>` を拒否します。ページが自分で作る `data:` と `blob:` の画像は使えます。CDN のスクリプトも拒否します。許可すると prefetch も外へ出るためです。書いている途中のプレビューでは、スクリプト・イベント属性・`javascript:` URL・埋め込みフレームを取り除きます。
 - **止められない通信。** スクリプトを動かすと、カード自身の遷移で、許可したフォルダの中身を外へ送れます。通常のスクリプトが `location` を書き換える操作は、実行時の先頭で取り込んだ `URL` と `String.prototype.startsWith` だけで判定します。`String.prototype.indexOf` を先に取り替えても、フォルダの外には進みません。モジュールスクリプトはこの包みの外なので、本当の `location` を使えます。Chromium は CSP の `navigate-to` に対応していません。`/lantern/files/<token>/` のページは、実行を押すまでスクリプトを止め、その画面にもこのことを書きます。インラインのカードは最初の表示でこれまでどおり自動で動きますが、許可したフォルダや `/lantern/files/` の中身は読めません。
 - **開き直したカードは止まったまま。** インラインのスクリプトが勝手に動くのは、そのビジュアルを作ったページで最初に表示されたときだけです。その会話を開き直してもスクリプトは再実行されず、実行を押す前の状態に戻り、ほかのタブは動いたままです。最初の表示で無限ループに入ると、そのタブだけが固まることがあります。フレームがページと同じレンダラーを使うための既知の制限です。そのタブを閉じて会話を開き直してください。
-- **ファイルは範囲内だけ。** ワークスペースのリンクはランダムで、そのページのフォルダだけを対象にし、8 時間で失効し、DSH の認証済み API からしか発行されません。シンボリックリンクは解決し、開いたファイルでもう一度確かめます。隠しファイル・隠しフォルダは拒否します。
+- **ファイルは範囲内だけ。** ワークスペースのリンクはランダムで、そのページのフォルダだけを対象にし、8 時間で失効し、DSH の認証済み API からしか発行されません。シンボリックリンクは解決し、開いたファイルでもう一度確かめます。隠しファイル・隠しフォルダは拒否します。カードを開き直すとき、保存したフォルダを配信するのは、それがセッションの現在の作業ディレクトリの中にある間だけです。
 
 ## 設定
 
-任意です。プロファイルの `cordis.patch.yml` に書きます。
+自動利用は Plugins のスイッチで切り替えられます。プロファイルの `cordis.patch.yml` で既定値を指定することもできます。
 
 ```yaml
 - id: dsh-lantern
   config:
+    automaticVisuals: true     # 短いシステムガイダンス。Plugins から即時変更可
     answerTimeoutMinutes: 15   # 回答を待つ時間（既定 15 分、最大 1440）
     maxHtmlChars: 400000       # html 引数の上限（既定 400000 文字）
 ```
+
+上級設定: DSH の `complete: true` なプロンプトプリセットは、組み立てるシステムプロンプト全体を置き換えます。Lantern はその設定を尊重し、追加のガイダンスを継ぎ足しません。
 
 ## 開発
 
@@ -231,7 +254,7 @@ npm run check                                       # 型チェック・テス�
 dsh plugin --profile web add /path/to/dsh-lantern   # 手元のフォルダをリンク
 ```
 
-GitHub から入れるときにビルドが要らないよう、`lib/` はコミットしています。ホスト側は Node の ESM です。ブラウザ側は DSH Web のモジュールローダーから読み込まれ、DSH の React を共有します。実行時に DSH のパッケージは import しません。
+GitHub から入れるときにビルドが要らないよう、`lib/` はコミットしています。ホスト側は Node の ESM で、設定スキーマのために `@deepseek-ai/schemastery` を実行時に import します。ブラウザ側は DSH Web のモジュールローダーから読み込まれ、DSH の React ランタイムを共有します。
 
 ## これから
 

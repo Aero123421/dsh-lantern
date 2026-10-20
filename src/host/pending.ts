@@ -6,20 +6,42 @@ export type Outcome =
   | { readonly kind: 'timeout' }
   | { readonly kind: 'closed' }
 
+export type ResponseStatus = 'waiting' | Outcome['kind'] | 'unknown'
+export type SettlementStatus = 'settled' | Exclude<ResponseStatus, 'waiting'>
+
 interface Waiter {
   readonly sessionId: string | undefined
   readonly finish: (outcome: Outcome) => void
 }
 
+const MAX_OUTCOMES = 256
+
 export class PendingResponses {
   private readonly waiters = new Map<string, Waiter>()
+  private readonly outcomes = new Map<string, Outcome['kind']>()
+  private closed = false
+
+  private remember(callId: string, kind: Outcome['kind']): void {
+    this.outcomes.delete(callId)
+    this.outcomes.set(callId, kind)
+    while (this.outcomes.size > MAX_OUTCOMES) {
+      const oldest = this.outcomes.keys().next().value
+      if (oldest === undefined) break
+      this.outcomes.delete(oldest)
+    }
+  }
 
   /**
    * Wait until the visual is answered, dismissed, times out, or the call is
    * cancelled. Never rejects.
    */
   wait(callId: string, sessionId: string | undefined, signal: AbortSignal, timeoutMs: number): Promise<Outcome> {
+    if (this.closed) {
+      this.remember(callId, 'closed')
+      return Promise.resolve({ kind: 'closed' })
+    }
     this.settle(callId, { kind: 'closed' })
+    this.outcomes.delete(callId)
     return new Promise<Outcome>(resolve => {
       let done = false
       const finish = (outcome: Outcome) => {
@@ -28,6 +50,7 @@ export class PendingResponses {
         clearTimeout(timer)
         signal.removeEventListener('abort', onAbort)
         if (this.waiters.get(callId)?.finish === finish) this.waiters.delete(callId)
+        this.remember(callId, outcome.kind)
         resolve(outcome)
       }
       const onAbort = () => finish({ kind: 'closed' })
@@ -44,20 +67,28 @@ export class PendingResponses {
     return this.waiters.has(callId)
   }
 
+  /** Retain the terminal state so a second browser cannot submit the same answer again. */
+  status(callId: string): ResponseStatus {
+    return this.waiters.has(callId) ? 'waiting' : this.outcomes.get(callId) ?? 'unknown'
+  }
+
   /** Session that owns a waiting call, when known. */
   sessionOf(callId: string): string | undefined {
     return this.waiters.get(callId)?.sessionId
   }
 
-  settle(callId: string, outcome: Outcome): 'settled' | 'not-waiting' {
+  settle(callId: string, outcome: Outcome): SettlementStatus {
     const waiter = this.waiters.get(callId)
-    if (waiter === undefined) return 'not-waiting'
+    if (waiter === undefined) return this.outcomes.get(callId) ?? 'unknown'
     waiter.finish(outcome)
     return 'settled'
   }
 
   /** Release every waiting call (plugin unload). */
   closeAll(): void {
+    this.closed = true
     for (const waiter of [...this.waiters.values()]) waiter.finish({ kind: 'closed' })
+    this.outcomes.clear()
+    this.waiters.clear()
   }
 }

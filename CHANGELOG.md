@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.2
+
+Conversation visuals from PR #1, ported onto 0.2.1 and kept at 0.2.2. Automatic visuals are on by default (`automaticVisuals`). The system prompt section `ui:lantern-interactive` (order 10110) adds a short English guidance string when that setting is on and `show_visual` is registered. The bundled skill stays user-invocable only (`modelInvocable: false`); load it with `/lantern-visuals`.
+
+HTML card policy is unchanged from 0.2.1. `img-src` does not allow `https:`, so an external image in a card does not load. Script and style requests to a CDN are refused.
+
+Folder pages do not add a second CSP `<meta>`. The HTTP header names the token prefix `/lantern/files/<token>/`. A `'self'` meta would not match relative CSS, image and module requests from an opaque origin, and both policies would have to pass.
+
+`lantern.file` serves a recorded folder only while that folder is still inside the session's current working directory. A saved root outside that directory, including one written into an imported session, is refused.
+
+`workingDirectory.ensure` failures are no longer replaced with the session header cwd. `execCwd` throws, and `path` rendering fails closed.
+
+### Known issue
+
+Path results from before 0.2.0 that stored only a relative path have no saved source. They are no-source and cannot be opened.
+
+The 0.2.1 residual risks below are unchanged.
+
 ## 0.2.1
 
 ### 残るリスク

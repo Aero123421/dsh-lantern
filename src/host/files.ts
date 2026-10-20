@@ -19,9 +19,9 @@ function headerOne(value: string | string[] | undefined): string {
 
 /** Absolute origin the browser used for this request (`http://host:port`). */
 export function requestOrigin(req: IncomingMessage): string | undefined {
-  const host = headerOne(req.headers.host)
+  const host = headerOne(req.headers?.host)
   if (host === '' || /[\s/"'<>;]/.test(host)) return undefined
-  const forwarded = headerOne(req.headers['x-forwarded-proto'])
+  const forwarded = headerOne(req.headers?.['x-forwarded-proto'])
   const proto = forwarded === 'https' ? 'https' : 'http'
   const origin = `${proto}://${host}`
   return /^https?:\/\/[^/\s;"']+$/.test(origin) ? origin : undefined
@@ -166,7 +166,10 @@ export class FileServer {
         if (ext === '.html' || ext === '.htm') {
           if (opened.size > MAX_HTML_BYTES) return finish(res, 413, 'File too large')
           const source = await handle.readFile('utf8')
-          const id = (url.searchParams.get('lt') ?? '').replace(/[^\w.:-]/g, '').slice(0, 128)
+          // Call ids are opaque. Keep the same 200-character bound as the
+          // authenticated routes, but never rewrite an id before bootstrap.
+          const id = url.searchParams.get('lt') ?? ''
+          if (id.length > 200) return finish(res, 400, 'Invalid visual id')
           const scheme = url.searchParams.get('theme') === 'dark' ? 'dark' : 'light'
           const lang = (url.searchParams.get('lang') ?? '').replace(/[^\w-]/g, '').slice(0, 16)
           const withKit = /<meta\s+[^>]*name\s*=\s*["']?lantern-kit/i.test(source)

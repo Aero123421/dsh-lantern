@@ -126,12 +126,15 @@ function schedule(): void {
 }
 
 export function theme(): ThemeSnapshot {
-  if (current === undefined) current = readTheme()
+  // When no frames are mounted, nothing observes the host palette.
+  if (current === undefined || listeners.size === 0) current = readTheme()
   return current
 }
 
 export function onTheme(listener: Listener): () => void {
+  const first = listeners.size === 0
   listeners.add(listener)
+  if (first) refresh()
   if (observer === undefined && typeof MutationObserver === 'function') {
     observer = new MutationObserver(schedule)
     if (document.body) observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme', 'style', 'class'] })

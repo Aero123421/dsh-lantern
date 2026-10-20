@@ -1,14 +1,14 @@
 /**
  * One sandboxed iframe running a visual. The iframe has an opaque origin
  * (no `allow-same-origin`), so it cannot touch DSH's cookies, DOM or API;
- * everything it asks for arrives here as a postMessage and is checked:
- * the message must come from this iframe, and answers, messages and links
- * need a fresh user action inside it.
+ * the trusted prelude connects a private message port, and its native
+ * activation check requires an action inside the iframe. The parent also
+ * checks focus, lifecycle, message sizes and request rates.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { buildDocument, partialMarkup } from '../frame/document.ts'
-import { MESSAGE_TAG, type FrameBoot, type VisualState } from '../frame/runtime.ts'
-import { uiLang } from './i18n.ts'
+import { MESSAGE_TAG, RESTORE_PREFIX, type FrameBoot, type VisualState } from '../frame/runtime.ts'
+import { copy, uiLang } from './i18n.ts'
 import { readLocal, writeLocal } from './store.ts'
 import { onTheme, theme } from './theme.ts'
 
@@ -44,27 +44,14 @@ const MAX_JSON = 64 * 1024
 const SEND_INTERVAL_MS = 1500
 const MAX_SENDS = 6
 
-// When did the user last press a key or a pointer in DSH itself (outside any
-// visual)? Activation from that input must not count for a visual.
-let lastHostInput = 0
-let watchingHostInput = false
-function watchHostInput(): void {
-  if (watchingHostInput) return
-  watchingHostInput = true
-  const mark = () => { lastHostInput = performance.now() }
-  window.addEventListener('pointerdown', mark, true)
-  window.addEventListener('keydown', mark, true)
-}
-
 /**
- * True only right after the user acted inside this iframe: it holds focus,
- * it got focus after the user's last input in DSH itself, and the browser
- * reports a fresh user activation (activation inside a child frame also
- * activates the page that embeds it).
+ * Additional parent checks: the iframe holds focus and the page has fresh
+ * activation. The private runtime separately checks native child activation.
+ * Do not infer child focus from window blur: moving directly between two
+ * iframes does not necessarily blur the parent window again.
  */
-function userActed(frame: HTMLIFrameElement | null, focusedAt: number): boolean {
+function userActed(frame: HTMLIFrameElement | null): boolean {
   if (!frame || document.activeElement !== frame) return false
-  if (focusedAt === 0 || lastHostInput > focusedAt) return false
   const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation
   return activation ? activation.isActive : false
 }
@@ -73,13 +60,13 @@ export function Frame(props: FrameProps) {
   const { callId, sessionId, mode, html, url, streaming = false, paused = false, state, response } = props
   const frame = useRef<HTMLIFrameElement>(null)
   const ready = useRef(false)
+  const connection = useRef<MessagePort | undefined>(undefined)
   const [height, setHeight] = useState(mode === 'inline' ? (paused ? 220 : 120) : 0)
   const latest = useRef(props)
   latest.current = props
   const lastAction = useRef(0)
   const lastSend = useRef(0)
   const sends = useRef(0)
-  const focusedAt = useRef(0)
   const loads = useRef(0)
   const dead = useRef(false)
   // An html card that navigates away is showing some other document. Put the
@@ -88,16 +75,10 @@ export function Frame(props: FrameProps) {
   const [drifted, setDrifted] = useState(false)
   const scriptsOff = paused || drifted
 
-  // Remember when focus moved into this iframe (the page's window blurs then).
-  useEffect(() => {
-    watchHostInput()
-    const onBlur = () => { if (document.activeElement === frame.current) focusedAt.current = performance.now() }
-    window.addEventListener('blur', onBlur)
-    return () => window.removeEventListener('blur', onBlur)
-  }, [])
-
   // The document is built once per markup; state and theme changes travel by message.
   const initial = useRef({ state, response })
+  const bridge = useMemo(() => Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join(''),
+    [streaming ? '' : html, streaming, url, callId, sessionId, mode])
   const srcDoc = useMemo(() => {
     if (html === undefined) return undefined
     const local = readLocal(callId, sessionId)
@@ -106,7 +87,7 @@ export function Frame(props: FrameProps) {
     const current = theme()
     const preview = streaming && !scriptsOff
     const boot: FrameBoot = {
-      id: callId, state: initial.current.state, response: initial.current.response ?? null,
+      id: callId, bridge, state: initial.current.state, response: initial.current.response ?? null,
       scheme: current.scheme, mode, widgetState, streaming: preview, lang: uiLang(),
       ...mode === 'inline' ? { maxHeight: latest.current.maxHeight ?? MAX_INLINE_HEIGHT } : {},
     }
@@ -115,7 +96,7 @@ export function Frame(props: FrameProps) {
     const source = preview ? '' : scriptsOff ? partialMarkup(html) : html
     return buildDocument(source, boot, current.css)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [html, streaming, scriptsOff, callId, sessionId, mode])
+  }, [streaming ? '' : html, streaming, scriptsOff, callId, sessionId, mode, bridge])
 
   const src = useMemo(() => {
     if (url === undefined) return undefined
@@ -126,18 +107,30 @@ export function Frame(props: FrameProps) {
     return target.href
   }, [url, callId])
 
+  // A workspace document is served by the host, but widget state belongs
+  // to this browser. The trusted prelude consumes and clears this name
+  // before the page's own scripts run, so getState() is synchronous there
+  // just as it is for srcDoc visuals. No browser state goes in its URL.
+  const restoreName = useMemo(() => {
+    if (url === undefined) return undefined
+    let widgetState: unknown = null
+    const local = readLocal(callId, sessionId)
+    if (local.state !== undefined) { try { widgetState = JSON.parse(local.state) } catch { /* ignore damaged storage */ } }
+    return RESTORE_PREFIX + JSON.stringify({ id: callId, bridge, state: initial.current.state, response: initial.current.response ?? null, widgetState })
+  }, [url, callId, sessionId, bridge])
+
   const post = (message: Record<string, unknown>) => {
-    frame.current?.contentWindow?.postMessage({ ...message, [MESSAGE_TAG]: 1 }, '*')
+    connection.current?.postMessage({ ...message, [MESSAGE_TAG]: 1 })
   }
 
-  // Messages from the iframe.
-  useEffect(() => {
+  // Install before the browser can deliver the prelude's first connection
+  // message. Only this port may carry requests; arbitrary model scripts
+  // can call window.postMessage but cannot obtain the private endpoint.
+  useLayoutEffect(() => {
     ready.current = false
     loads.current = 0
     dead.current = false
     const onMessage = (event: MessageEvent) => {
-      const win = frame.current?.contentWindow
-      if (!win || event.source !== win) return
       const data = event.data as Record<string, unknown> | null
       if (!data || data[MESSAGE_TAG] !== 1 || typeof data.type !== 'string') return
       // An html visual that navigated away is no longer the document we built.
@@ -170,7 +163,7 @@ export function Frame(props: FrameProps) {
         case 'submit':
         case 'send': {
           if (p.streaming) { reply(data.id, false, 'The visual is still being written.'); return }
-          if (!userActed(frame.current, focusedAt.current)) { reply(data.id, false, 'Only a user action inside the visual can do this.'); return }
+          if (!userActed(frame.current)) { reply(data.id, false, 'Only a user action inside the visual can do this.'); return }
           const now = Date.now()
           if (now - lastAction.current < 400) { reply(data.id, false, 'Too fast.'); return }
           if (data.type === 'send') {
@@ -192,7 +185,7 @@ export function Frame(props: FrameProps) {
           return
         }
         case 'expand': {
-          if (p.streaming || !userActed(frame.current, focusedAt.current)) return
+          if (p.streaming || !userActed(frame.current)) return
           const now = Date.now()
           if (now - lastAction.current < 1000) return
           lastAction.current = now
@@ -200,7 +193,7 @@ export function Frame(props: FrameProps) {
           return
         }
         case 'open-link': {
-          if (p.streaming || !userActed(frame.current, focusedAt.current) || typeof data.url !== 'string') return
+          if (p.streaming || !userActed(frame.current) || typeof data.url !== 'string') return
           const now = Date.now()
           if (now - lastAction.current < 1000) return
           lastAction.current = now
@@ -218,9 +211,23 @@ export function Frame(props: FrameProps) {
           return
       }
     }
-    window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
-  }, [srcDoc, src])
+    const connect = (event: MessageEvent) => {
+      if (dead.current || event.source !== frame.current?.contentWindow || connection.current !== undefined) return
+      const data = event.data as Record<string, unknown> | null
+      if (!data || data[MESSAGE_TAG] !== 1 || data.type !== 'connect' || data.bridge !== bridge || event.ports.length !== 1) return
+      const port = event.ports[0]!
+      connection.current = port
+      port.onmessage = event => { if (connection.current === port) onMessage(event) }
+      port.start()
+    }
+    window.addEventListener('message', connect)
+    return () => {
+      window.removeEventListener('message', connect)
+      connection.current?.close()
+      connection.current = undefined
+      ready.current = false
+    }
+  }, [srcDoc, src, bridge])
 
   // State and theme changes after load.
   useEffect(() => {
@@ -255,12 +262,14 @@ export function Frame(props: FrameProps) {
       data-scripts={scriptsOff ? 'off' : 'on'}
       onLoad={() => {
         // A built document loads once. A second load means an html card
-        // navigated itself (its own location, or a module the cage does not
-        // wrap). Restore the card with scripts removed so the other document,
-        // including a /lantern/files/ response, does not stay on screen.
+        // navigated itself. Drop the private port, then restore the card
+        // with scripts removed so the other document does not stay on screen.
         loads.current++
         if (srcDoc === undefined || loads.current < 2 || dead.current) return
         dead.current = true
+        ready.current = false
+        connection.current?.close()
+        connection.current = undefined
         const node = frame.current
         if (node) {
           node.setAttribute('sandbox', 'allow-downloads')
@@ -271,7 +280,7 @@ export function Frame(props: FrameProps) {
       allow="fullscreen; clipboard-write"
       referrerPolicy="no-referrer"
       style={style}
-      {...srcDoc !== undefined ? { srcDoc } : { src }}
+      {...srcDoc !== undefined ? { srcDoc } : { src, name: restoreName }}
     />
   )
 }
