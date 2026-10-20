@@ -7,6 +7,7 @@
  * without `allow-same-origin`), so it never sees DSH's cookies or API.
  */
 import { randomBytes } from 'node:crypto'
+import { realpathSync } from 'node:fs'
 import { open, realpath, stat } from 'node:fs/promises'
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -115,7 +116,28 @@ export async function resolveEntry(root: string, path: string): Promise<string> 
   return file.rel
 }
 
-interface Grant { readonly root: string; readonly expires: number }
+interface Grant { readonly root: string; readonly realRoot: string; readonly expires: number }
+
+/**
+ * Read one file for a grant. The folder's real path is the one saved at
+ * issue time: a later symlink standing where that folder was is not a new
+ * boundary. The file's own real path has to stay inside that saved path too.
+ */
+async function grantedFile(grant: Grant, target: string): Promise<{ readonly abs: string; readonly rel: string; readonly size: number; readonly dev: number; readonly ino: number }> {
+  const folderReal = await realpath(grant.root).catch(() => { throw new FileRefusal('The granted folder is not available.', 403) })
+  if (folderReal !== grant.realRoot) throw new FileRefusal('The granted folder changed location.', 403)
+  const wanted = isAbsolute(target) ? target : resolve(grant.realRoot, target)
+  const relWanted = relative(grant.realRoot, resolve(wanted))
+  if (relWanted.startsWith('..') || isAbsolute(relWanted)) throw new FileRefusal(`${target} is outside the working directory.`, 403)
+  if (hiddenSegment(relWanted)) throw new FileRefusal(`${target} is inside a hidden file or folder.`, 403)
+  const abs = await realpath(wanted).catch(() => { throw new FileRefusal(`${target} was not found.`, 404) })
+  const rel = relative(grant.realRoot, abs)
+  if (rel.startsWith('..') || isAbsolute(rel)) throw new FileRefusal(`${target} points outside the working directory.`, 403)
+  if (hiddenSegment(rel)) throw new FileRefusal(`${target} is inside a hidden file or folder.`, 403)
+  const info = await stat(abs)
+  if (!info.isFile()) throw new FileRefusal(`${target} is not a file.`, 404)
+  return { abs, rel: rel.split(sep).join('/'), size: info.size, dev: info.dev, ino: info.ino }
+}
 
 export class FileServer {
   private readonly grants = new Map<string, Grant>()
@@ -123,12 +145,15 @@ export class FileServer {
   /**
    * A token for one folder: the page's own folder, not the whole workspace,
    * so a page can read its neighbours and subfolders but nothing above them.
-   * Tokens expire a fixed time after they are issued.
+   * Tokens expire a fixed time after they are issued. The real path is saved
+   * now; a later rename of this path into a symlink does not widen the grant.
    */
   grant(root: string): string {
     this.sweep()
+    let realRoot: string
+    try { realRoot = realpathSync(root) } catch { throw new FileRefusal('The working directory is not available.', 404) }
     const token = randomBytes(24).toString('base64url')
-    this.grants.set(token, { root, expires: Date.now() + TOKEN_TTL_MS })
+    this.grants.set(token, { root, realRoot, expires: Date.now() + TOKEN_TTL_MS })
     return token
   }
 
@@ -152,7 +177,7 @@ export class FileServer {
       try { rel = decodeURIComponent(slash < 0 ? '' : rest.slice(slash + 1)) } catch { return finish(res, 400, 'Bad path') }
       if (rel === '' || rel.endsWith('/')) rel += 'index.html'
       if (rel.includes('\0') || rel.split('/').includes('..')) return finish(res, 403, 'Forbidden')
-      const file = await confine(grant.root, rel)
+      const file = await grantedFile(grant, rel)
       if (file.size > MAX_FILE_BYTES) return finish(res, 413, 'File too large')
       // Open, then make sure the open file is the one that was checked, so a
       // path swapped for a symlink in between cannot lead outside the folder.

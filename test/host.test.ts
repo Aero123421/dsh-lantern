@@ -1,10 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply, type VisualResult } from '../src/host/index.ts'
-import type { FileServer } from '../src/host/files.ts'
+import { FileServer, FILE_ROUTE } from '../src/host/files.ts'
 
 interface Tool {
   name: string
@@ -224,6 +225,66 @@ test('a saved folder is refused when the session working directory is unknown', 
     })
     assert.equal((await host.call('lantern.file', { sessionId: 's1', callId: 'no-session' })).body.error?.code, 'no-session')
   } finally { await rm(base, { recursive: true, force: true }) }
+})
+
+function serveFiles(): Promise<{ files: FileServer; get: (path: string) => Promise<Response>; close: () => void }> {
+  const files = new FileServer()
+  const server: Server = createServer((req, res) => { void files.handle(req, res) })
+  return new Promise(resolve => {
+    server.listen(0, '127.0.0.1', () => {
+      const port = (server.address() as { port: number }).port
+      resolve({
+        files,
+        get: (path: string) => fetch(`http://127.0.0.1:${port}${FILE_ROUTE}/${path}`),
+        close: () => server.close(),
+      })
+    })
+  })
+}
+
+test('replacing a granted folder with a symlink to an outside directory is refused', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'lantern-swap-'))
+  const folder = join(base, 'site')
+  const outside = join(base, 'outside')
+  await mkdir(folder)
+  await mkdir(outside)
+  await writeFile(join(folder, 'index.html'), 'inside')
+  await writeFile(join(outside, 'index.html'), 'outside')
+  const served = await serveFiles()
+  try {
+    const token = served.files.grant(folder)
+    assert.equal((await served.get(`${token}/index.html`)).status, 200)
+    await rm(folder, { recursive: true })
+    await symlink(outside, folder)
+    const swapped = await served.get(`${token}/index.html`)
+    assert.equal(swapped.status, 403)
+    assert.equal((await swapped.text()).includes('outside'), false)
+  } finally {
+    served.close()
+    await rm(base, { recursive: true, force: true })
+  }
+})
+
+test('a symlink file inside a granted folder that points outside is refused over /lantern/files', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'lantern-file-link-'))
+  const folder = join(base, 'site')
+  await mkdir(folder)
+  await writeFile(join(folder, 'style.css'), 'body{color:red}')
+  await writeFile(join(base, 'secret.html'), 'secret')
+  const served = await serveFiles()
+  try {
+    const token = served.files.grant(folder)
+    await symlink(join(base, 'secret.html'), join(folder, 'leak.html'))
+    const leaked = await served.get(`${token}/leak.html`)
+    assert.equal(leaked.status, 403)
+    assert.equal((await leaked.text()).includes('secret'), false)
+    const css = await served.get(`${token}/style.css`)
+    assert.equal(css.status, 200)
+    assert.equal(await css.text(), 'body{color:red}')
+  } finally {
+    served.close()
+    await rm(base, { recursive: true, force: true })
+  }
 })
 
 test('an awaited workspace visual can load its source before the tool result exists', async () => {
