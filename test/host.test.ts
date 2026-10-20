@@ -199,7 +199,7 @@ test('a saved root that is a symlink pointing outside the working directory is r
     await mkdir(cwd)
     await mkdir(outside)
     await writeFile(join(outside, 'index.html'), 'out')
-    const link = join(base, 'link')
+    const link = join(cwd, 'link')
     await symlink(outside, link)
     const cwdReal = await realpath(cwd)
     const host = fakeHost({
