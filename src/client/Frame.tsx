@@ -22,6 +22,8 @@ export interface FrameProps {
   readonly url?: string
   /** Show `html` as a streaming preview: markup only, no scripts. */
   readonly streaming?: boolean
+  /** Restored card: paint the markup, but do not run its scripts. */
+  readonly paused?: boolean
   readonly state: VisualState
   readonly response: unknown
   readonly onSubmit: (value: unknown) => Promise<void>
@@ -68,10 +70,10 @@ function userActed(frame: HTMLIFrameElement | null, focusedAt: number): boolean 
 }
 
 export function Frame(props: FrameProps) {
-  const { callId, sessionId, mode, html, url, streaming = false, state, response } = props
+  const { callId, sessionId, mode, html, url, streaming = false, paused = false, state, response } = props
   const frame = useRef<HTMLIFrameElement>(null)
   const ready = useRef(false)
-  const [height, setHeight] = useState(mode === 'inline' ? 120 : 0)
+  const [height, setHeight] = useState(mode === 'inline' ? (paused ? 220 : 120) : 0)
   const latest = useRef(props)
   latest.current = props
   const lastAction = useRef(0)
@@ -80,6 +82,11 @@ export function Frame(props: FrameProps) {
   const focusedAt = useRef(0)
   const loads = useRef(0)
   const dead = useRef(false)
+  // An html card that navigates away is showing some other document. Put the
+  // card back and drop scripts, so that navigation cannot stay on a workspace
+  // file or on /lantern/files/.
+  const [drifted, setDrifted] = useState(false)
+  const scriptsOff = paused || drifted
 
   // Remember when focus moved into this iframe (the page's window blurs then).
   useEffect(() => {
@@ -97,14 +104,18 @@ export function Frame(props: FrameProps) {
     let widgetState: unknown = null
     if (local.state !== undefined) { try { widgetState = JSON.parse(local.state) } catch { widgetState = null } }
     const current = theme()
+    const preview = streaming && !scriptsOff
     const boot: FrameBoot = {
       id: callId, state: initial.current.state, response: initial.current.response ?? null,
-      scheme: current.scheme, mode, widgetState, streaming, lang: uiLang(),
+      scheme: current.scheme, mode, widgetState, streaming: preview, lang: uiLang(),
       ...mode === 'inline' ? { maxHeight: latest.current.maxHeight ?? MAX_INLINE_HEIGHT } : {},
     }
-    return buildDocument(streaming ? '' : html, boot, current.css)
+    // A paused card keeps the markup and CSS, with scripts and handlers removed
+    // so a reload cannot run them even if the sandbox attribute is ignored.
+    const source = preview ? '' : scriptsOff ? partialMarkup(html) : html
+    return buildDocument(source, boot, current.css)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streaming ? '' : html, streaming, callId, sessionId, mode])
+  }, [html, streaming, scriptsOff, callId, sessionId, mode])
 
   const src = useMemo(() => {
     if (url === undefined) return undefined
@@ -240,12 +251,22 @@ export function Frame(props: FrameProps) {
       className="lantern-frame"
       data-mode={mode}
       title={callId}
-      sandbox={SANDBOX}
+      sandbox={scriptsOff ? 'allow-downloads' : SANDBOX}
+      data-scripts={scriptsOff ? 'off' : 'on'}
       onLoad={() => {
-        // A built document loads once; a second load means it navigated
-        // itself somewhere else, so stop listening to it.
+        // A built document loads once. A second load means an html card
+        // navigated itself (its own location, or a module the cage does not
+        // wrap). Restore the card with scripts removed so the other document,
+        // including a /lantern/files/ response, does not stay on screen.
         loads.current++
-        if (srcDoc !== undefined && loads.current > 1) dead.current = true
+        if (srcDoc === undefined || loads.current < 2 || dead.current) return
+        dead.current = true
+        const node = frame.current
+        if (node) {
+          node.setAttribute('sandbox', 'allow-downloads')
+          node.srcdoc = srcDoc.replace(/<script\b[\s\S]*?<\/script>/gi, '')
+        }
+        setDrifted(true)
       }}
       allow="fullscreen; clipboard-write"
       referrerPolicy="no-referrer"

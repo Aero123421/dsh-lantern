@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildDocument, filePrelude, injectPrelude, partialMarkup, scriptJson, themeCss } from '../src/frame/document.ts'
+import { buildDocument, cageScripts, filePrelude, injectPrelude, partialMarkup, scriptJson, themeCss, visualCsp } from '../src/frame/document.ts'
 import type { FrameBoot } from '../src/frame/runtime.ts'
 
 const boot: FrameBoot = { id: 'c1', state: 'idle', response: null, scheme: 'dark', mode: 'inline', widgetState: null, streaming: false, lang: 'ja' }
@@ -18,6 +18,17 @@ test('themeCss keeps only --lt-* names and safe values', () => {
   assert.equal(themeCss({}), '')
 })
 
+test('inline scripts are caged and meta refresh is removed', () => {
+  const html = cageScripts('<meta http-equiv="refresh" content="0;url=https://e.x"><script>location.href="https://e.x"</script><script type="module">import x from "./a.js"\nlocation.href=1</script><script type="application/json">{"a":1}</script>')
+  assert.equal(/http-equiv\s*=\s*"refresh"/i.test(html), false)
+  assert.match(html, /const location=__ltLoc/)
+  assert.match(html, /import x from/)
+  assert.match(html, /<script type="application\/json">\{"a":1\}<\/script>/)
+  const bare = cageScripts('<script type="module">await fetch("./data.json")</script>')
+  assert.match(bare, /<script type="module">await fetch/)
+  assert.equal(bare.includes('__ltLoc'), false)
+})
+
 test('a fragment is wrapped with the runtime, the kit layers and the theme', () => {
   const html = buildDocument('<p>hi</p>', boot, themeCss({ '--lt-bg': '#000' }))
   assert.match(html, /^<!doctype html><html data-theme="dark"><head><meta http-equiv="Content-Security-Policy"/)
@@ -32,7 +43,11 @@ test('a fragment is wrapped with the runtime, the kit layers and the theme', () 
 
 test('a full document gets the prelude first in its head', () => {
   const html = buildDocument('<!doctype html><html lang="en"><head><title>x</title></head><body>b</body></html>', boot, '')
-  assert.match(html, /^<!doctype html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="connect-src data: blob:; form-action 'none'; base-uri 'none'"><meta charset="utf-8">/)
+  assert.match(html, new RegExp('^<!doctype html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="' + visualCsp().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"><meta charset="utf-8">'))
+  assert.match(visualCsp(), /img-src data: blob:;/ )
+  assert.equal(visualCsp().includes('https:') && visualCsp().includes('img-src https:'), false)
+  assert.match(visualCsp(), /connect-src data: blob:;/)
+  assert.match(visualCsp(), /form-action 'none'; base-uri 'none'; navigate-to 'none'/)
   assert.ok(html.indexOf('lantern-kit') < html.indexOf('<title>'))
   const noHead = buildDocument('<html><body>b</body></html>', boot, '')
   assert.match(noHead, /^<html><head><meta http-equiv="Content-Security-Policy"/)
@@ -70,14 +85,19 @@ test('streaming previews authorize only their own runtime script', () => {
   const policy = /<meta http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)![1]!
   const nonce = /script-src 'nonce-([^']+)'/.exec(policy)![1]!
   assert.match(html, new RegExp(`<script nonce="${nonce}">`))
-  assert.equal(policy.includes("'unsafe-inline'"), false)
+  assert.equal(/script-src[^;]*'unsafe-inline'/.test(policy), false)
+  assert.match(policy, /style-src 'unsafe-inline'/)
   assert.equal(preview().includes(nonce), false)
   // A slash can separate a tag name from an event handler in parsed HTML;
   // the regex filter misses it, so the document must block its execution.
   assert.match(partialMarkup('<svg/onload="alert(1)"></svg>'), /onload=/)
   // Encoded JavaScript URLs must also remain subject to the same policy.
   assert.match(partialMarkup('<a href="java&#x73;cript:alert(1)">link</a>'), /java&#x73;cript:/)
-  assert.equal(buildDocument('<script>run()</script>', boot, '').includes('script-src'), false)
+  const finished = buildDocument('<script>run()</script>', boot, '')
+  assert.match(finished, /script-src 'unsafe-inline' data: blob:/)
+  assert.equal(/script-src[^;]*https:/.test(finished), false)
+  assert.match(finished, /img-src data: blob:;/)
+  assert.match(finished, /const location=__ltLoc/)
 })
 
 test('inline cards never show a scrollbar of their own, unless taller than the largest card', () => {
@@ -94,8 +114,11 @@ test('the runtime keeps download links, wheel gating and visibility self-contain
   const html = buildDocument('<p>x</p>', boot, '')
   const runtime = html.slice(html.indexOf('</script><script>') + 17, html.indexOf('</script><style id="lantern-kit">'))
   // Serialized with toString(): everything it uses must be inside the function.
-  for (const marker of ["hasAttribute('download')", 'stopImmediatePropagation', 'IntersectionObserver', "type: 'gl'", 'data-lt-fullscreen', 'ResizeObserver loop']) {
+  for (const marker of ["hasAttribute('download')", 'stopImmediatePropagation', 'IntersectionObserver', "type: 'gl'", 'data-lt-fullscreen', 'ResizeObserver loop', 'Function.prototype.call.bind(String.prototype.startsWith)', 'const SafeURL = URL']) {
     assert.ok(runtime.includes(marker), marker)
   }
+  assert.equal(runtime.includes('.indexOf('), false)
+  assert.equal(runtime.includes('new URL('), false)
+  assert.equal(runtime.includes('navigator.language'), false)
   assert.doesNotThrow(() => new Function(runtime))
 })

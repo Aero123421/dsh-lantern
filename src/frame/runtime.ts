@@ -56,8 +56,105 @@ export type ParentMessage =
 export function frameRuntime(): void {
   const TAG = '__lantern'
   const MAX_JSON = 64 * 1024
+  // Taken before any visual script runs. Later replacements of `URL` or
+  // `String.prototype` must not be able to change this decision.
+  const startsWith = Function.prototype.call.bind(String.prototype.startsWith) as (value: string, search: string) => boolean
+  const SafeURL = URL
   const bootNode = document.getElementById('lantern-boot')
   const boot = JSON.parse((bootNode && bootNode.textContent) || '{}')
+  // Chrome does not ship CSP `navigate-to`, and `window.location` cannot be
+  // replaced. Give caged scripts (see cageScripts) a stand-in that only
+  // follows links inside a workspace page's own folder. The check uses the
+  // captured `URL` and `startsWith` above, and nothing else.
+  const realLocation = location
+  const realDocument = document
+  function allowedTarget(url: unknown): string | undefined {
+    if (typeof url !== 'string') return undefined
+    if (realLocation.protocol !== 'http:' && realLocation.protocol !== 'https:') return undefined
+    try {
+      const next = new SafeURL(url, realLocation.href)
+      if (next.protocol !== 'http:' && next.protocol !== 'https:') return undefined
+      const dir = new SafeURL('./', realLocation.href).href
+      return startsWith(next.href, dir) ? next.href : undefined
+    } catch { return undefined }
+  }
+  const realAssign = realLocation.assign.bind(realLocation)
+  const realReplace = realLocation.replace.bind(realLocation)
+  const ltLoc = {
+    assign(url: string) { const next = allowedTarget(url); if (next !== undefined) realAssign(next) },
+    replace(url: string) { const next = allowedTarget(url); if (next !== undefined) realReplace(next) },
+    reload() {},
+    toString() { return realLocation.href },
+    valueOf() { return realLocation.href },
+  }
+  for (const key of ['href', 'origin', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash']) {
+    Object.defineProperty(ltLoc, key, {
+      configurable: true, enumerable: true,
+      get() { return (realLocation as unknown as Record<string, string>)[key] },
+      set(value: string) { const next = allowedTarget(value); if (key === 'href' && next !== undefined) realAssign(next) },
+    })
+  }
+  const ltWin: typeof window = new Proxy(window, {
+    get(target, key) {
+      if (key === 'location') return ltLoc
+      if (key === 'document') return ltDoc
+      if (key === 'top' || key === 'parent' || key === 'self' || key === 'frames' || key === 'globalThis') return ltWin
+      const value = (target as unknown as Record<PropertyKey, unknown>)[key]
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value
+    },
+    set(target, key, value) {
+      if (key === 'location') { const next = allowedTarget(value); if (next !== undefined) realAssign(next); return true }
+      ;(target as unknown as Record<PropertyKey, unknown>)[key] = value
+      return true
+    },
+  })
+  function cageInline(html: string): string {
+    return String(html).replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (full, attrs: string, body: string) => {
+      if (/\bsrc\s*=/i.test(attrs) || /\btype\s*=\s*["']?module/i.test(attrs)) return full
+      const wrapped = `(function(__ltLoc,__ltWin,__ltDoc){const location=__ltLoc,window=__ltWin,top=window,parent=window,self=window,globalThis=window,frames=window,document=__ltDoc;\n${body}\n}).call(globalThis.__ltWin,globalThis.__ltLoc,globalThis.__ltWin,globalThis.__ltDoc)`
+      return `<script${attrs}>${wrapped}</script>`
+    })
+  }
+  const ltDoc: Document = new Proxy(realDocument, {
+    get(target, key) {
+      if (key === 'location') return ltLoc
+      if (key === 'defaultView') return ltWin
+      const value = (target as unknown as Record<PropertyKey, unknown>)[key]
+      if ((key === 'write' || key === 'writeln') && typeof value === 'function') {
+        const write = value as (html: string) => void
+        return (html: string) => write.call(target, cageInline(html))
+      }
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value
+    },
+    set(target, key, value) {
+      if (key === 'location') { const next = allowedTarget(value); if (next !== undefined) realAssign(next); return true }
+      ;(target as unknown as Record<PropertyKey, unknown>)[key] = value
+      return true
+    },
+  })
+  ;(window as unknown as Record<string, unknown>).__ltLoc = ltLoc
+  ;(window as unknown as Record<string, unknown>).__ltWin = ltWin
+  ;(window as unknown as Record<string, unknown>).__ltDoc = ltDoc
+  try {
+    const owner = Object.getOwnPropertyDescriptor(Node.prototype, 'ownerDocument')
+    if (owner && owner.configurable) Object.defineProperty(Node.prototype, 'ownerDocument', { configurable: true, get() { return ltDoc } })
+  } catch { /* ignore */ }
+  try {
+    const view = Object.getOwnPropertyDescriptor(Document.prototype, 'defaultView')
+    if (view && view.configurable) Object.defineProperty(Document.prototype, 'defaultView', { configurable: true, get() { return ltWin } })
+  } catch { /* ignore */ }
+  // Script-driven navigations (location, meta refresh where the browser
+  // routes them here) may stay inside a workspace page's own folder.
+  // Anything else — another host, or the rest of DSH — is cancelled.
+  try {
+    const nav = (window as unknown as { navigation?: { addEventListener: (type: string, listener: (event: { destination?: { url?: string }; cancelable?: boolean; preventDefault: () => undefined }) => undefined) => undefined } }).navigation
+    if (nav && typeof nav.addEventListener === 'function') {
+      nav.addEventListener('navigate', (event) => {
+        const raw = event.destination && event.destination.url
+        if (allowedTarget(raw) === undefined && event.cancelable) event.preventDefault()
+      })
+    }
+  } catch { /* Navigation API missing */ }
   let state = boot.state || 'idle'
   let response = boot.response
   let scheme = boot.scheme || 'light'
@@ -338,9 +435,9 @@ export function frameRuntime(): void {
     if (box) box.textContent = message
   }
   function emptyText() {
-    const lang = String(boot.lang || navigator.language || 'en').toLowerCase()
-    if (lang.startsWith('ja')) return '選んでから送ってください。'
-    if (lang.startsWith('zh')) return '请先选择再提交。'
+    const lang = String(boot.lang || 'en').toLowerCase()
+    if (startsWith(lang, 'ja')) return '選んでから送ってください。'
+    if (startsWith(lang, 'zh')) return '请先选择再提交。'
     return 'Pick an option first.'
   }
   function isEmpty(value: unknown) {
@@ -409,17 +506,15 @@ export function frameRuntime(): void {
       // A download link (say, a PNG made from a canvas as a blob: URL) saves a
       // file and does not navigate; the sandbox allows downloads.
       if (anchor.hasAttribute('download') && /^(blob|data):/i.test(anchor.href)) return
-      if (href.startsWith('#')) {
+      if (startsWith(href, '#')) {
         event.preventDefault()
         const dest = document.getElementById(decodeURIComponent(href.slice(1)))
         if (dest) dest.scrollIntoView({ behavior: 'smooth' })
         return
       }
-      // Workspace pages (served from a real URL) navigate between their own
-      // files normally; everything else leaves through DSH.
-      let sameSite = false
-      try { sameSite = location.protocol.startsWith('http') && new URL(anchor.href).origin === location.origin } catch { sameSite = false }
-      if (sameSite) return
+      // Workspace pages navigate between files in their own folder.
+      // Same host is not enough: the rest of DSH must not be reachable.
+      if (allowedTarget(anchor.href) !== undefined) return
       event.preventDefault()
       if (/^https?:\/\//i.test(anchor.href)) lantern.openLink(anchor.href)
     }

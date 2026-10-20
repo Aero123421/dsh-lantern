@@ -4,7 +4,8 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { VisualCard } from './Card.tsx'
-import { copy } from './i18n.ts'
+import { copy, useCopy } from './i18n.ts'
+import { holdScripts, notifyScripts, observeVisual } from './live.ts'
 import { openInSidebar, parseAddress } from './services.ts'
 import { getRecord, inTail, markTail, parseArgs, parseMeta, upsert, useRegistry, visualKey, type VisualRecord } from './store.ts'
 
@@ -116,6 +117,7 @@ function rawFromPartial(args: PartialArgs | undefined): string | undefined {
 export function ToolView(props: ToolViewProps) {
   const { phase, block, callId, sessionId } = props
   const key = visualKey(callId, sessionId)
+  const bornAt = typeof block.time === 'number' ? block.time : typeof block.callTime === 'number' ? block.callTime : undefined
   const argsRaw: string | undefined = phase === 'start' ? block.argsRaw : phase === 'result' ? block.call?.argsRaw ?? undefined : undefined
   // When the call itself is outside the loaded history, the result still carries the parsed arguments.
   const fallbackRaw = useMemo(() => argsRaw === undefined && phase === 'result' ? rawFromPartial(block.args as PartialArgs | undefined) : undefined, [argsRaw, phase, block.args])
@@ -124,6 +126,12 @@ export function ToolView(props: ToolViewProps) {
   const partialTitle = partial?.has('title') ? partial.text('title') : ''
   const partialHtml = partial?.has('html') ? partial.text('html') : undefined
   const partialPanel = partial?.has('path') || (partial?.has('display') && partial.text('display') === 'panel')
+  // Decide during render, so a restored `start` (still waiting) is not treated as live.
+  // Workspace pages stay paused until Run, even on the turn that created them.
+  const pathVisual = Boolean(parsed?.path) || partial?.has('path') === true
+  const fresh = observeVisual(key, phase, bornAt, !pathVisual)
+  const held = pathVisual && holdScripts(key)
+  useEffect(() => { if (fresh || held) notifyScripts() }, [fresh, held, key])
   const isError = phase === 'result' && block.isError === true
   const errorText = isError ? (textOf(block.content) || String(block.error?.code ?? 'error')) : undefined
   const meta = phase === 'result' && !isError ? parseMeta(block.meta) : undefined
@@ -144,7 +152,7 @@ export function ToolView(props: ToolViewProps) {
 
   const shownInTail = useRegistry(() => inTail(callId, sessionId))
   const stored = useRegistry(() => getRecord(callId, sessionId))
-  const c = copy()
+  const c = useCopy()
 
   const record: VisualRecord = {
     ...stored,
@@ -185,7 +193,7 @@ interface TailProps {
 
 export function Tail(props: TailProps) {
   const calls = (props.turn.data.get(TURN_KEY) as readonly TurnCall[] | undefined) ?? []
-  const visible = calls.filter(item => item.seq < props.seq && !item.isError)
+  const visible = calls.filter(item => item.seq < props.seq)
   useEffect(() => {
     for (const item of calls) upsert(item.callId, recordFromCall(item, props.sessionId))
   }, [calls, props.sessionId])
@@ -199,7 +207,19 @@ export function Tail(props: TailProps) {
 
 function TailItem({ item, sessionId }: { item: TurnCall; sessionId: string | undefined }) {
   useEffect(() => markTail(item.callId, sessionId), [item.callId, sessionId])
+  const c = useCopy()
   const record: VisualRecord = { callId: item.callId, ...recordFromCall(item, sessionId) }
+  if (item.isError) {
+    return (
+      <div className="lantern-card" data-lantern-id={item.callId} data-state="error">
+        <div className="lantern-head">
+          <span className="lantern-title">{record.args?.title || c.error}</span>
+          <span className="lantern-badge" data-state="closed">{c.error}</span>
+        </div>
+        <div className="lantern-note" data-kind="error">{item.errorText || c.error}</div>
+      </div>
+    )
+  }
   if (record.args === undefined) return null
   return <VisualCard record={record} sessionId={sessionId} placement="tail" phase={item.settled ? 'result' : 'replay'} />
 }
@@ -228,7 +248,7 @@ export function SidebarTab(props: TabProps) {
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
-  const c = copy()
+  const c = useCopy()
   let body: ReactNode
   if (!target || !record?.args) body = <div className="lantern-empty">{c.missing}</div>
   else if (shown) body = <VisualCard key={visualKey(target.callId, target.sessionId)} record={record} sessionId={target.sessionId} placement="panel" phase={record.result ? 'result' : 'start'} />

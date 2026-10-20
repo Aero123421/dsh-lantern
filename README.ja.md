@@ -122,7 +122,14 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 # その後 `dsh web` を再起動
 ```
 
-必要なのは DSH 0.2.1 以降（0.2 系）の Web プロファイルです。リリースの `.tgz` からも入れられます。読み込まれたかは `dsh --profile web --dump-config | grep lantern` で確認できます。
+必要なのは DSH 0.2.1 以降（0.2 系）の Web プロファイルです。バージョンタグを push すると、GitHub の Release に `dsh-lantern-<version>.tgz` と `SHA256SUMS` が付きます（タグを push するまでは公開されません）。チェックサムを確かめてからアーカイブを入れます。
+
+```sh
+sha256sum -c SHA256SUMS
+dsh plugin --profile web add ./dsh-lantern-0.2.1.tgz
+```
+
+読み込まれたかは `dsh --profile web --dump-config | grep lantern` で確認できます。
 
 あとは頼むだけです。たとえば:
 
@@ -170,10 +177,9 @@ sequenceDiagram
 トークンはすべて上書きでき、自分で書いたスタイルが必ずキットに勝ちます。
 
 ```html
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap">
 <style>
   :root {
-    --lt-font: "Zen Maru Gothic", var(--lt-font-sans);
+    --lt-font: "Iowan Old Style", var(--lt-font-serif);
     --lt-accent: #e8590c;
     --lt-radius: 18px;
   }
@@ -191,7 +197,7 @@ sequenceDiagram
 
 ## ワークスペースのページ
 
-`path: "report/index.html"` で、作業ディレクトリの実ファイルをサイドバーのタブに開きます。フォルダ単位で期限つきのリンクから配信するので、相対パスの `<link>`・`<img>`・`<script type="module">`・`fetch()` が普通の静的サーバーと同じように動きます。ページの見た目はそのままに、`window.lantern` と `--lt-*` のテーマ変数も使えます。`<meta name="lantern-kit">` を書けばキットの部品も使えます。
+`path: "report/index.html"` で、作業ディレクトリの実ファイルをサイドバーのタブに開きます。フォルダ単位で期限つきのリンクから配信するので、そのフォルダ内の相対パス `<link>`・`<img>`・`<script type="module">`・`fetch()` は普通の静的サーバーと同じように動きます。ほかのサイトへの `fetch`・XHR・画像・CSS の `url()`・フォーム・prefetch・WebSocket・`sendBeacon` は拒否します。このページのスクリプトは、実行を押すまで止まります。スクリプトを動かすと、カード自身の遷移で、許可したフォルダの中身を外へ送れます。ページの見た目はそのままに、`window.lantern` と `--lt-*` のテーマ変数も使えます。`<meta name="lantern-kit">` を書けばキットの部品も使えます。
 
 <img src="docs/workspace-page.png" alt="相対パスの CSS・画像・モジュール JS・JSON を読み込んだレポートをサイドバーに表示（ダーク）" width="100%">
 
@@ -199,9 +205,11 @@ sequenceDiagram
 
 ビジュアルはモデルが書いたコードなので、Lantern は信頼せずに扱います。
 
-- **隔離。** ビジュアルはサンドボックス化した iframe（`allow-scripts allow-forms allow-downloads`、`allow-same-origin` は付けない）で動きます。オリジンを持たないので、DSH の Cookie・DOM・API には届きません。外への出口はカードへの `postMessage` だけで、送り主も確認します。
+- **隔離。** ビジュアルはサンドボックス化した iframe（`allow-scripts allow-forms allow-downloads`、`allow-same-origin` は付けない）で動きます。オリジンを持たないので、DSH の Cookie・DOM・API には届きません。回答はカードへの `postMessage` で渡り、送り主も確認します。
 - **決めるのはユーザー。** 回答・メッセージ・リンク・サイドバー表示の要求は、そのビジュアルの中でユーザーが実際に操作した直後だけ受け付けます。回答は 1 ビジュアル 1 回で、続きのメッセージは間隔と回数に上限があります。
-- **外へ漏らさない。** HTML ビジュアルには `fetch`・XHR・WebSocket・フォーム送信・`<base>` を禁じる CSP を付けます。ライブラリは `<script src>` で読み込めます。書いている途中のプレビューでは、スクリプト・イベント属性・`javascript:` URL・埋め込みフレームを取り除きます。
+- **止められる通信。** HTML ビジュアルとワークスペースのページは、外部への `fetch`・XHR・`sendBeacon`・WebSocket・画像・CSS の `url()`・スタイルシート・`<script src>`・prefetch/preload・フォーム送信・`<base>` を拒否します。ページが自分で作る `data:` と `blob:` の画像は使えます。CDN のスクリプトも拒否します。許可すると prefetch も外へ出るためです。書いている途中のプレビューでは、スクリプト・イベント属性・`javascript:` URL・埋め込みフレームを取り除きます。
+- **止められない通信。** スクリプトを動かすと、カード自身の遷移で、許可したフォルダの中身を外へ送れます。通常のスクリプトが `location` を書き換える操作は、実行時の先頭で取り込んだ `URL` と `String.prototype.startsWith` だけで判定します。`String.prototype.indexOf` を先に取り替えても、フォルダの外には進みません。モジュールスクリプトはこの包みの外なので、本当の `location` を使えます。Chromium は CSP の `navigate-to` に対応していません。`/lantern/files/<token>/` のページは、実行を押すまでスクリプトを止め、その画面にもこのことを書きます。インラインのカードは最初の表示でこれまでどおり自動で動きますが、許可したフォルダや `/lantern/files/` の中身は読めません。
+- **開き直したカードは止まったまま。** インラインのスクリプトが勝手に動くのは、そのビジュアルを作ったページで最初に表示されたときだけです。その会話を開き直してもスクリプトは再実行されず、実行を押す前の状態に戻り、ほかのタブは動いたままです。最初の表示で無限ループに入ると、そのタブだけが固まることがあります。フレームがページと同じレンダラーを使うための既知の制限です。そのタブを閉じて会話を開き直してください。
 - **ファイルは範囲内だけ。** ワークスペースのリンクはランダムで、そのページのフォルダだけを対象にし、8 時間で失効し、DSH の認証済み API からしか発行されません。シンボリックリンクは解決し、開いたファイルでもう一度確かめます。隠しファイル・隠しフォルダは拒否します。
 
 ## 設定

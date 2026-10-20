@@ -122,7 +122,14 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 # 然后重启 `dsh web`
 ```
 
-需要 DSH 0.2.1 及以上（0.2.x）的 Web 配置。也可以从 Release 的 `.tgz` 安装。用 `dsh --profile web --dump-config | grep lantern` 确认是否已加载。
+需要 DSH 0.2.1 及以上（0.2.x）的 Web 配置。推送版本标签后，GitHub Release 会附上 `dsh-lantern-<version>.tgz` 和 `SHA256SUMS`（在推送标签之前不会发布）。先核对校验和，再安装压缩包：
+
+```sh
+sha256sum -c SHA256SUMS
+dsh plugin --profile web add ./dsh-lantern-0.2.1.tgz
+```
+
+用 `dsh --profile web --dump-config | grep lantern` 确认是否已加载。
 
 然后直接提要求即可，例如：
 
@@ -170,10 +177,9 @@ sequenceDiagram
 所有设计变量都可以覆盖，你自己写的样式永远优先于组件库：
 
 ```html
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap">
 <style>
   :root {
-    --lt-font: "Zen Maru Gothic", var(--lt-font-sans);
+    --lt-font: "Iowan Old Style", var(--lt-font-serif);
     --lt-accent: #e8590c;
     --lt-radius: 18px;
   }
@@ -191,7 +197,7 @@ sequenceDiagram
 
 ## 工作区页面
 
-`path: "report/index.html"` 会在侧边栏标签页中打开工作目录里的真实文件。页面通过按文件夹限定、会过期的链接提供，因此相对路径的 `<link>`、`<img>`、`<script type="module">` 和 `fetch()` 都像在静态服务器上一样工作。页面保留自己的外观，同时可以使用 `window.lantern` 和 `--lt-*` 主题变量；写上 `<meta name="lantern-kit">` 即可使用组件库。
+`path: "report/index.html"` 会在侧边栏标签页中打开工作目录里的真实文件。页面通过按文件夹限定、会过期的链接提供，因此该文件夹内相对路径的 `<link>`、`<img>`、`<script type="module">` 和 `fetch()` 都像在静态服务器上一样工作。发往其他站点的 `fetch`、XHR、图片、CSS `url()`、表单、prefetch、WebSocket 和 `sendBeacon` 会被拒绝。这些页面的脚本在按下运行之前不会执行。运行脚本后，卡片可以通过自身跳转，把已允许文件夹中的内容送出去。页面保留自己的外观，同时可以使用 `window.lantern` 和 `--lt-*` 主题变量；写上 `<meta name="lantern-kit">` 即可使用组件库。
 
 <img src="docs/workspace-page.png" alt="在侧边栏打开的工作区报告页，加载了相对路径的 CSS、图片、模块 JS 和 JSON（暗色）" width="100%">
 
@@ -199,9 +205,11 @@ sequenceDiagram
 
 可视化是模型编写的代码，因此 Lantern 不信任它：
 
-- **隔离。** 可视化运行在沙箱 iframe 中（`allow-scripts allow-forms allow-downloads`，从不带 `allow-same-origin`）。它没有自己的源，无法访问 DSH 的 Cookie、DOM 或 API。唯一的出口是向卡片发送 `postMessage`，卡片还会校验发送方。
+- **隔离。** 可视化运行在沙箱 iframe 中（`allow-scripts allow-forms allow-downloads`，从不带 `allow-same-origin`）。它没有自己的源，无法访问 DSH 的 Cookie、DOM 或 API。回答通过发往卡片的 `postMessage` 送出，卡片还会校验发送方。
 - **由用户决定。** 回答、消息、链接和侧边栏请求只在用户于该可视化内真实操作后才被接受。每个可视化只能回答一次；追问消息有间隔和次数限制。
-- **不外泄。** HTML 可视化带有 CSP，禁止 `fetch`、XHR、WebSocket、表单提交和 `<base>`。库仍可通过 `<script src>` 加载。流式预览会去除脚本、事件属性、`javascript:` URL 和嵌入框架。
+- **挡得住的请求。** HTML 可视化和工作区页面会拒绝对外的 `fetch`、XHR、`sendBeacon`、WebSocket、图片、CSS `url()`、样式表、`<script src>`、prefetch/preload、表单提交和 `<base>`。页面自己生成的 `data:` 和 `blob:` 图片仍然可用。CDN 脚本同样被拒绝，因为放行它也会让 prefetch 离开页面。流式预览会去除脚本、事件属性、`javascript:` URL 和嵌入框架。
+- **挡不住的请求。** 运行脚本后，卡片可以通过自身跳转，把已允许文件夹中的内容送出去。普通脚本对 `location` 的改写只使用运行时开头捕获的 `URL` 和 `String.prototype.startsWith` 来判断，因此先替换 `String.prototype.indexOf` 也到不了文件夹之外。模块脚本不在这层包裹里，仍能使用真正的 `location`。Chromium 没有实现 CSP 的 `navigate-to`。`/lantern/files/<token>/` 的页面在按下运行之前不执行脚本，运行画面上也会写明这一点。内联卡片在第一次出现时仍会自动运行，但不能读取已允许的文件夹或 `/lantern/files/` 的内容。
+- **重新打开的卡片保持静止。** 内联脚本只会在创建它的那个页面里第一次出现时自动运行。再次打开该对话不会重新执行：卡片回到按下运行之前的状态，其他标签页仍可使用。第一次出现时的死循环可能冻住正在显示它的那个标签页。这是已知限制，因为框架和页面共用渲染进程。关闭该标签页，再打开这个对话即可。
 - **文件不越界。** 工作区链接是随机的，只覆盖页面所在文件夹，8 小时后失效，并且只能通过 DSH 的已认证 API 签发。符号链接会被解析，并在打开文件后再次校验；隐藏文件和文件夹一律拒绝。
 
 ## 配置

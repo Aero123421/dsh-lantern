@@ -3,9 +3,10 @@
  * card appears in the tool row while a turn runs, under the final answer once
  * the turn has ended, and in the sidebar.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { copy } from './i18n.ts'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCopy } from './i18n.ts'
 import { Frame } from './Frame.tsx'
+import { armScripts, releaseScripts, retainScripts, scriptsEnabled, subscribeScripts } from './live.ts'
 import { answer, dismiss, openInSidebar, sendAsUser, workspaceUrl } from './services.ts'
 import { readLocal, replacementOf, useRegistry, visualKey, visualState, writeLocal, type VisualRecord } from './store.ts'
 
@@ -36,11 +37,21 @@ function scrollToVisual(callId: string, sessionId: string | undefined): void {
   target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
+function useScripts(key: string): boolean {
+  return useSyncExternalStore(subscribeScripts, () => scriptsEnabled(key), () => false)
+}
+
 export function VisualCard({ record, sessionId, placement, phase, partialHtml }: CardProps) {
-  const c = copy()
+  const c = useCopy()
   const callId = record.callId
   const session = sessionId ?? record.sessionId
   const key = visualKey(callId, session)
+  const scripts = useScripts(key)
+  useEffect(() => {
+    retainScripts(key)
+    return () => releaseScripts(key)
+  }, [key])
+  const onRun = useCallback(() => armScripts(key), [key])
   const replacedBy = useRegistry(() => replacementOf(callId, session))
   // Re-read per-browser state whenever the registry changes (answers, collapse).
   const local = useRegistry(() => readLocal(callId, session))
@@ -132,19 +143,27 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
   }
 
   const collapsed = placement !== 'panel' && local.collapsed === true
+  const paused = phase !== 'preparing' && !scripts
   const body = record.error !== undefined
     ? <div className="lantern-note" data-kind="error">{record.error}</div>
     : isPath
-      ? <PathFrame key={generation} record={record} sessionId={session} state={state} response={response} onSubmit={onSubmit} onSend={onSend} onError={onError} onGlLost={onGlLost} />
+      ? <PathFrame key={generation + (paused ? ':paused' : ':run')} record={record} sessionId={session} state={state} response={response} onSubmit={onSubmit} onSend={onSend} onError={onError} onGlLost={onGlLost} paused={paused} />
       : args?.html !== undefined || partialHtml !== undefined
-        ? <Frame key={(phase === 'preparing' ? 'stream' : 'full') + generation} callId={callId} sessionId={session} mode={placement === 'panel' ? 'panel' : 'inline'}
-            html={phase === 'preparing' ? partialHtml ?? '' : args?.html ?? ''} streaming={phase === 'preparing'}
+        ? <Frame key={(phase === 'preparing' ? 'stream' : 'full') + generation + (paused ? ':paused' : ':run')} callId={callId} sessionId={session} mode={placement === 'panel' ? 'panel' : 'inline'}
+            html={phase === 'preparing' ? partialHtml ?? '' : args?.html ?? ''} streaming={phase === 'preparing'} paused={paused}
             state={state} response={response} onSubmit={onSubmit} onSend={onSend} onExpand={placement === 'panel' ? undefined : onExpand} onError={onError}
             onWheelHint={onWheelHint} onGlLost={onGlLost} />
         : <div className="lantern-note">{c.preparing}</div>
   const overlays = <>
-    {wheelHint && !glLost && <div className="lantern-hint" role="status">{c.wheelHint}</div>}
-    {glLost && (
+    {paused && record.error === undefined && (args?.html !== undefined || isPath) && (
+      <div className="lantern-paused" data-kind="hold">
+        <span>{c.paused}</span>
+        <span className="lantern-paused-warn">{isPath ? c.leave : c.leaveInline}</span>
+        <button type="button" className="lantern-action lantern-resume" onClick={onRun}>{c.run}</button>
+      </div>
+    )}
+    {wheelHint && !glLost && !paused && <div className="lantern-hint" role="status">{c.wheelHint}</div>}
+    {glLost && !paused && (
       <div className="lantern-paused">
         <span>{c.glLost}</span>
         <button type="button" className="lantern-action lantern-resume" onClick={restart}>{c.resume}</button>
@@ -189,7 +208,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
 }
 
 function Notes({ notice, errors }: { notice: string | undefined; errors: readonly string[] }) {
-  const c = copy()
+  const c = useCopy()
   if (!notice && errors.length === 0) return null
   return (
     <div className="lantern-notes">
@@ -208,8 +227,9 @@ function PathFrame(props: {
   onSend: (text: string) => Promise<void>
   onError: (message: string) => void
   onGlLost: (lost: boolean) => void
+  paused: boolean
 }) {
-  const c = copy()
+  const c = useCopy()
   const path = props.record.result?.path ?? props.record.args?.path
   const [url, setUrl] = useState<string | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
@@ -222,6 +242,6 @@ function PathFrame(props: {
   }, [path, props.sessionId])
   if (error) return <div className="lantern-note" data-kind="error">{c.fileError}: {error}</div>
   if (!url) return <div className="lantern-note">{c.loading}</div>
-  return <Frame callId={props.record.callId} sessionId={props.sessionId} mode="panel" url={url} state={props.state} response={props.response}
+  return <Frame callId={props.record.callId} sessionId={props.sessionId} mode="panel" url={url} paused={props.paused} state={props.state} response={props.response}
     onSubmit={props.onSubmit} onSend={props.onSend} onError={props.onError} onGlLost={props.onGlLost} />
 }

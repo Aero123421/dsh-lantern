@@ -122,7 +122,14 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 # then restart `dsh web`
 ```
 
-This needs DSH 0.2.1 or later (0.2.x) with the Web profile. You can also install the `.tgz` from a release. Check that it loaded with `dsh --profile web --dump-config | grep lantern`.
+This needs DSH 0.2.1 or later (0.2.x) with the Web profile. A version tag publishes `dsh-lantern-<version>.tgz` and `SHA256SUMS` on the GitHub release (the archive is not published until that tag is pushed). Check the checksum, then install the archive:
+
+```sh
+sha256sum -c SHA256SUMS
+dsh plugin --profile web add ./dsh-lantern-0.2.1.tgz
+```
+
+Check that it loaded with `dsh --profile web --dump-config | grep lantern`.
 
 Then just ask. For example:
 
@@ -170,10 +177,9 @@ Inside a visual, `window.lantern` offers `submit`, `send`, `setState` / `getStat
 Every token can be overridden, and your own styles always beat the kit:
 
 ```html
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap">
 <style>
   :root {
-    --lt-font: "Zen Maru Gothic", var(--lt-font-sans);
+    --lt-font: "Iowan Old Style", var(--lt-font-serif);
     --lt-accent: #e8590c;
     --lt-radius: 18px;
   }
@@ -191,7 +197,7 @@ The tokens cover fonts, sizes, surfaces, text, borders, accent, success/warning/
 
 ## Workspace pages
 
-`path: "report/index.html"` opens a real file from the working directory in a sidebar tab. It is served from a folder-scoped, expiring link, so relative `<link>`, `<img>`, `<script type="module">` and `fetch()` work as they would on a static server. The page keeps its own look. It also gets `window.lantern` and the `--lt-*` theme tokens, and can opt into the kit's components with `<meta name="lantern-kit">`.
+`path: "report/index.html"` opens a real file from the working directory in a sidebar tab. It is served from a folder-scoped, expiring link, so relative `<link>`, `<img>`, `<script type="module">` and `fetch()` of files in that folder work as they would on a static server. `fetch`, XHR, images, CSS `url()`, forms, prefetch, WebSocket and `sendBeacon` to any other site are refused. Scripts on these pages stay off until you press Run. Running scripts lets the card send the contents of the allowed folder out by navigating itself. The page keeps its own look. It also gets `window.lantern` and the `--lt-*` theme tokens, and can opt into the kit's components with `<meta name="lantern-kit">`.
 
 <img src="docs/workspace-page.png" alt="A workspace report page with relative CSS, image, module JS and JSON, open in the sidebar (dark)" width="100%">
 
@@ -199,9 +205,11 @@ The tokens cover fonts, sizes, surfaces, text, borders, accent, success/warning/
 
 A visual is model-written code, so Lantern treats it as untrusted:
 
-- **Isolated.** Visuals run in a sandboxed iframe (`allow-scripts allow-forms allow-downloads`, never `allow-same-origin`). They have an opaque origin and cannot reach DSH's cookies, DOM or API. The only way out is `postMessage` to the card, which checks the sender.
+- **Isolated.** Visuals run in a sandboxed iframe (`allow-scripts allow-forms allow-downloads`, never `allow-same-origin`). They have an opaque origin and cannot reach DSH's cookies, DOM or API. Answers go out through `postMessage` to the card, which checks the sender.
 - **The user decides.** Answers, messages, links and sidebar requests are honoured only right after a real user action inside that visual. One answer per visual; follow-up messages are throttled and capped.
-- **Nothing leaks out.** HTML visuals get a CSP that blocks `fetch`, XHR, WebSockets, form posts and `<base>`. Libraries still load with `<script src>`. The live preview strips scripts, event handlers, `javascript:` URLs and embedded frames.
+- **Requests that cannot leave.** HTML visuals and workspace pages refuse external `fetch`, XHR, `sendBeacon`, WebSockets, images, CSS `url()`, stylesheets, `<script src>`, prefetch/preload, form posts and `<base>`. `data:` and `blob:` images still work. A CDN script is refused too, because allowing it also lets prefetch leave the page. The live preview strips scripts, event handlers, `javascript:` URLs and embedded frames.
+- **Navigation can leave.** Running scripts lets the card send the contents of the allowed folder out by navigating itself. A classic script's `location` writes are judged only with the `URL` and `String.prototype.startsWith` captured at the start of the runtime, so replacing `String.prototype.indexOf` does not open a destination outside the folder. Module scripts are not wrapped, so they still see the real `location`. Chromium does not implement CSP `navigate-to`. Pages served from `/lantern/files/<token>/` keep scripts off until you press Run, and that screen says so. Inline cards still run on their own the first time they appear, and they cannot read the allowed folder or `/lantern/files/`.
+- **Restored cards stay still.** Inline scripts run on their own only the first time a visual appears in the page that created it. Opening that conversation again does not run them: the card is back to the state before Run, and other tabs keep working. A tight loop on that first view can freeze the tab that is showing it. That is a known limitation, because the frame shares the page's renderer. Close that tab and open the conversation again.
 - **Files stay scoped.** Workspace links are random, cover only the page's own folder, expire after 8 hours and are issued only through DSH's authenticated API. Symlinks are resolved and re-checked on the opened file, and hidden files and folders are refused.
 
 ## Configuration

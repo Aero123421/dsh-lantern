@@ -48,6 +48,7 @@ test('show_visual registers with a short description and validates its arguments
   await assert.rejects(tool.execute({ title: 't' }, exec('a')), /exactly one/)
   await assert.rejects(tool.execute({ title: 't', html: 'x', path: 'y.html' }, exec('a')), /exactly one/)
   await assert.rejects(tool.execute({ title: 't', html: 'x', display: 'side' }, exec('a')), /display/)
+  await assert.rejects(tool.execute({ title: 't', html: 'x'.repeat(400_001) }, exec('huge')), /longer than 400000/)
   const shown = await tool.execute({ title: ' Chart ', html: '<p>x</p>', replace: 'old' }, exec('a'))
   assert.deepEqual(shown, { id: 'a', status: 'shown', display: 'inline', title: 'Chart', replace: 'old' })
   assert.match(tool.output.render({}, shown)[0]!.text, /shown inline in the chat \(id: a\)/)

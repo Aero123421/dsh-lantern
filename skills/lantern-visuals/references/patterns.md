@@ -78,7 +78,7 @@ Keep the value small and self-describing (`{ order: [...], sprint_titles: [...],
 
 ```html
 <div style="position:relative;height:260px"><canvas id="c"></canvas></div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.js"></script>
+<!-- Chart.js has to live in this page. A CDN script src is blocked. -->
 <script>
   const css = getComputedStyle(document.documentElement)   // live: reflects theme changes
   const color = (n) => css.getPropertyValue(n).trim()

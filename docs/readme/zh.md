@@ -133,7 +133,7 @@ sequenceDiagram
 
 - **隔离。** 可视化运行在沙箱 iframe 中（`allow-scripts allow-forms allow-downloads`，从不带 `allow-same-origin`）。它没有自己的源，无法访问 DSH 的 Cookie、DOM 或 API。唯一的出口是向卡片发送 `postMessage`，卡片还会校验发送方。
 - **由用户决定。** 回答、消息、链接和侧边栏请求只在用户于该可视化内真实操作后才被接受。每个可视化只能回答一次；追问消息有间隔和次数限制。
-- **不外泄。** HTML 可视化带有 CSP，禁止 `fetch`、XHR、WebSocket、表单提交和 `<base>`。库仍可通过 `<script src>` 加载。流式预览会去除脚本、事件属性、`javascript:` URL 和嵌入框架。
+- **挡得住的请求。** HTML 可视化拒绝对外的 `fetch`、XHR、WebSocket、图片、表单提交、`<base>` 和 `<script src>`。运行脚本后，卡片可以通过自身跳转，把已允许文件夹中的内容送出去。Chromium 没有实现 `navigate-to`。流式预览会去除脚本、事件属性、`javascript:` URL 和嵌入框架。
 - **文件不越界。** 工作区链接是随机的，只覆盖页面所在文件夹，8 小时后失效，并且只能通过 DSH 的已认证 API 签发。符号链接会被解析，并在打开文件后再次校验；隐藏文件和文件夹一律拒绝。
 
 ## 配置

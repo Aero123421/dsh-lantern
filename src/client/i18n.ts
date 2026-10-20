@@ -1,4 +1,5 @@
 /** UI copy in Japanese, English and Chinese, picked from the page language. */
+import { useSyncExternalStore } from 'react'
 
 const ja = {
   visual: 'ビジュアル',
@@ -28,6 +29,10 @@ const ja = {
   wheelHint: 'クリックするとホイールで操作できます',
   glLost: '3D 表示を一時停止しました（同時に動かせる数の上限）',
   resume: '再開',
+  run: '実行',
+  paused: '停止中です。実行するまでスクリプトは動きません。',
+  leave: 'スクリプトを動かすと、カード自身の遷移で、許可したフォルダの中身を外へ送れます。',
+  leaveInline: 'スクリプトを動かすと、カード自身の遷移でデータを外へ送れます。',
 }
 
 type Copy = typeof ja
@@ -60,6 +65,10 @@ const en: Copy = {
   wheelHint: 'Click the visual to use the scroll wheel in it',
   glLost: 'The 3D view was paused (too many running at once)',
   resume: 'Resume',
+  run: 'Run',
+  paused: 'Paused. Scripts stay off until you run it.',
+  leave: 'Running scripts lets this card send the contents of the allowed folder out by navigating itself.',
+  leaveInline: 'Running scripts lets this card send data out by navigating itself.',
 }
 
 const zh: Copy = {
@@ -90,24 +99,51 @@ const zh: Copy = {
   wheelHint: '点击后即可在其中使用滚轮',
   glLost: '3D 视图已暂停（同时运行的数量已达上限）',
   resume: '继续',
+  run: '运行',
+  paused: '已暂停。点击运行前不会执行脚本。',
+  leave: '运行脚本后，卡片可以通过自身跳转，把已允许文件夹中的内容送出去。',
+  leaveInline: '运行脚本后，卡片可以通过自身跳转把数据送出去。',
 }
 
+/** BCP 47 tag Lantern should follow: the document language DSH set, nothing from the browser. */
 export function lang(): string {
-  const value = (typeof document !== 'undefined' && document.documentElement.lang) || (typeof navigator !== 'undefined' && navigator.language) || 'en'
-  return value.toLowerCase()
+  return (typeof document !== 'undefined' && document.documentElement.lang || 'en').toLowerCase()
 }
 
-/** The language Lantern speaks: DSH's UI language, except that a Japanese browser gets Japanese. */
-export function uiLang(): 'ja' | 'zh' | 'en' {
-  const value = lang()
+/** Map a document language to Lantern's copy. Japanese is not inferred from navigator. */
+export function uiLangFrom(documentLang: string): 'ja' | 'zh' | 'en' {
+  const value = documentLang.toLowerCase()
   if (value.startsWith('ja')) return 'ja'
   if (value.startsWith('zh')) return 'zh'
-  // DSH Web's own UI is English or Chinese; a Japanese browser still gets Japanese.
-  if (typeof navigator !== 'undefined' && navigator.languages?.some(item => item.toLowerCase().startsWith('ja'))) return 'ja'
   return 'en'
+}
+
+/** The language Lantern speaks: only `document.documentElement.lang`. */
+export function uiLang(): 'ja' | 'zh' | 'en' {
+  return uiLangFrom(typeof document !== 'undefined' ? document.documentElement.lang : '')
 }
 
 export function copy(): Copy {
   const value = uiLang()
   return value === 'ja' ? ja : value === 'zh' ? zh : en
+}
+
+const langListeners = new Set<() => void>()
+let langWatch: MutationObserver | undefined
+
+function watchDocumentLang(): void {
+  if (langWatch !== undefined || typeof document === 'undefined') return
+  langWatch = new MutationObserver(() => { for (const listener of langListeners) listener() })
+  langWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+}
+
+export function subscribeCopy(listener: () => void): () => void {
+  watchDocumentLang()
+  langListeners.add(listener)
+  return () => langListeners.delete(listener)
+}
+
+/** Card chrome that follows `document.documentElement.lang` when DSH changes it. */
+export function useCopy(): Copy {
+  return useSyncExternalStore(subscribeCopy, copy, () => en)
 }
