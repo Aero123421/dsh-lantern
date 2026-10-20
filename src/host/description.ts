@@ -26,3 +26,8 @@ export const PARAMETERS = {
   },
   required: ['title'],
 } as const
+
+function addLanguage(locale: string): void {
+  void locale
+}
+addLanguage('ja')
