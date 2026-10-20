@@ -124,3 +124,55 @@ test('the file route serves a granted root with sandbox headers', async () => {
     await rm(base, { recursive: true, force: true })
   }
 })
+
+test('replacing a granted folder with a symlink to an outside directory is refused', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'lantern-swap-'))
+  const folder = join(base, 'site')
+  const outside = join(base, 'outside')
+  await mkdir(folder)
+  await mkdir(outside)
+  await writeFile(join(folder, 'index.html'), 'inside')
+  await writeFile(join(outside, 'index.html'), 'outside')
+  const files = new FileServer()
+  const server: Server = createServer((req, res) => { void files.handle(req, res) })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const port = (server.address() as { port: number }).port
+  const get = (path: string) => fetch(`http://127.0.0.1:${port}${FILE_ROUTE}/${path}`)
+  try {
+    const token = files.grant(folder)
+    assert.equal((await get(`${token}/index.html`)).status, 200)
+    await rm(folder, { recursive: true })
+    await symlink(outside, folder)
+    const swapped = await get(`${token}/index.html`)
+    assert.equal(swapped.status, 403)
+    assert.equal((await swapped.text()).includes('outside'), false)
+  } finally {
+    server.close()
+    await rm(base, { recursive: true, force: true })
+  }
+})
+
+test('a symlink file inside a granted folder that points outside is refused', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'lantern-file-link-'))
+  const folder = join(base, 'site')
+  await mkdir(folder)
+  await writeFile(join(folder, 'style.css'), 'body{color:red}')
+  await writeFile(join(base, 'secret.html'), 'secret')
+  const files = new FileServer()
+  const server: Server = createServer((req, res) => { void files.handle(req, res) })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const port = (server.address() as { port: number }).port
+  const get = (path: string) => fetch(`http://127.0.0.1:${port}${FILE_ROUTE}/${path}`)
+  try {
+    const token = files.grant(folder)
+    await symlink(join(base, 'secret.html'), join(folder, 'leak.html'))
+    const leaked = await get(`${token}/leak.html`)
+    assert.equal(leaked.status, 403)
+    assert.equal((await leaked.text()).includes('secret'), false)
+    assert.equal((await get(`${token}/style.css`)).status, 200)
+    assert.equal(await (await get(`${token}/style.css`)).text(), 'body{color:red}')
+  } finally {
+    server.close()
+    await rm(base, { recursive: true, force: true })
+  }
+})

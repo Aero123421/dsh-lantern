@@ -10,6 +10,8 @@ Folder pages do not add a second CSP `<meta>`. The HTTP header names the token p
 
 `lantern.file` serves a recorded folder only while that folder is still inside the session's current working directory. A saved root outside that directory, including one written into an imported session, is refused.
 
+A file grant stores the folder's real path. Every request realpath's the folder and the file and allows them only when `path.relative` still places both inside that saved path, so a folder swapped for an outside symlink, a symlink file that points outside, or a realpath that fails is refused.
+
 `workingDirectory.ensure` failures are no longer replaced with the session header cwd. `execCwd` throws, and `path` rendering fails closed.
 
 The iframe's History API stays in the folder. `pushState` and `replaceState` ignore a URL outside that folder. `back`, `forward`, and `go` do nothing, so stepping backward does not load another document or run its scripts. Those methods belong to the iframe and do not move the parent page.

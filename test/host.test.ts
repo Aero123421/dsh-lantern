@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply, type VisualResult } from '../src/host/index.ts'
@@ -162,6 +162,67 @@ test('a saved folder is served only while it stays inside the session working di
       ], [Symbol.dispose]() {} }) },
     })
     assert.equal((await crafted.call('lantern.file', { sessionId: 's1', callId: 'evil' })).body.error?.code, 'refused')
+  } finally { await rm(base, { recursive: true, force: true }) }
+})
+
+function recordedFolder(callId: string, root: string, path = 'index.html') {
+  const args = { title: 'Report', path }
+  return [
+    { type: 'tool/call', seq: 1, data: { callId, name: 'show_visual', arguments: JSON.stringify(args) } },
+    { type: 'tool/result', seq: 2, data: { message: { toolCallId: callId }, meta: { lantern: 1, id: callId, status: 'shown', display: 'panel', title: 'Report', path, source: { kind: 'local', root, path } } } },
+  ]
+}
+
+test('a saved root that only shares a name prefix with the working directory is refused', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'lantern-prefix-'))
+  try {
+    const cwd = join(base, 'a', 'b')
+    const sibling = join(base, 'a', 'bc')
+    await mkdir(cwd, { recursive: true })
+    await mkdir(sibling, { recursive: true })
+    await writeFile(join(sibling, 'index.html'), 'sibling')
+    const cwdReal = await realpath(cwd)
+    const siblingReal = await realpath(sibling)
+    const host = fakeHost({
+      sessions: { get: () => ({ header: { cwd: cwdReal } }) },
+      sessionQuery: { observeSession: async () => ({ events: recordedFolder('prefix', siblingReal), [Symbol.dispose]() {} }) },
+    })
+    assert.equal((await host.call('lantern.file', { sessionId: 's1', callId: 'prefix' })).body.error?.code, 'refused')
+  } finally { await rm(base, { recursive: true, force: true }) }
+})
+
+test('a saved root that is a symlink pointing outside the working directory is refused', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'lantern-root-link-'))
+  try {
+    const cwd = join(base, 'work')
+    const outside = join(base, 'outside')
+    await mkdir(cwd)
+    await mkdir(outside)
+    await writeFile(join(outside, 'index.html'), 'out')
+    const link = join(base, 'link')
+    await symlink(outside, link)
+    const cwdReal = await realpath(cwd)
+    const host = fakeHost({
+      sessions: { get: () => ({ header: { cwd: cwdReal } }) },
+      sessionQuery: { observeSession: async () => ({ events: recordedFolder('root-link', link), [Symbol.dispose]() {} }) },
+    })
+    assert.equal((await host.call('lantern.file', { sessionId: 's1', callId: 'root-link' })).body.error?.code, 'refused')
+  } finally { await rm(base, { recursive: true, force: true }) }
+})
+
+test('a saved folder is refused when the session working directory is unknown', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'lantern-no-session-'))
+  try {
+    const folder = join(base, 'site')
+    await mkdir(folder)
+    await writeFile(join(folder, 'index.html'), 'x')
+    const root = await realpath(folder)
+    const host = fakeHost({
+      sessions: { get: () => undefined },
+      sessionPersistence: { stat: async () => undefined },
+      sessionQuery: { observeSession: async () => ({ events: recordedFolder('no-session', root), [Symbol.dispose]() {} }) },
+    })
+    assert.equal((await host.call('lantern.file', { sessionId: 's1', callId: 'no-session' })).body.error?.code, 'no-session')
   } finally { await rm(base, { recursive: true, force: true }) }
 })
 
