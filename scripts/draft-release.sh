@@ -14,7 +14,7 @@ notes="dsh-lantern ${tag}. Verify with \`sha256sum -c SHA256SUMS\`, then \`dsh p
 
 # Look the tag up in the release list. Do not treat a missing release as a
 # text match on an error string: a published release and a draft are both rows.
-draft=$(gh release list --json tagName,isDraft --jq ".[] | select(.tagName == \"$tag\") | .isDraft")
+draft=$(gh release list --limit 1000 --json tagName,isDraft --jq ".[] | select(.tagName == \"$tag\") | .isDraft")
 case "$draft" in
   true)
     # Same-named draft: keep its title and notes. Upload only asset names

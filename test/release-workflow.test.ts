@@ -49,7 +49,7 @@ exit 0
 test('the release workflow only invokes the draft helper', () => {
   assert.match(workflow, /sh scripts\/draft-release\.sh/)
   assert.equal(workflow.includes('gh release'), false)
-  assert.match(source, /gh release list --json tagName,isDraft/)
+  assert.match(source, /gh release list --limit 1000 --json tagName,isDraft/)
   assert.match(source, /gh release create "\$tag" "\$@" --verify-tag --draft --title "\$tag" --notes "\$notes"/)
   assert.match(source, /gh release upload "\$tag" "\$@"/)
   assert.equal(source.includes('release not found'), false)
@@ -71,6 +71,7 @@ test('a missing release is created as a draft with notes and assets', () => {
   assert.equal(status, 0)
   assert.equal(calls.length, 2)
   assert.match(calls[0]!, /^release list /)
+  assert.match(calls[0]!, /--limit 1000 /)
   assert.match(calls[0]!, /--json tagName,isDraft/)
   assert.match(calls[1]!, /^release create v0\.2\.2 /)
   assert.match(calls[1]!, / --verify-tag --draft --title v0\.2\.2 --notes /)
