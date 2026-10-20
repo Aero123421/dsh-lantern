@@ -28,8 +28,9 @@ The document root carries `data-theme="light"` or `"dark"`, and `data-lt-mode="i
   :root { --lt-accent: #c2410c; --lt-font: "Zen Maru Gothic", sans-serif; }
   :root[data-theme="dark"] { --lt-accent: #fb923c; }
 </style>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700&display=swap" rel="stylesheet">
 ```
+
+External stylesheets, including Google Fonts, are refused. Name a font the browser already has, or embed the font data.
 
 ## Base styles
 

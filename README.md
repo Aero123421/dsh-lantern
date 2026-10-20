@@ -12,7 +12,7 @@
 <p align="center">
   <img alt="DSH 0.2.x" src="https://img.shields.io/badge/DSH-0.2.x-4d6bfe?style=flat-square">
   <img alt="Web profile" src="https://img.shields.io/badge/profile-web-555?style=flat-square">
-  <img alt="System prompt +0 tokens" src="https://img.shields.io/badge/system%20prompt-%2B0%20tokens-2ea44f?style=flat-square">
+  <img alt="Skills optional" src="https://img.shields.io/badge/skills-optional-2ea44f?style=flat-square">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-555?style=flat-square">
 </p>
 
@@ -24,12 +24,12 @@
 
 ## Why it feels different
 
-- 🪟 **It lives in the conversation.** Cards render under the reply and stay there after the turn folds away. Reload the page and they come back, answers and slider positions included.
+- 🪟 **It lives in the conversation.** Cards render under the reply and stay there after the turn folds away. Recorded answers return with the conversation; visuals can save inputs for restoration in the same browser.
 - 🔁 **Answers flow back.** With `await_response: true` the agent waits, and whatever the user picks, ranks or types returns as the tool result. Follow-up buttons post a message as the user.
 - 🎨 **It looks like DSH.** The live DSH theme (light or dark, colours, fonts) flows into every visual and switches instantly, with no reload.
-- 🧰 **A kit, not a cage.** Tokens and components are preloaded in CSS cascade layers, so a visual's own fonts, colours and layout always win. Three.js, D3, KaTeX and Chart.js load straight from a CDN.
-- 🗂️ **Your HTML files, too.** Point `path` at a page in the workspace and it opens in the sidebar with its relative CSS, images, modules and JSON. It works wherever DSH Web does, including behind a Cloudflare Tunnel.
-- 🪶 **Zero prompt tax.** Nothing is added to the system prompt. The design guide is a skill (`lantern-visuals`) that the model loads only when it needs it.
+- 🧰 **A kit, not a cage.** Tokens and components are preloaded in CSS cascade layers, so a visual can supply its own fonts, colours and layout. Three.js, D3, KaTeX and Chart.js have to be embedded; a CDN script is refused.
+- 🗂️ **Your HTML files, too.** Point `path` at a page on the DSH host's local workspace and it opens in the sidebar with its relative CSS, images, modules and JSON.
+- 🪶 **Useful visuals without loading a skill.** A short, optional system prompt encourages the agent to choose a visual when it helps. The tool description includes the essentials; the bundled `lantern-visuals` skill is an optional advanced guide.
 
 ## Gallery
 
@@ -122,11 +122,11 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 # then restart `dsh web`
 ```
 
-This needs DSH 0.2.1 or later (0.2.x) with the Web profile. A version tag publishes `dsh-lantern-<version>.tgz` and `SHA256SUMS` on the GitHub release (the archive is not published until that tag is pushed). Check the checksum, then install the archive:
+This needs the Web profile and DSH `>=0.2.1-rc.2 <0.3.0-0`. Pushing a version tag creates a draft GitHub Release and attaches `dsh-lantern-<version>.tgz` and `SHA256SUMS`. The workflow does not publish the Release. If a draft for that tag already exists, it attaches the assets and leaves the draft notes unchanged. A person publishes the Release. Check the checksum, then install the archive:
 
 ```sh
 sha256sum -c SHA256SUMS
-dsh plugin --profile web add ./dsh-lantern-0.2.1.tgz
+dsh plugin --profile web add ./dsh-lantern-0.2.2.tgz
 ```
 
 Check that it loaded with `dsh --profile web --dump-config | grep lantern`.
@@ -138,6 +138,14 @@ Then just ask. For example:
 - *"Compare A\* and Dijkstra on a grid I can draw walls on."*
 - *"Here are this sprint's tickets. Let me drag them into priority order."*
 - *"Open `report/index.html` in the sidebar."*
+
+## Automatic conversation visuals
+
+Open **Plugins → dsh-lantern → Use conversation visuals automatically**. It is on by default. Changes save automatically and apply when DSH assembles the prompt for its next model step; no restart or skill loading is needed.
+
+When enabled, Lantern registers [102 English words of guidance](src/host/prompt.ts) in the system prompt layer. It encourages compact cards for explanation, comparison and exploration, local responses to controls, and deliberate submission back to the conversation. Simple answers can stay in prose. This guidance is independent of SKILLS content. The token count depends on the model's tokenizer; tool descriptions also occupy context. The bundled advanced guide is excluded from the automatic skill catalog and can be loaded explicitly by starting a message with `/lantern-visuals`.
+
+Turning this setting off removes that guidance and keeps `show_visual` available for direct requests. Disabling the whole plugin in Plugins unloads its tools, routes, prompt section and UI. The optional design guide is never a prerequisite for using the tool.
 
 ## How it works
 
@@ -152,7 +160,7 @@ sequenceDiagram
     H-->>C: tool row streams in, with a live preview
     C->>V: document + kit + current DSH theme
     Note over V: the user drags, rotates, picks…
-    V->>C: lantern.submit(value), only right after a real user action
+    V->>C: lantern.submit(value), from the user's control
     C->>H: POST /api/lantern.respond (authenticated)
     H-->>A: tool result: "The user answered …"
     Note over C: the turn ends and the card moves under the final answer
@@ -169,7 +177,7 @@ sequenceDiagram
 | `await_response` | Wait for the user's answer and return it as the result. |
 | `replace` | The `id` of an earlier visual that this one revises. The old card folds into a link to the new one. |
 
-Inside a visual, `window.lantern` offers `submit`, `send`, `setState` / `getState`, `expand`, `openLink`, `colors()`, `visible` and events. Declarative attributes cover the common cases without script: `data-lt-choices`, `data-lt-submit`, `data-lt-form`, `data-lt-send`, `data-lt-fullscreen`, tabs and steps. The full guide (patterns, 3D, interaction) is in [`skills/lantern-visuals`](skills/lantern-visuals/SKILL.md).
+Pass exactly one of `html` or `path`. Inside a visual, `window.lantern` offers `submit`, `send`, `setState` / `getState`, `expand`, `openLink`, `colors()`, `visible` and events. Declarative attributes cover the common cases without script: `data-lt-choices`, `data-lt-submit`, `data-lt-form`, `data-lt-send`, `data-lt-fullscreen`, tabs and steps. The optional advanced guide (patterns, 3D, interaction) is in [`skills/lantern-visuals`](skills/lantern-visuals/SKILL.md).
 
 <details>
 <summary><b>Make it yours: the kit is only a starting point</b></summary>
@@ -197,9 +205,21 @@ The tokens cover fonts, sizes, surfaces, text, borders, accent, success/warning/
 
 ## Workspace pages
 
-`path: "report/index.html"` opens a real file from the working directory in a sidebar tab. It is served from a folder-scoped, expiring link, so relative `<link>`, `<img>`, `<script type="module">` and `fetch()` of files in that folder work as they would on a static server. `fetch`, XHR, images, CSS `url()`, forms, prefetch, WebSocket and `sendBeacon` to any other site are refused. Scripts on these pages stay off until you press Run. Running scripts lets the card send the contents of the allowed folder out by navigating itself. The page keeps its own look. It also gets `window.lantern` and the `--lt-*` theme tokens, and can opt into the kit's components with `<meta name="lantern-kit">`.
+`path: "report/index.html"` opens a real file from the working directory in a sidebar tab. It is served from a folder-scoped, expiring link, so relative `<link>`, `<img>`, `<script type="module">` and `fetch()` of files in that folder work as they would on a static server. `fetch`, XHR, images, CSS `url()`, forms, prefetch, WebSocket and `sendBeacon` to any other site are refused. Scripts on these pages stay off until you press Run. Running scripts lets the card send the contents of the allowed folder out by navigating itself. The page keeps its own look. It also gets `window.lantern` and the `--lt-*` theme tokens, and can opt into the kit's components with `<meta name="lantern-kit">`. In module scripts, resolve data with `new URL('data.json', import.meta.url)`.
+
+The directory and entry path are recorded when the tool runs. Reopening the card reads that live file again only while the saved directory is still inside the session's current working directory. A saved folder outside that directory is refused. Edits appear when the page is loaded again; moved or deleted files cannot be reopened. Remote execution filesystems are unsupported; pass `html` with embedded data instead.
+
+Path results from before 0.2.0 that stored only a relative path have no saved source. They are no-source and cannot be opened.
+
+If a workspace page navigates its own iframe or calls `location.reload()`, its Lantern connection is not carried into the new document. Close its sidebar tab and reopen it from the chat, or reload DSH, to restore the connection and available saved state.
 
 <img src="docs/workspace-page.png" alt="A workspace report page with relative CSS, image, module JS and JSON, open in the sidebar (dark)" width="100%">
+
+## Saved inputs and answers
+
+Use `lantern.setState()` / `getState()` to restore a visual's inputs when it is recreated. State is stored in this browser's `localStorage` on a best-effort basis, for up to 300 visuals. It is not synced between devices. Clearing browser data or storage limits can remove it; if storage is unavailable, it lasts only for the current page.
+
+For `await_response: true`, the host settles a pending wait once. Once answered, dismissed or closed, further submissions are rejected. Completed answers are also recorded in the conversation. Non-awaited submissions, including late answers after a timeout, become new user messages. These messages do not have an exactly-once guarantee across browsers.
 
 ## Safety
 
@@ -210,18 +230,21 @@ A visual is model-written code, so Lantern treats it as untrusted:
 - **Requests that cannot leave.** HTML visuals and workspace pages refuse external `fetch`, XHR, `sendBeacon`, WebSockets, images, CSS `url()`, stylesheets, `<script src>`, prefetch/preload, form posts and `<base>`. `data:` and `blob:` images still work. A CDN script is refused too, because allowing it also lets prefetch leave the page. The live preview strips scripts, event handlers, `javascript:` URLs and embedded frames.
 - **Navigation can leave.** Running scripts lets the card send the contents of the allowed folder out by navigating itself. A classic script's `location` writes are judged only with the `URL` and `String.prototype.startsWith` captured at the start of the runtime, so replacing `String.prototype.indexOf` does not open a destination outside the folder. Module scripts are not wrapped, so they still see the real `location`. Chromium does not implement CSP `navigate-to`. Pages served from `/lantern/files/<token>/` keep scripts off until you press Run, and that screen says so. Inline cards still run on their own the first time they appear, and they cannot read the allowed folder or `/lantern/files/`.
 - **Restored cards stay still.** Inline scripts run on their own only the first time a visual appears in the page that created it. Opening that conversation again does not run them: the card is back to the state before Run, and other tabs keep working. A tight loop on that first view can freeze the tab that is showing it. That is a known limitation, because the frame shares the page's renderer. Close that tab and open the conversation again.
-- **Files stay scoped.** Workspace links are random, cover only the page's own folder, expire after 8 hours and are issued only through DSH's authenticated API. Symlinks are resolved and re-checked on the opened file, and hidden files and folders are refused.
+- **Files stay scoped.** Workspace links are random, cover only the page's own folder, expire after 8 hours and are issued only through DSH's authenticated API. Symlinks are resolved and re-checked on the opened file, and hidden files and folders are refused. Reopening a card serves the saved folder only while it is still inside the session's current working directory.
 
 ## Configuration
 
-Optional, in your profile's `cordis.patch.yml`:
+Use the Plugins toggle for automatic visuals. You can also configure defaults in your profile's `cordis.patch.yml`:
 
 ```yaml
 - id: dsh-lantern
   config:
+    automaticVisuals: true     # optional system guidance; change live in Plugins
     answerTimeoutMinutes: 15   # how long an awaited visual waits (default 15, max 1440)
     maxHtmlChars: 400000       # the largest html argument (default 400000)
 ```
+
+Advanced: DSH prompt presets marked `complete: true` replace the assembled prompt. Lantern respects that choice and does not append its guidance to a complete preset.
 
 ## Development
 
@@ -231,7 +254,7 @@ npm run check                                       # typecheck, tests, build �
 dsh plugin --profile web add /path/to/dsh-lantern   # link your checkout
 ```
 
-`lib/` is committed, so a GitHub install needs no build step. The host half is Node ESM. The browser half loads through DSH Web's module loader and shares DSH's React. Nothing from DSH is imported at runtime.
+`lib/` is committed, so a GitHub install needs no build step. The host half is Node ESM and imports `@deepseek-ai/schemastery` at runtime for its settings schema. The browser half loads through DSH Web's module loader and shares DSH's React runtime.
 
 ## Roadmap
 

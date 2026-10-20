@@ -76,30 +76,50 @@ function answerText(title: string, value: unknown): string {
 }
 
 /**
- * Answer a visual: straight into the waiting tool call when the agent is
- * waiting for it, otherwise as the user's next message.
+ * Answer a visual: straight into a waiting tool call, or as a user message
+ * for a non-waiting visual or an explicitly timed-out question.
  */
 const answering = new Set<string>()
 
 export async function answer(callId: string, sessionId: string | undefined, value: unknown): Promise<void> {
-  const record = getRecord(callId, sessionId)
-  const session = sessionId ?? record?.sessionId
+  const session = sessionId ?? getRecord(callId, sessionId)?.sessionId
   const key = visualKey(callId, session)
-  // One answer per visual, even if the user clicks again while it travels.
-  if (answering.has(key) || readLocal(callId, session).answer !== undefined || record?.result?.status === 'answered') {
-    throw new Error('already answered')
-  }
+  // Reject repeated clicks immediately. The browser lock additionally
+  // serializes this operation with other tabs using the same storage.
+  if (answering.has(key)) throw new Error('already answered')
   answering.add(key)
   try {
-    if (record?.args?.await && record.result === undefined) {
-      const { status } = await call<{ status: string }>('lantern.respond', { sessionId: session, callId, response: value })
-      if (status === 'settled') {
-        writeLocal(callId, { answer: JSON.stringify(value) }, session)
-        return
+    const submit = async () => {
+      // Re-read after acquiring the lock: another tab may have answered
+      // while this one was waiting for its turn.
+      const record = getRecord(callId, session)
+      if (readLocal(callId, session).answer !== undefined || record?.result?.status === 'answered') throw new Error('already answered')
+      if (record?.error !== undefined || record?.result?.status === 'dismissed' || record?.result?.status === 'closed') throw new Error('This visual is already closed.')
+      if (record?.args?.await) {
+        const { status } = await call<{ status: string }>('lantern.respond', { sessionId: session, callId, response: value })
+        if (status === 'settled') {
+          writeLocal(callId, { answer: JSON.stringify(value) }, session)
+          return
+        }
+        if (status === 'answered') throw new Error('already answered')
+        if (status !== 'timeout') throw new Error('This visual is no longer waiting for an answer.')
+      }
+      await sendAsUser(session, answerText(record?.args?.title ?? '', value))
+      writeLocal(callId, { answer: JSON.stringify(value) }, session)
+    }
+    let locks: LockManager | undefined
+    try { locks = globalThis.navigator?.locks } catch { /* unavailable in some browser privacy modes */ }
+    if (locks === undefined) await submit()
+    else {
+      let entered = false
+      try { await locks.request('dsh-lantern:answer:' + key, () => { entered = true; return submit() }) }
+      catch (error) {
+        // Do not repeat a send that already began. Some browsers expose
+        // Web Locks but deny access along with their storage APIs.
+        if (entered || !(error instanceof Error) || error.name !== 'SecurityError') throw error
+        await submit()
       }
     }
-    await sendAsUser(session, answerText(record?.args?.title ?? '', value))
-    writeLocal(callId, { answer: JSON.stringify(value) }, session)
   } finally {
     answering.delete(key)
   }
@@ -111,7 +131,12 @@ export async function dismiss(callId: string, sessionId: string | undefined): Pr
   return status === 'settled'
 }
 
-export async function workspaceUrl(sessionId: string, path: string): Promise<string> {
-  const { url } = await call<{ url: string }>('lantern.file', { sessionId, path })
+export async function workspaceUrl(sessionId: string, callId: string): Promise<string> {
+  const { url } = await call<{ url: string }>('lantern.file', { sessionId, callId })
   return new URL(url, document.baseURI).href
+}
+
+/** Restore a sidebar whose tool row is outside the browser's loaded history. */
+export function fetchVisual(sessionId: string, callId: string): Promise<{ arguments: string; seq?: number; meta?: unknown; error?: string }> {
+  return call('lantern.visual', { sessionId, callId })
 }

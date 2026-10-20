@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.2.2
+
+Conversation visuals from PR #1, ported onto 0.2.1 and kept at 0.2.2. Automatic visuals are on by default (`automaticVisuals`). The system prompt section `ui:lantern-interactive` (order 10110) adds a short English guidance string when that setting is on and `show_visual` is registered. The bundled skill stays user-invocable only (`modelInvocable: false`); load it with `/lantern-visuals`.
+
+HTML card policy is unchanged from 0.2.1. `img-src` does not allow `https:`, so an external image in a card does not load. Script and style requests to a CDN are refused.
+
+Folder pages do not add a second CSP `<meta>`. The HTTP header names the token prefix `/lantern/files/<token>/`. A `'self'` meta would not match relative CSS, image and module requests from an opaque origin, and both policies would have to pass.
+
+`lantern.file` serves a recorded folder only while that folder is still inside the session's current working directory. A saved root outside that directory, including one written into an imported session, is refused.
+
+A file grant stores the folder's real path. Each request realpaths that folder and refuses it unless the path still matches, then realpaths the file and allows it only when `path.relative` from the saved path stays inside, so a folder swapped for an outside symlink or a symlink file that points outside is refused.
+
+`workingDirectory.ensure` failures are no longer replaced with the session header cwd. `execCwd` throws, and `path` rendering fails closed.
+
+The iframe's History API stays in the folder. `pushState` and `replaceState` ignore a URL outside that folder. `back`, `forward`, and `go` do nothing, so stepping backward does not load another document or run its scripts. Those methods belong to the iframe and do not move the parent page.
+
+A card that is still waiting for Run drops `http`, `https`, and protocol-relative `src`, `href`, `poster`, and CSS `url()` values from the markup before the iframe is built. The content security policy still refuses those requests.
+
+The parent accepts a MessagePort only from that card's frame, origin `"null"`, a single port, and the matching bridge. Later messages must use a known type. A card cannot drive a host action or address another card on this port. `submit`, `send`, `expand`, and `open-link` still require a user action.
+
+The system prompt section is registered once per host. Its text is the fixed guidance string, or empty when automatic visuals are off or `show_visual` is not registered. DSH removes the section when the plugin is uninstalled.
+
+Pushing a `v*` tag creates a draft GitHub Release (`gh release create --draft`) and attaches the tarball and `SHA256SUMS`. The workflow does not publish that Release. If a draft for the same tag already exists, the workflow uploads the assets and leaves the release notes unchanged. A person publishes the Release.
+
+### Known issue
+
+Path results from before 0.2.0 that stored only a relative path have no saved source. They are no-source and cannot be opened.
+
+pnpm 12 でプラグインを追加・更新すると、プロファイルの lockfile に公開から24時間たっていない依存が含まれている場合、ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION で失敗することがあります。このとき pnpm がプロファイルの node_modules を空にし、DSH も元に戻さないため、同じプロファイルのすべてのプラグインが読み込まれなくなります。プラグインの追加・更新は pnpm 10 で行ってください。壊れたときは pnpm 10 で `dsh plugin --profile web install` を実行すると戻ります。pnpm 11 では ERR_PNPM_UNEXPECTED_STORE で止まりますが、node_modules は壊れません。
+
+The 0.2.1 residual risks below are unchanged.
+
 ## 0.2.1
 
 ### 残るリスク

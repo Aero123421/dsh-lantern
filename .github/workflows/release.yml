@@ -24,10 +24,9 @@ jobs:
           mkdir -p dist
           npm pack --pack-destination dist
           (cd dist && sha256sum ./*.tgz > SHA256SUMS)
-      - name: Attach the tarball and checksums to the GitHub release
+      # A tag push creates a draft only. Publishing stays a manual step.
+      # An existing draft keeps its title, notes, and any asset that is already attached.
+      - name: Create a draft release or attach assets to the existing draft
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" dist/*.tgz dist/SHA256SUMS \
-            --title "${GITHUB_REF_NAME}" \
-            --notes "dsh-lantern ${GITHUB_REF_NAME}. Verify with \`sha256sum -c SHA256SUMS\`, then \`dsh plugin --profile web add\` the tgz."
+        run: sh scripts/draft-release.sh "${GITHUB_REF_NAME}" dist/*.tgz dist/SHA256SUMS

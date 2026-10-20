@@ -28,11 +28,20 @@ const ja = {
   notWaiting: 'エージェントはもう待っていません',
   wheelHint: 'クリックするとホイールで操作できます',
   glLost: '3D 表示を一時停止しました（同時に動かせる数の上限）',
+  navigated: 'ページが移動したため操作を停止しました。DSH を再読み込みすると、このビジュアルの操作を再開できます。',
   resume: '再開',
   run: '実行',
   paused: '停止中です。実行するまでスクリプトは動きません。',
   leave: 'スクリプトを動かすと、カード自身の遷移で、許可したフォルダの中身を外へ送れます。',
   leaveInline: 'スクリプトを動かすと、カード自身の遷移でデータを外へ送れます。',
+  automaticVisuals: '会話内ビジュアルを自動で使う',
+  automaticVisualsDescription: '説明や比較に役立つとき、図や操作できる UI をチャット内に表示します。',
+  automaticVisualsTiming: '変更は自動で保存され、次の回答から反映されます。スキルの読み込みは必要ありません。',
+  automaticVisualsOff: 'オフでも、図やインタラクティブな表示を直接依頼できます。',
+  settingsSaving: '保存中…',
+  settingsUnavailable: '設定を読み込めません。接続を確認してプラグイン画面を開き直してください。',
+  settingsReadOnly: 'このプロファイルでは設定を変更できません。',
+  settingsSaveFailed: '保存できませんでした。現在の設定を確認して、もう一度お試しください。',
 }
 
 type Copy = typeof ja
@@ -64,11 +73,20 @@ const en: Copy = {
   notWaiting: 'The agent is no longer waiting',
   wheelHint: 'Click the visual to use the scroll wheel in it',
   glLost: 'The 3D view was paused (too many running at once)',
+  navigated: 'This page navigated and its visual controls stopped. Reload DSH to restore them.',
   resume: 'Resume',
   run: 'Run',
   paused: 'Paused. Scripts stay off until you run it.',
   leave: 'Running scripts lets this card send the contents of the allowed folder out by navigating itself.',
   leaveInline: 'Running scripts lets this card send data out by navigating itself.',
+  automaticVisuals: 'Use conversation visuals automatically',
+  automaticVisualsDescription: 'Show diagrams and interactive UI in the chat when they help explain or compare.',
+  automaticVisualsTiming: 'Changes save automatically and apply to the next response. No skill loading is required.',
+  automaticVisualsOff: 'When off, you can still ask for diagrams or interactive visuals directly.',
+  settingsSaving: 'Saving…',
+  settingsUnavailable: 'Settings are unavailable. Check the connection and reopen the plugin page.',
+  settingsReadOnly: 'Settings cannot be changed in this profile.',
+  settingsSaveFailed: 'Could not save. Check the current setting and try again.',
 }
 
 const zh: Copy = {
@@ -98,11 +116,20 @@ const zh: Copy = {
   notWaiting: '智能体已不再等待',
   wheelHint: '点击后即可在其中使用滚轮',
   glLost: '3D 视图已暂停（同时运行的数量已达上限）',
+  navigated: '页面已跳转，交互已停止。请重新加载 DSH 以恢复此可视化的操作。',
   resume: '继续',
   run: '运行',
   paused: '已暂停。点击运行前不会执行脚本。',
   leave: '运行脚本后，卡片可以通过自身跳转，把已允许文件夹中的内容送出去。',
   leaveInline: '运行脚本后，卡片可以通过自身跳转把数据送出去。',
+  automaticVisuals: '自动使用对话可视化',
+  automaticVisualsDescription: '有助于解释或比较时，在对话中显示图表和可交互的界面。',
+  automaticVisualsTiming: '更改会自动保存，并从下一次回答生效。无需加载技能。',
+  automaticVisualsOff: '关闭后，仍可直接请求图表或交互式可视化。',
+  settingsSaving: '保存中…',
+  settingsUnavailable: '无法加载设置。请检查连接并重新打开插件页面。',
+  settingsReadOnly: '此配置无法修改设置。',
+  settingsSaveFailed: '保存失败。请检查当前设置后重试。',
 }
 
 /** BCP 47 tag Lantern should follow: the document language DSH set, nothing from the browser. */
@@ -110,7 +137,7 @@ export function lang(): string {
   return (typeof document !== 'undefined' && document.documentElement.lang || 'en').toLowerCase()
 }
 
-/** Map a document language to Lantern's copy. Japanese is not inferred from navigator. */
+/** Map a language tag to Lantern's dictionaries. Anything else is English. */
 export function uiLangFrom(documentLang: string): 'ja' | 'zh' | 'en' {
   const value = documentLang.toLowerCase()
   if (value.startsWith('ja')) return 'ja'
@@ -118,13 +145,17 @@ export function uiLangFrom(documentLang: string): 'ja' | 'zh' | 'en' {
   return 'en'
 }
 
-/** The language Lantern speaks: only `document.documentElement.lang`. */
-export function uiLang(): 'ja' | 'zh' | 'en' {
+/**
+ * Card chrome follows only `document.documentElement.lang`.
+ * Settings may pass DSH's locale. Neither path reads `navigator`. Dictionaries only.
+ */
+export function uiLang(locale?: string): 'ja' | 'zh' | 'en' {
+  if (locale !== undefined) return uiLangFrom(locale)
   return uiLangFrom(typeof document !== 'undefined' ? document.documentElement.lang : '')
 }
 
-export function copy(): Copy {
-  const value = uiLang()
+export function copy(locale?: string): Copy {
+  const value = uiLang(locale)
   return value === 'ja' ? ja : value === 'zh' ? zh : en
 }
 

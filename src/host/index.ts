@@ -3,25 +3,22 @@
  * uses to answer a waiting visual, workspace HTML serving for the sidebar,
  * and the `lantern-visuals` skill.
  *
- * Nothing from DSH is imported at runtime; the services are reached through
- * the Cordis context with structural types.
+ * DSH services are reached through the Cordis context with structural types;
+ * the live configuration schema uses DSH's Schemastery package.
  */
 import { readFile, realpath } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PARAMETERS, SKILL_NAME, TOOL_NAME, toolDescription } from './description.ts'
 import { FILE_ROUTE, FileRefusal, FileServer, resolveEntry } from './files.ts'
+import { readRecordedVisual, recordedSource, recordedStatus, type VisualSource } from './history.ts'
 import { PendingResponses, type Outcome } from './pending.ts'
+import { registerPrompt, type Config, type PromptHost } from './prompt.ts'
+
+export { Config } from './prompt.ts'
 
 export const name = 'dsh-lantern'
-export const inject = ['tools', 'connection']
-
-export interface Config {
-  /** Minutes a visual with `await_response` waits for the user (default 15). */
-  answerTimeoutMinutes?: number
-  /** Largest `html` argument accepted, in characters (default 400000). */
-  maxHtmlChars?: number
-}
+export const inject = ['tools', 'connection', 'systemPrompt']
 
 type Status = 'shown' | 'answered' | 'dismissed' | 'timeout' | 'closed'
 
@@ -32,6 +29,8 @@ export interface VisualResult {
   display: 'inline' | 'panel'
   title: string
   path?: string
+  /** The host-local source as resolved when this call ran, also persisted in presentation metadata. */
+  source?: VisualSource
   replace?: string
   /** The user's answer as JSON text. */
   response?: string
@@ -48,8 +47,9 @@ interface ToolExec {
   }
 }
 
-interface HostContext {
-  tools: { register(definition: unknown): unknown }
+interface HostContext extends PromptHost {
+  tools: PromptHost['tools'] & { register(definition: unknown): unknown }
+  readonly fiber: unknown
   connection: {
     fetch: {
       register(route: {
@@ -78,19 +78,33 @@ function positive(value: unknown, fallback: number, what: string, max: number): 
 
 /** Waiting calls are keyed by session and call, since forks copy call ids. */
 function waitKey(sessionId: string | undefined, callId: string): string {
-  return `${sessionId ?? ''}\u0000${callId}`
+  return JSON.stringify([sessionId ?? '', callId])
 }
 
 export function apply(rawCtx: unknown, config: Config = {}): void {
   const ctx = rawCtx as HostContext
+  registerPrompt(ctx, config)
   const timeoutMinutes = positive(config?.answerTimeoutMinutes, 15, 'answerTimeoutMinutes', 24 * 60)
   const maxHtml = positive(config?.maxHtmlChars, 400_000, 'maxHtmlChars', 4_000_000)
   const pending = new PendingResponses()
   const files = new FileServer()
-  /** Working directory per session, remembered from tool calls. */
+  /** A pending path resolution is shared with the browser while an awaited tool is still running. */
+  const sources = new Map<string, Promise<VisualSource>>()
+  /** Real path of each session's working directory, from the last tool call or from DSH. */
   const cwdBySession = new Map<string, string>()
+  const MAX_TRACKED = 256
 
-  ctx.effect(() => () => pending.closeAll(), 'dsh-lantern: release waiting visuals')
+  function remember<K, V>(map: Map<K, V>, key: K, value: V): void {
+    map.delete(key)
+    map.set(key, value)
+    while (map.size > MAX_TRACKED) {
+      const oldest = map.keys().next().value
+      if (oldest === undefined) break
+      map.delete(oldest)
+    }
+  }
+
+  ctx.effect(() => () => { pending.closeAll(); sources.clear(); cwdBySession.clear() }, 'dsh-lantern: release waiting visuals')
 
   async function sessionCwd(sessionId: string): Promise<string | undefined> {
     const known = cwdBySession.get(sessionId)
@@ -104,11 +118,45 @@ export function apply(rawCtx: unknown, config: Config = {}): void {
   }
 
   async function execCwd(exec: ToolExec): Promise<string | undefined> {
+    // A failure from workingDirectory.ensure is not swallowed: the header cwd
+    // can name a different machine than the one that would read the file.
     const wd = ctx.get('workingDirectory') as { ensure(agent: unknown, signal: AbortSignal): Promise<string> } | undefined
-    if (wd && exec.agent) {
-      try { return await wd.ensure(exec.agent, exec.signal) } catch { /* fall through */ }
-    }
+    if (wd && exec.agent) return wd.ensure(exec.agent, exec.signal)
     return exec.agent?.session?.header?.cwd
+  }
+
+  function insideDirectory(root: string, cwd: string): boolean {
+    const rel = relative(cwd, root)
+    return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
+  }
+
+  async function localRoot(path: string): Promise<string> {
+    const fs = ctx.get('fs') as { processPathFromHostPath(hostPath: string): string | undefined } | undefined
+    const mapped = fs?.processPathFromHostPath(path)
+    if (mapped === undefined || resolve(mapped) !== resolve(path)) {
+      throw new FileRefusal('Workspace file visuals require a host-local filesystem. Use `html` for remote execution.', 403)
+    }
+    return realpath(path).catch(() => { throw new FileRefusal('The original visual directory is not available.', 404) })
+  }
+
+  async function resolveSource(exec: ToolExec, path: string): Promise<VisualSource> {
+    const cwd = await execCwd(exec)
+    if (cwd === undefined) throw new Error('show_visual: no working directory for `path`; pass `html` instead.')
+    const root = await localRoot(cwd)
+    const entry = await resolveEntry(root, path)
+    return { kind: 'local', root, path: entry }
+  }
+
+  async function sourceOf(sessionId: string, callId: string): Promise<VisualSource> {
+    const key = waitKey(sessionId, callId)
+    const running = sources.get(key)
+    if (running) return running
+    const visual = await readRecordedVisual(ctx, sessionId, callId)
+    const source = visual?.error === undefined ? recordedSource(visual?.meta, callId) : undefined
+    if (!source) throw new RouteError('no-source', 'This visual has no saved local source. Create the visual again to open its file.')
+    const resolved = Promise.resolve(source)
+    remember(sources, key, resolved)
+    return source
   }
 
   ctx.tools.register({
@@ -125,6 +173,12 @@ export function apply(rawCtx: unknown, config: Config = {}): void {
           display: { type: 'string', enum: ['inline', 'panel'] },
           title: { type: 'string' },
           path: { type: 'string' },
+          source: {
+            type: 'object',
+            additionalProperties: false,
+            properties: { kind: { type: 'string', enum: ['local'] }, root: { type: 'string' }, path: { type: 'string' } },
+            required: ['kind', 'root', 'path'],
+          },
           replace: { type: 'string' },
           response: { type: 'string' },
         },
@@ -144,12 +198,16 @@ export function apply(rawCtx: unknown, config: Config = {}): void {
         ...args.replace !== undefined ? { replace: args.replace } : {},
       }
       if (args.path !== undefined) {
-        const cwd = await execCwd(exec)
-        if (cwd === undefined) throw new Error('show_visual: no working directory for `path`; pass `html` instead.')
-        if (sessionId !== undefined) cwdBySession.set(sessionId, cwd)
+        if (sessionId === undefined) throw new Error('show_visual: workspace files require a session; pass `html` instead.')
+        const key = waitKey(sessionId, exec.callId)
+        const source = resolveSource(exec, args.path)
+        remember(sources, key, source)
         try {
-          base.path = await resolveEntry(cwd, args.path)
+          base.source = await source
+          base.path = base.source.path
+          remember(cwdBySession, sessionId, base.source.root)
         } catch (error) {
+          if (sources.get(key) === source) sources.delete(key)
           if (error instanceof FileRefusal) throw new Error(`show_visual: ${error.message}`)
           throw error
         }
@@ -167,35 +225,52 @@ export function apply(rawCtx: unknown, config: Config = {}): void {
 
   // Browser → host. Only authenticated owner peers reach these routes.
   route(ctx, 'lantern.respond', async (payload) => {
-    const key = waitKey(optionalString(payload, 'sessionId'), stringField(payload, 'callId', 200))
+    const { sessionId, callId, key } = callIdentity(payload)
     const response = payload.response
     let json: string
     try { json = JSON.stringify(response === undefined ? null : response) } catch { throw new RouteError('bad-response', 'The answer is not JSON.') }
-    if (json.length > MAX_RESPONSE_CHARS) throw new RouteError('too-large', 'The answer is larger than 64 KB.')
-    return { status: pending.settle(key, { kind: 'answered', response: json }) }
+    if (json.length > MAX_RESPONSE_CHARS) throw new RouteError('too-large', 'The answer exceeds 65,536 JSON characters.')
+    const status = pending.settle(key, { kind: 'answered', response: json })
+    return { status: status === 'unknown' ? recordedStatus(await readRecordedVisual(ctx, sessionId, callId), callId) : status }
   })
   route(ctx, 'lantern.dismiss', async (payload) => {
-    const key = waitKey(optionalString(payload, 'sessionId'), stringField(payload, 'callId', 200))
-    return { status: pending.settle(key, { kind: 'dismissed' }) }
+    const { sessionId, callId, key } = callIdentity(payload)
+    const status = pending.settle(key, { kind: 'dismissed' })
+    return { status: status === 'unknown' ? recordedStatus(await readRecordedVisual(ctx, sessionId, callId), callId) : status }
   })
   route(ctx, 'lantern.waiting', async (payload) => {
-    const key = waitKey(optionalString(payload, 'sessionId'), stringField(payload, 'callId', 200))
-    return { waiting: pending.isWaiting(key) }
+    const { sessionId, callId, key } = callIdentity(payload)
+    const current = pending.status(key)
+    const status = current === 'unknown' ? recordedStatus(await readRecordedVisual(ctx, sessionId, callId), callId) : current
+    return { waiting: status === 'waiting', status }
   })
   route(ctx, 'lantern.file', async (payload) => {
-    const sessionId = stringField(payload, 'sessionId', 200)
-    const path = stringField(payload, 'path', 4096)
-    const cwd = await sessionCwd(sessionId)
-    if (cwd === undefined) throw new RouteError('no-session', 'The session working directory is unknown.')
+    const { sessionId, callId } = callIdentity(payload)
+    let source: VisualSource
     let rel: string
-    try { rel = await resolveEntry(cwd, path) } catch (error) {
+    try {
+      source = await sourceOf(sessionId, callId)
+      const cwd = await sessionCwd(sessionId)
+      if (cwd === undefined) throw new RouteError('no-session', 'The session working directory is unknown.')
+      const cwdReal = await localRoot(cwd)
+      const rootReal = await localRoot(source.root)
+      if (rootReal !== source.root) throw new FileRefusal('The original visual directory changed location.', 403)
+      if (!insideDirectory(rootReal, cwdReal)) throw new FileRefusal('The saved folder is outside the session working directory.', 403)
+      rel = await resolveEntry(rootReal, source.path)
+    } catch (error) {
       if (error instanceof FileRefusal) throw new RouteError('refused', error.message)
       throw error
     }
     // The link covers the page's own folder (and below), not the workspace.
-    const entry = join(await realpath(cwd), rel)
+    const entry = join(source.root, rel)
     const token = files.grant(dirname(entry))
     return { url: `${FILE_ROUTE.slice(1)}/${token}/${encodeURIComponent(basename(entry))}`, path: rel }
+  })
+  route(ctx, 'lantern.visual', async (payload) => {
+    const { sessionId, callId } = callIdentity(payload)
+    const visual = await readRecordedVisual(ctx, sessionId, callId)
+    if (!visual) throw new RouteError('no-visual', 'The visual was not found in this session.')
+    return visual
   })
 
   ctx.inject(['webServer'], (scope) => {
@@ -206,6 +281,10 @@ export function apply(rawCtx: unknown, config: Config = {}): void {
   ctx.inject(['skills'], (scope) => {
     const skills = scope.skills as { registerProvider(factory: () => unknown): unknown }
     skills.registerProvider(() => skillProvider())
+  })
+  ctx.inject(['settings'], (scope) => {
+    const settings = scope.settings as { configure(options: { auto: false }, fiber: unknown): unknown }
+    scope.effect(() => settings.configure({ auto: false }, ctx.fiber), 'dsh-lantern: custom settings page')
   })
 }
 
@@ -265,9 +344,10 @@ class RouteError extends Error {
   constructor(code: string, message: string) { super(message); this.code = code }
 }
 
-function optionalString(payload: Record<string, unknown>, key: string): string | undefined {
-  const value = payload[key]
-  return typeof value === 'string' && value !== '' && value.length <= 200 ? value : undefined
+function callIdentity(payload: Record<string, unknown>): { sessionId: string; callId: string; key: string } {
+  const sessionId = stringField(payload, 'sessionId', 200)
+  const callId = stringField(payload, 'callId', 200)
+  return { sessionId, callId, key: waitKey(sessionId, callId) }
 }
 
 function stringField(payload: Record<string, unknown>, key: string, max: number): string {
@@ -315,7 +395,9 @@ function skillProvider() {
   const summary = (description: string) => ({
     name: SKILL_NAME,
     description,
-    invocation: { modelInvocable: true, userInvocable: true },
+    // Keep the advanced guide available through an explicit /lantern-visuals
+    // gesture, without DSH's automatic skill catalog requiring it first.
+    invocation: { modelInvocable: false, userInvocable: true },
     provider: 'dsh-lantern',
     source: 'bundled',
     resourceBase: { kind: 'directory', path: fileURLToPath(SKILL_DIR) },

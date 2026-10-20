@@ -27,7 +27,17 @@ test('run, badges and the permission line are real sentences in ja, en and zh-CN
       assert.equal(text.waiting, waiting)
       assert.match(text.leave, new RegExp(leave))
       assert.equal(text.paused.includes('.'), lang === 'en')
+      for (const [key, value] of Object.entries(text)) {
+        assert.notEqual(value, key, key)
+        assert.notEqual(value.trim(), '')
+        // ja and zh must not leave the identifier in the sentence. English may use the same word.
+        if (lang !== 'en') assert.equal(value.includes(key), false, key)
+      }
     }
+    const settings = copy('ja')
+    assert.equal(settings.automaticVisuals, '会話内ビジュアルを自動で使う')
+    assert.equal(copy('zh-CN').automaticVisuals, '自动使用对话可视化')
+    assert.equal(copy('en-US').run, 'Run')
   } finally {
     globalThis.document = previous
   }

@@ -4,9 +4,9 @@ Available in every visual, including workspace pages shown with `path`.
 
 | Member | Meaning |
 |---|---|
-| `lantern.submit(value)` | Answer the visual. With `await_response: true` the JSON value (64 KB max) becomes your tool result. Otherwise it reaches you as the user's next message. Returns a Promise. |
+| `lantern.submit(value)` | Answer the visual. While `await_response: true` is waiting, the JSON value (65,536 serialized characters max) becomes your tool result. Without a wait, including after a timeout, it becomes the user's next message. Returns a Promise. |
 | `lantern.send(text)` | Post `text` into the chat as the user's message (for follow-up buttons like "Explain step 2"). |
-| `lantern.setState(value)` / `lantern.getState()` | Save and restore UI state (slider positions, current step) across reloads. JSON only. |
+| `lantern.setState(value)` / `lantern.getState()` | Save and restore UI state (slider positions, current step) in the same browser, on a best-effort basis. JSON only, up to 65,536 serialized characters. Provide defaults if no state was saved. |
 | `lantern.expand()` | Open this visual in the right sidebar. |
 | `lantern.openLink(url)` | Open an http(s) link in a new tab (after a click). Plain `<a href>` does the same. |
 | `lantern.state` | `idle`, `waiting`, `answered`, `dismissed`, `timeout` or `closed`. Also on `<html data-lt-state>`. After `timeout` the user can still answer; it reaches you as a message. |
@@ -17,7 +17,11 @@ Available in every visual, including workspace pages shown with `path`.
 | `lantern.mode` | `inline` or `panel`. Also on `<html data-lt-mode>`. |
 | `lantern.on(name, fn)` | Events: `state`, `theme`, `select`, `step`, `visibility` (detail: `true`/`false`). Returns an unsubscribe function. |
 
-Answers, sends, links and `expand` are accepted only right after the user clicks or types inside the visual; calls without a user action are refused. One answer per visual; `send` is limited to a few messages per visual.
+Call `submit`, `send`, `openLink` and `expand` from deliberate user controls; they require recent browser user activation inside this visual. Handle a rejected submission with an inline error. The card validates messages through a private document channel and limits follow-ups. The host settles an awaited answer once; an answered, dismissed or closed wait rejects further submissions. Non-awaited and post-timeout submissions become new user messages, without an exactly-once guarantee across browsers.
+
+Saved UI state uses browser `localStorage` for up to 300 visuals. It is not synced across devices and can be lost when browser data is cleared or storage is full. If storage is unavailable, the current page holds the state in memory only. Completed awaited answers are also restored from the conversation's recorded tool result.
+
+Workspace pages do not inherit the bridge when they navigate their own iframe or call `location.reload()`. Close the sidebar tab and reopen it from the chat, or reload DSH, to establish a new connection and restore available state. Update a visual locally instead of navigating or reloading it to apply a theme or filter.
 
 ## What the card does for you
 
