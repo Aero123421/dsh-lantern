@@ -163,6 +163,8 @@ export function partialMarkup(html: string): string {
     .replace(/<\/?(?:iframe|object|embed|frame|frameset|meta|base|link|portal)\b[^>]*>/gi, '')
     .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/(href|src|action|formaction|xlink:href)\s*=\s*("\s*javascript:[^"]*"|'\s*javascript:[^']*'|javascript:[^\s>]+)/gi, '$1=""')
+    .replace(/\s(?:src|poster|href)\s*=\s*("\s*(?:https?:|\/\/)[^"]*"|'\s*(?:https?:|\/\/)[^']*'|(?:https?:|\/\/)[^\s>]+)/gi, '')
+    .replace(/url\(\s*(['"]?)\s*(?:https?:|\/\/)[^)'"]*\1\s*\)/gi, 'url("")')
   const bodyOpen = /<body[^>]*>/i.exec(text)
   if (bodyOpen) {
     const styles = (text.slice(0, bodyOpen.index).match(/<style[\s\S]*?<\/style>/gi) ?? []).join('')

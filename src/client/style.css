@@ -1,5 +1,5 @@
 /* Card chrome inside DSH Web. Uses DSH's own tokens so it follows every theme. */
-.lantern-tool { margin: 6px 0; }
+.lantern-tool { margin: 6px 0; max-width: 100%; }
 .lantern-tail { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 10px; }
 
 .lantern-card {
@@ -7,10 +7,11 @@
   border-radius: var(--dsw-radius-md, 12px);
   background: var(--dsw-alias-bg-base, transparent);
   overflow: hidden;
+  max-width: 100%;
 }
 .lantern-head {
-  display: flex; align-items: center; gap: 8px;
-  min-height: 36px; padding: 0 6px 0 12px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  height: auto; min-height: 36px; padding: 4px 6px 4px 12px;
   border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.2));
   color: var(--dsw-alias-label-secondary, inherit);
   font-size: 13px;
@@ -74,6 +75,7 @@
 
 .lantern-row {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 32px; padding: 4px 6px 4px 12px;
+  max-width: 100%;
   border: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.25));
   border-radius: var(--dsw-radius-md, 12px);
   color: var(--dsw-alias-label-secondary, inherit); font-size: 13px;
@@ -120,4 +122,10 @@
 .lantern-switch:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4d6bfe); outline-offset: 4px; }
 .lantern-switch:disabled { opacity: .5; cursor: default; }
 @media (max-width: 480px) { .lantern-settings-row { gap: 12px; } .lantern-switch { min-width: 46px; } }
+@media (max-width: 390px) {
+  .lantern-head, .lantern-row, .lantern-panel-bar { max-width: 100%; }
+  .lantern-title, .lantern-row-title { white-space: normal; max-width: 100%; overflow-wrap: anywhere; }
+  .lantern-action { max-width: 100%; }
+  .lantern-paused { padding: 12px; }
+}
 @media (prefers-reduced-motion: reduce) { .lantern-switch > span { transition: none; } }

@@ -8,6 +8,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { buildDocument, partialMarkup } from '../frame/document.ts'
 import { MESSAGE_TAG, RESTORE_PREFIX, type FrameBoot, type VisualState } from '../frame/runtime.ts'
+import { acceptConnect, childOrigin, readFrameMessage } from './channel.ts'
 import { copy, uiLang } from './i18n.ts'
 import { readLocal, writeLocal } from './store.ts'
 import { onTheme, theme } from './theme.ts'
@@ -131,15 +132,17 @@ export function Frame(props: FrameProps) {
     loads.current = 0
     dead.current = false
     const onMessage = (event: MessageEvent) => {
-      const data = event.data as Record<string, unknown> | null
-      if (!data || data[MESSAGE_TAG] !== 1 || typeof data.type !== 'string') return
+      if (!childOrigin(event.origin)) return
+      const kind = readFrameMessage(event.data)
+      if (!kind) return
+      const data = event.data as Record<string, unknown>
       // An html visual that navigated away is no longer the document we built.
       if (dead.current) return
       const p = latest.current
       const reply = (id: unknown, ok: boolean, error?: string) => {
         if (typeof id === 'number') post({ type: 'reply', id, ok, ...error ? { error } : {} })
       }
-      switch (data.type) {
+      switch (kind.type) {
         case 'ready': {
           ready.current = true
           const current = theme()
@@ -212,12 +215,11 @@ export function Frame(props: FrameProps) {
       }
     }
     const connect = (event: MessageEvent) => {
-      if (dead.current || event.source !== frame.current?.contentWindow || connection.current !== undefined) return
-      const data = event.data as Record<string, unknown> | null
-      if (!data || data[MESSAGE_TAG] !== 1 || data.type !== 'connect' || data.bridge !== bridge || event.ports.length !== 1) return
+      if (dead.current || connection.current !== undefined) return
+      if (!acceptConnect(event, { source: frame.current?.contentWindow, bridge })) return
       const port = event.ports[0]!
       connection.current = port
-      port.onmessage = event => { if (connection.current === port) onMessage(event) }
+      port.onmessage = message => { if (connection.current === port) onMessage(message) }
       port.start()
     }
     window.addEventListener('message', connect)

@@ -12,6 +12,14 @@ Folder pages do not add a second CSP `<meta>`. The HTTP header names the token p
 
 `workingDirectory.ensure` failures are no longer replaced with the session header cwd. `execCwd` throws, and `path` rendering fails closed.
 
+The iframe's History API stays in the folder. `pushState` and `replaceState` ignore a URL outside that folder. `back`, `forward`, and `go` do nothing, so stepping backward does not load another document or run its scripts. Those methods belong to the iframe and do not move the parent page.
+
+A card that is still waiting for Run drops `http`, `https`, and protocol-relative `src`, `href`, `poster`, and CSS `url()` values from the markup before the iframe is built. The content security policy still refuses those requests.
+
+The parent accepts a MessagePort only from that card's frame, origin `"null"`, a single port, and the matching bridge. Later messages must use a known type. A card cannot drive a host action or address another card on this port. `submit`, `send`, `expand`, and `open-link` still require a user action.
+
+The system prompt section is registered once per host. Its text is the fixed guidance string, or empty when automatic visuals are off or `show_visual` is not registered. DSH removes the section when the plugin is uninstalled.
+
 ### Known issue
 
 Path results from before 0.2.0 that stored only a relative path have no saved source. They are no-source and cannot be opened.

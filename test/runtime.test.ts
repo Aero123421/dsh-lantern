@@ -45,9 +45,19 @@ function runtime(options: { name?: string; boot?: Partial<FrameBoot>; preDisable
     port: '', pathname: '/lantern/files/tok/page.html', search: '', hash: '',
     assign() {}, replace() {},
   }
+  const historyCalls: unknown[][] = []
+  class History {
+    pushState(_data: unknown, _unused: string, url?: string) { historyCalls.push(['push', url]) }
+    replaceState(_data: unknown, _unused: string, url?: string) { historyCalls.push(['replace', url]) }
+    back() { historyCalls.push(['back']) }
+    forward() { historyCalls.push(['forward']) }
+    go(delta?: number) { historyCalls.push(['go', delta]) }
+  }
+  const history = new History()
   const window = {
     name: options.name ?? '',
     innerHeight: 120, innerWidth: 500,
+    history,
     addEventListener: (type: string, handler: Handler) => { windowListeners.set(type, [...windowListeners.get(type) ?? [], handler]) },
     removeEventListener: () => {}, dispatchEvent: () => {},
   }
@@ -59,7 +69,7 @@ function runtime(options: { name?: string; boot?: Partial<FrameBoot>; preDisable
     addEventListener: (type: string, handler: Handler) => { listeners.set(type, [...listeners.get(type) ?? [], handler]) },
   }
   const context = vm.createContext({
-    window, document, parent, location, URL, navigator: { language: 'en', userActivation: new class { get isActive() { return options.active ?? true } } },
+    window, document, parent, location, history, History, URL, navigator: { language: 'en', userActivation: new class { get isActive() { return options.active ?? true } } },
     requestAnimationFrame: () => {}, setTimeout,
     CustomEvent: class { constructor(_type: string, _options: unknown) {} },
     MessageEvent: ChannelMessage,
@@ -77,7 +87,7 @@ function runtime(options: { name?: string; boot?: Partial<FrameBoot>; preDisable
     readonly state: string; readonly response: unknown; getState(): unknown; setState(value: unknown): void; submit(value: unknown): Promise<boolean>; send(text: string): Promise<boolean>
   } }).lantern
   return {
-    window, lantern, choices, posts, connections, bootNode,
+    window, lantern, choices, posts, connections, bootNode, historyCalls,
     evaluate: (source: string) => vm.runInContext(source, context),
     init: () => { for (const handler of listeners.get('DOMContentLoaded') ?? []) handler({}) },
     click: (index: number) => { for (const handler of listeners.get('click') ?? []) handler({ target: choices[index], preventDefault() {} }) },
@@ -95,6 +105,20 @@ test('workspace state is available synchronously before app scripts and its boot
   assert.equal(page.connections.length, 1)
   assert.equal(page.connections[0]!.bridge, 'parent-nonce')
   assert.equal(page.bootNode.textContent, '')
+})
+
+test('history stays inside the folder and does not walk back into another document', () => {
+  const page = runtime()
+  page.evaluate(`
+    history.pushState(null, '', 'https://evil.example/out')
+    history.replaceState(null, '', '../secret.html')
+    history.back()
+    history.forward()
+    history.go(-1)
+    history.pushState(null, '', 'other.html')
+    history.replaceState(null, '', '')
+  `)
+  assert.deepEqual(page.historyCalls, [['push', 'other.html'], ['replace', '']])
 })
 
 test('public action methods reject a call without native activation inside the child', async () => {

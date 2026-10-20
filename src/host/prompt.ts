@@ -40,8 +40,12 @@ export interface PromptHost {
   }
 }
 
-/** Register one scope-aware section. DSH owns its disposal and logged prompt updates. */
+const registered = new WeakSet<object>()
+
+/** Register one scope-aware section. A second call on the same host is ignored. DSH disposes the section on uninstall. */
 export function registerPrompt(ctx: PromptHost, config: Config): void {
+  if (registered.has(ctx)) return
+  registered.add(ctx)
   ctx.systemPrompt.section({
     name: 'ui:lantern-interactive',
     order: 10110,

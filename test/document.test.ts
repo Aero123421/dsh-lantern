@@ -34,6 +34,7 @@ test('inline scripts are caged and meta refresh is removed', () => {
   const html = cageScripts('<meta http-equiv="refresh" content="0;url=https://e.x"><script>location.href="https://e.x"</script><script type="module">import x from "./a.js"\nlocation.href=1</script><script type="application/json">{"a":1}</script>')
   assert.equal(/http-equiv\s*=\s*"refresh"/i.test(html), false)
   assert.match(html, /const location=__ltLoc/)
+  assert.match(html, /parent=window/)
   assert.match(html, /import x from/)
   assert.match(html, /<script type="application\/json">\{"a":1\}<\/script>/)
   const bare = cageScripts('<script type="module">await fetch("./data.json")</script>')
@@ -101,7 +102,18 @@ test('html visuals refuse external images, scripts and CDNs', () => {
   assert.equal(policy.get('navigate-to'), "'none'")
   for (const directive of ['frame-src', 'object-src', 'worker-src', 'form-action', 'base-uri']) assert.equal(policy.get(directive), "'none'")
   assert.equal(policy.get('script-src')!.includes('https:'), false)
-  assert.equal(policy.get('img-src')!.includes('https:'), false)
+  assert.equal(visualCsp().includes('/lantern/files'), false)
+})
+
+test('paused markup drops external subresources the CSP would also refuse', () => {
+  const paused = partialMarkup('<img src="https://evil.example/a.png"><img src="data:image/gif;base64,xx"><link rel="stylesheet" href="https://evil.example/a.css"><link rel="prefetch" href="https://evil.example/p"><script src="https://evil.example/a.js"></script><style>b{background:url(https://evil.example/b.png)}</style><p>x</p>')
+  assert.equal(paused.includes('evil.example'), false)
+  assert.match(paused, /data:image/)
+  assert.equal(paused.includes('<script'), false)
+  assert.equal(paused.includes('<link'), false)
+  const html = buildDocument(paused, { ...boot, streaming: false }, '')
+  assert.match(html, /^<!doctype html><html[^>]*><head><meta http-equiv="Content-Security-Policy"/)
+  assert.ok(html.indexOf('id="lantern-boot"') < html.indexOf('<p>x</p>'))
 })
 
 test('the streaming preview shows complete tags only and never scripts', () => {

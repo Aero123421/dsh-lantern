@@ -160,6 +160,28 @@ export function frameRuntime(): void {
       })
     }
   } catch { /* Navigation API missing */ }
+  // The iframe's own history must not leave its folder or walk back into a
+  // document that would run scripts again. These methods are the iframe's,
+  // so they cannot reach the parent page's history either.
+  try {
+    const proto = typeof History === 'function' ? History.prototype : undefined
+    if (proto) {
+      const push = proto.pushState
+      const replace = proto.replaceState
+      const folderUrl = (url: unknown) => url === undefined || url === null || url === '' || allowedTarget(String(url)) !== undefined
+      proto.pushState = function (data: unknown, unused: string, url?: string | URL | null) {
+        if (!folderUrl(url)) return
+        return push.call(this, data, unused, url)
+      }
+      proto.replaceState = function (data: unknown, unused: string, url?: string | URL | null) {
+        if (!folderUrl(url)) return
+        return replace.call(this, data, unused, url)
+      }
+      proto.back = function () {}
+      proto.forward = function () {}
+      proto.go = function () {}
+    }
+  } catch { /* History missing */ }
   let bridge = boot.bridge
   let state = boot.state || 'idle'
   let response = boot.response
