@@ -20,6 +20,8 @@ The parent accepts a MessagePort only from that card's frame, origin `"null"`, a
 
 The system prompt section is registered once per host. Its text is the fixed guidance string, or empty when automatic visuals are off or `show_visual` is not registered. DSH removes the section when the plugin is uninstalled.
 
+Pushing a `v*` tag creates a draft GitHub Release (`gh release create --draft`) and attaches the tarball and `SHA256SUMS`. The workflow does not publish that Release. If a draft for the same tag already exists, the workflow uploads the assets and leaves the release notes unchanged. A person publishes the Release.
+
 ### Known issue
 
 Path results from before 0.2.0 that stored only a relative path have no saved source. They are no-source and cannot be opened.

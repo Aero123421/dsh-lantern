@@ -54,7 +54,7 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 # その後 `dsh web` を再起動
 ```
 
-必要なのは Web プロファイルと DSH `>=0.2.1-rc.2 <0.3.0-0` です。バージョンタグを push すると、GitHub の Release に `dsh-lantern-<version>.tgz` と `SHA256SUMS` が付きます（タグを push するまでは公開されません）。チェックサムを確かめてからアーカイブを入れます。
+必要なのは Web プロファイルと DSH `>=0.2.1-rc.2 <0.3.0-0` です。バージョンタグを push すると、GitHub の Release を DRAFT で作り、`dsh-lantern-<version>.tgz` と `SHA256SUMS` を添付します。ワークフローは公開しません。同じタグの DRAFT が既にあるときは、本文はそのままに資産だけ添付します。公開は人が行います。チェックサムを確かめてからアーカイブを入れます。
 
 ```sh
 sha256sum -c SHA256SUMS

@@ -54,7 +54,7 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 # then restart `dsh web`
 ```
 
-This needs the Web profile and DSH `>=0.2.1-rc.2 <0.3.0-0`. A version tag publishes `dsh-lantern-<version>.tgz` and `SHA256SUMS` on the GitHub release (the archive is not published until that tag is pushed). Check the checksum, then install the archive:
+This needs the Web profile and DSH `>=0.2.1-rc.2 <0.3.0-0`. Pushing a version tag creates a draft GitHub Release and attaches `dsh-lantern-<version>.tgz` and `SHA256SUMS`. The workflow does not publish the Release. If a draft for that tag already exists, it attaches the assets and leaves the draft notes unchanged. A person publishes the Release. Check the checksum, then install the archive:
 
 ```sh
 sha256sum -c SHA256SUMS

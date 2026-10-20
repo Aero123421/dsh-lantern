@@ -54,7 +54,7 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 # 然后重启 `dsh web`
 ```
 
-需要 Web 配置和 DSH `>=0.2.1-rc.2 <0.3.0-0`。推送版本标签后，GitHub Release 会附上 `dsh-lantern-<version>.tgz` 和 `SHA256SUMS`（在推送标签之前不会发布）。先核对校验和，再安装压缩包：
+需要 Web 配置和 DSH `>=0.2.1-rc.2 <0.3.0-0`。推送版本标签后，会以草稿创建 GitHub Release，并附上 `dsh-lantern-<version>.tgz` 和 `SHA256SUMS`。工作流不会公开发布。若该标签已有草稿，则只附加文件，不改写正文。发布由人来完成。先核对校验和，再安装压缩包：
 
 ```sh
 sha256sum -c SHA256SUMS
