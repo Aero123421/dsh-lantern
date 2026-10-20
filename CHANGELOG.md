@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.2.3
+
+0.2.2 was not published. It stayed a draft GitHub Release and was withdrawn. 0.2.3 includes every change from that unpublished 0.2.2. The notes in this section are the complete set of changes since 0.2.1.
+
+Conversation visuals from PR #1, ported onto 0.2.1. Automatic visuals are on by default (`automaticVisuals`). The system prompt section `ui:lantern-interactive` (order 10110) adds a short English guidance string when that setting is on and `show_visual` is registered. The bundled skill stays user-invocable only (`modelInvocable: false`); load it with `/lantern-visuals`.
+
+HTML card policy is unchanged from 0.2.1. `img-src` does not allow `https:`, so an external image in a card does not load. Script and style requests to a CDN are refused.
+
+Folder pages do not add a second CSP `<meta>`. The HTTP header names the token prefix `/lantern/files/<token>/`. A `'self'` meta would not match relative CSS, image and module requests from an opaque origin, and both policies would have to pass.
+
+`lantern.file` serves a recorded folder only while that folder is still inside the session's current working directory. A saved root outside that directory, including one written into an imported session, is refused.
+
+A file grant stores the folder's real path. Each request realpaths that folder and refuses it unless the path still matches, then realpaths the file and allows it only when `path.relative` from the saved path stays inside, so a folder swapped for an outside symlink or a symlink file that points outside is refused.
+
+`workingDirectory.ensure` failures are no longer replaced with the session header cwd. `execCwd` throws, and `path` rendering fails closed.
+
+The iframe's History API stays in the folder. `pushState` and `replaceState` ignore a URL outside that folder. `back`, `forward`, and `go` do nothing, so stepping backward does not load another document or run its scripts. Those methods belong to the iframe and do not move the parent page.
+
+A card that is still waiting for Run drops `http`, `https`, and protocol-relative `src`, `href`, `poster`, and CSS `url()` values from the markup before the iframe is built. The content security policy still refuses those requests.
+
+The parent accepts a MessagePort only from that card's frame, origin `"null"`, a single port, and the matching bridge. Later messages must use a known type. A card cannot drive a host action or address another card on this port. `submit`, `send`, `expand`, and `open-link` still require a user action.
+
+The system prompt section is registered once per host. Its text is the fixed guidance string, or empty when automatic visuals are off or `show_visual` is not registered. DSH removes the section when the plugin is uninstalled.
+
+Pushing a `v*` tag creates a draft GitHub Release (`gh release create --draft`) and attaches the tarball and `SHA256SUMS`. The workflow does not publish that Release. If a draft for the same tag already exists, the workflow uploads the assets and leaves the release notes unchanged. A person publishes the Release.
+
+### Known issue
+
+Folder (path) cards created before 0.2.3 (that is, with 0.2.1 or earlier) stored only a relative path and have no saved source. After updating they show no-source and cannot be opened. To get a working card, ask the agent to show the file again; this works when the file is inside the session's current working folder and on the host's local filesystem. Interaction state from the old card does not carry over to the new card. Nothing is deleted.
+
+pnpm 12 でプラグインを追加・更新すると、プロファイルの lockfile に公開から24時間たっていない依存が含まれている場合、ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION で失敗することがあります。このとき pnpm がプロファイルの node_modules を空にし、DSH も元に戻さないため、同じプロファイルのすべてのプラグインが読み込まれなくなります。プラグインの追加・更新は pnpm 10 で行ってください。壊れたときは pnpm 10 で `dsh plugin --profile web install` を実行すると戻ります。pnpm 11 では ERR_PNPM_UNEXPECTED_STORE で止まりますが、node_modules は壊れません。
+
+### Residual risks (unchanged from 0.2.1)
+
+Running scripts lets a card send the contents of the allowed folder out by navigating itself. This applies only to workspace (`/lantern/files/<token>/`) pages after the user presses Run. Classic scripts that rewrite `location` are stopped; module scripts are outside that wrapper and can navigate with the real `location`. Chromium does not support CSP `navigate-to`.
+
+`/lantern/files/<token>/` pages keep scripts stopped until Run is pressed. Inline cards still run automatically on first display, and cannot read an allowed folder or `/lantern/files/` contents.
+
+A tight loop on first display can freeze that tab only; close the tab and reopen the conversation.
+
 ## 0.2.2
 
 Conversation visuals from PR #1, ported onto 0.2.1 and kept at 0.2.2. Automatic visuals are on by default (`automaticVisuals`). The system prompt section `ui:lantern-interactive` (order 10110) adds a short English guidance string when that setting is on and `show_visual` is registered. The bundled skill stays user-invocable only (`modelInvocable: false`); load it with `/lantern-visuals`.
