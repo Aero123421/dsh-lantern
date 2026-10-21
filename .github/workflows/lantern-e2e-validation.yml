@@ -1,0 +1,38 @@
+name: lantern-e2e-validation
+on:
+  push:
+    branches: [feat/seamless-conversation-ux]
+    paths:
+      - test/browser/**
+      - .github/workflows/lantern-e2e-validation.yml
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci && npm run check
+      - name: Install isolated DSH and Chromium
+        run: |
+          npm install --prefix "$RUNNER_TEMP/lantern-runtime" --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.2 playwright@1.55.1
+          "$RUNNER_TEMP/lantern-runtime/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Real DSH browser verification
+        env:
+          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-runtime
+          LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-evidence
+        run: node test/browser/run.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lantern-dsh-browser-evidence
+          path: ${{ runner.temp }}/lantern-evidence
+          retention-days: 7
+          if-no-files-found: warn
