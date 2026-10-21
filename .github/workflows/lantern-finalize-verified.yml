@@ -9,75 +9,124 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Apply verified theme synchronization and precise browser assertions
+      - uses: actions/download-artifact@v4
+        with:
+          name: lantern-final-verification
+          run-id: 39660187182
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/lantern-passed
+      - name: Keep verified screenshots, report, and accurate documentation
         shell: python
+        env:
+          EVIDENCE: ${{ runner.temp }}/lantern-passed
         run: |
+          import hashlib, json, os, shutil
           from pathlib import Path
-          def replace(path, before, after):
+          evidence = Path(os.environ['EVIDENCE'])
+          assert (evidence / 'commit.txt').read_text().strip() == '464bba8cf67e6fb7c63008934f01cd378ad542a3'
+          assert hashlib.sha256(Path('lib/client.js').read_bytes()).hexdigest() == '83bb39def347665be37fb3f1e9b768da1cdd70181f96e8e036dd8c8d7be0db65'
+          assert hashlib.sha256(Path('lib/index.js').read_bytes()).hexdigest() == '318c56d2e393714c47aeb484bd21363754e19b6570774d4614f5a410c754da9c'
+          integration = json.loads((evidence / 'dsh/integration-checks.json').read_text())
+          runtime = json.loads((evidence / 'runtime/runtime-checks.json').read_text())
+          assert len(integration['checks']) == 22 and len(runtime['checks']) == 24
+          assert runtime['richRendering']['webgl2'] == 'rendered'
+          target = Path('docs/verification/seamless-chat-ux')
+          target.mkdir(parents=True, exist_ok=True)
+          for name in ['dsh-dark.png', 'dsh-form-input.png', 'dsh-mobile.png', 'dsh-settings-off.png']:
+              shutil.copyfile(evidence / 'dsh' / name, target / name)
+          (target / 'results.json').write_text(json.dumps({'sourceCommit': '464bba8cf67e6fb7c63008934f01cd378ad542a3', 'run': 'https://github.com/Aero123421/dsh-lantern/actions/runs/39660187182', 'unitTests': 89, 'integration': integration, 'runtime': runtime}, ensure_ascii=False, indent=2) + '\n')
+          (target / 'README.md').write_text('''# シームレス会話UIの検証
+
+          ## 実行対象
+
+          - 公式 `@deepseek-ai/dsh@0.2.1-rc.2`、Node 22.23.3、Playwright 1.55.1 / Chromium。
+          - 検証した製品コード: `464bba8cf67e6fb7c63008934f01cd378ad542a3`。後続の整理コミットは説明・証拠・検証用設定の削除のみです。
+          - [実行結果](https://github.com/Aero123421/dsh-lantern/actions/runs/39660187182) / [機械可読な検証記録](results.json)。
+          - モック画面ではなく、公式DSHを起動してプラグインを読み込んだ実画面です。モデルだけは決定的なテストアダプターです。ユーザーのAPIキー、アカウント、会話データは使用していません。
+
+          ## 結果
+
+          | 検証 | 結果 |
+          |---|---|
+          | 型チェック・既存/回帰テスト・ビルド | 89テスト成功 |
+          | 実iframeランタイムのChromium検証 | 24項目成功 |
+          | 公式DSHとのブラウザ結合検証 | 22項目成功 |
+          | WebGL2 | sandbox内で描画と画素読み戻し成功 |
+
+          会話ノードの位置、末尾の重複なし、枠なし、ライト/ダーク追従、390px表示、履歴再表示時の停止、明示実行後の操作状態復元、サイドバーへの状態引継ぎ、フォーム回答で待機中モデルが再開する経路、確定回答の再表示、2つのガイドの独立切替、無効ガイドのカタログ除去、OFF時も描画ツールが残ることを確認しました。
+
+          ランタイムでは320px表示、必須入力、改行、IME変換イベント、連打防止、通信失敗と再送、入力保持、特殊なフィールド名、パスワード復元の除外、親DOMへのアクセス遮断、独自CSS/SVG、通常コンテンツと100vhページの高さ処理を検証しています。
+
+          ## 実画面
+
+          ### DSHダークテーマ・会話内の可視化
+          ![公式DSHでの枠なし可視化](dsh-dark.png)
+
+          ### 選択肢と自由入力
+          ![日本語の自由入力と選択肢](dsh-form-input.png)
+
+          ### モバイル幅
+          <img src="dsh-mobile.png" width="390" alt="390px幅でのDSH表示">
+
+          ### 2つのガイドをOFF
+          ![独立したガイド設定](dsh-settings-off.png)
+
+          ## 分かった不具合と修正
+
+          通常の縦積みUIを100vhアプリと誤判定し、iframeの高さを固定して見出しが切れる問題を再現・修正しました。縦flex内でスライダーが不自然に高くなる問題も修正しました。また、iframe要素と内部文書のcolor-schemeが食い違うと透明指定でも暗い背景が描かれるため、実際のテーマ変更と同期しています。
+
+          ## 検証の境界
+
+          - 配置は「文章のステップ → UI → 次の文章のステップ」です。1つのMarkdown本文の任意段落へのアンカー挿入ではありません。先行文はDSH標準の折りたたみ規則に従います。
+          - 実LLMでの自発的なUI利用率、生成品質、トークン節約率は測定していません。テストアダプターは意図的にshow_visualを呼びます。
+          - IMEはcompositionイベントの自動検証です。OSネイティブ候補ウィンドウの手操作検証ではありません。
+          - WebGL2はヘッドレス環境の描画確認で、物理GPU性能や全3Dライブラリの互換性を保証するものではありません。
+          - Chromiumの既知の `navigate-to` 未対応警告と、履歴停止中のscript実行拒否メッセージは生ログに残しています。これら以外のブラウザエラーは検出されませんでした。隔離や送信条件を緩めてはいません。
+          - 依存取得中にnpmの外部パッケージ配布が404になった試行があり、成功済みの隔離DSH依存スナップショットを再利用して最終検証しました。
+
+          一時的な取得・書込み用Actionsワークフローは最終差分から削除しました。再実行用スクリプトは `test/browser/` に残しています。
+          '''.replace('\n          ', '\n'))
+          fixes = {
+              'README.md': [
+                  ('the turn ends and the card moves under the final answer', 'the visual stays at its call position after the turn ends'),
+                  ('| `title` | Card and tab title (required). |', '| `title` | Accessible visual name and sidebar-tab title (required). |'),
+              ],
+              'README.ja.md': [
+                  ('ターンが終わると、カードは最終回答の下へ', 'ターンが終わっても、UIは呼び出した位置に残る'),
+                  ('| `title` | カードとタブの見出し（必須） |', '| `title` | UIのアクセシブルな名前とサイドバーのタブ名（必須） |'),
+                  ('    automaticVisuals: true     # 短いシステムガイダンス。Plugins から即時変更可', '    automaticVisuals: true     # 会話UXの短い指示と軽量ガイド\n    advancedVisuals: true      # 明示利用する高度ガイド'),
+              ],
+              'README.zh.md': [
+                  ('卡片显示在回复下方，回合折叠后依然保留。', '可视化显示在工具调用的位置，过程折叠后依然保留。'),
+                  ('回合结束后，卡片移到最终回复下方', '回合结束后，可视化仍留在调用位置'),
+                  ('| `title` | 卡片和标签页标题（必填） |', '| `title` | 可视化的无障碍名称和侧栏标签标题（必填） |'),
+                  ('    automaticVisuals: true     # 可选的系统指导；可在 Plugins 中实时更改', '    automaticVisuals: true     # 对话UX简短指导和轻量指南\n    advancedVisuals: true      # 显式调用的高级指南'),
+              ],
+          }
+          for path, replacements in fixes.items():
               p = Path(path)
               text = p.read_text()
-              assert text.count(before) == 1, path + ': unexpected source'
-              p.write_text(text.replace(before, after))
-          p = 'src/client/Frame.tsx'
-          replace(p, "  const [height, setHeight] = useState", "  const [colorScheme, setColorScheme] = useState(() => theme().scheme)\n  const [height, setHeight] = useState")
-          replace(p, "  useEffect(() => onTheme(next => {\n", "  useEffect(() => onTheme(next => {\n    setColorScheme(next.scheme)\n")
-          replace(p, "  const style = mode === 'inline' ? { height: `${height}px` } : undefined", "  // Embedded and embedding used schemes must agree or Chromium paints an\n  // opaque default canvas even when both CSS backgrounds are transparent.\n  const style = { colorScheme, ...(mode === 'inline' ? { height: `${height}px` } : {}) }")
-          p = 'test/browser/scenarios.mjs'
-          replace(p, "visual().locator('[data-state=\"waiting\"]')", "visual().locator('.lantern-card[data-state=\"waiting\"]')")
-          replace(p, "    check('DSH dark theme propagates into the iframe', true)", "    check('DSH dark theme propagates into the iframe', true)\n    check('embedding frame and document use the same dark scheme', await visual().locator('iframe').evaluate(el => getComputedStyle(el).colorScheme) === 'dark')")
-          replace(p, '    const unexpected = errors.filter(message => !message.includes("Unrecognized Content-Security-Policy directive \'navigate-to\'."))', '''    // Chromium reports the inherited CSP directive and deliberately paused
-              // historical boot scripts; preserve these diagnostics in the report.
-              const expectedWarnings = [
-                "Unrecognized Content-Security-Policy directive 'navigate-to'.",
-                "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
-              ]
-              const unexpected = errors.filter(message => !expectedWarnings.includes(message))''')
-      - run: npm ci && npm run check
-      - name: Record source and built artifacts
+              for old, new in replacements:
+                  assert old in text, path + ': missing text'
+                  text = text.replace(old, new)
+              p.write_text(text)
+          for name in ['lantern-validation-bundle.yml', 'lantern-apply-verified.yml', 'lantern-finalize-verified.yml', 'lantern-e2e-validation.yml']:
+              Path('.github/workflows', name).unlink()
+          assert not Path('.lantern-verification').exists()
+      - run: npm ci && npm run check && git diff --exit-code -- src lib
+      - name: Publish clean review snapshot
         run: |
           test "$GITHUB_REF" = refs/heads/feat/seamless-conversation-ux
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src lib test
-          git commit -m 'fix: synchronize iframe color scheme for transparent dark conversations'
+          git add .github/workflows docs/verification README.md README.ja.md README.zh.md
+          git commit -m 'docs: preserve official DSH verification and remove temporary runner workflows'
           git push origin HEAD:feat/seamless-conversation-ux
-      - uses: actions/download-artifact@v4
-        with:
-          name: lantern-validation-runtime
-          run-id: 39648379680
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: ${{ runner.temp }}/lantern-runtime-bundle
-      - name: Restore fixed DSH dependencies and Chromium
-        run: |
-          tar -xzf "$RUNNER_TEMP/lantern-runtime-bundle/lantern-validation.tar.gz" -C "$RUNNER_TEMP" lantern-validation/runtime
-          "$RUNNER_TEMP/lantern-validation/runtime/node_modules/.bin/playwright" install --with-deps chromium
-      - name: Sandboxed runtime browser verification
-        env:
-          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-validation/runtime
-          LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-evidence/runtime
-        run: node --experimental-strip-types --no-warnings --import ./test/register.mjs test/browser/runtime.mjs
-      - name: Official DSH integration verification
-        env:
-          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-validation/runtime
-          LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-evidence/dsh
-        run: node test/browser/run.mjs
-      - name: Record verified source revision
-        if: always()
-        run: |
-          mkdir -p "$RUNNER_TEMP/lantern-evidence"
-          git rev-parse HEAD > "$RUNNER_TEMP/lantern-evidence/commit.txt"
-          git archive HEAD > "$RUNNER_TEMP/lantern-evidence/source.tar"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: lantern-final-verification
-          path: ${{ runner.temp }}/lantern-evidence
-          retention-days: 14
-          if-no-files-found: error
+          git rev-parse HEAD
