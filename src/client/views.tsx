@@ -97,7 +97,7 @@ export function ToolView(props: ToolViewProps) {
 
   // A dispatched native call already has a Chat node in this same assembly.
   // Do not briefly execute two frames before the ownership effect publishes.
-  if (shownInFlow || (phase === 'start' && parsed !== undefined)) return null
+  if (shownInFlow || (phase !== 'preparing' && argsRaw !== undefined && parsed !== undefined)) return null
   if (phase === 'result' && record.args === undefined && !record.error) {
     return <div className="lantern-row lantern-row-quiet" data-tool={TOOL_NAME}><span className="lantern-muted">{textOf(block.content)}</span></div>
   }

@@ -400,11 +400,25 @@ export function frameRuntime(): void {
   let seenViewport = -1
   let follows = 0
   let probing = false
+  let probeViewport = 0
+  let probeContent = 0
   let pinned = 0
   let started = false
   function contentHeight(): number {
     const rect = root.getBoundingClientRect()
-    return Math.ceil(Math.max(rect.height, document.body ? document.body.scrollHeight : 0))
+    const body = document.body
+    if (!body) return Math.ceil(rect.height)
+    // body.scrollHeight is at least the viewport height. Using it during the
+    // two-pixel probe falsely classifies ordinary flex stacks as 100vh pages,
+    // pins the frame and clips its heading after a control receives focus.
+    // A Range measures intrinsic content (including overflowing descendants)
+    // without that viewport floor.
+    const range = document.createRange()
+    range.selectNodeContents(body)
+    const content = range.getBoundingClientRect()
+    const bodyRect = body.getBoundingClientRect()
+    const padding = parseFloat(getComputedStyle(body).paddingBottom) || 0
+    return Math.ceil(Math.max(bodyRect.height, content.bottom - bodyRect.top + padding))
   }
   function measure() {
     queued = false
@@ -412,18 +426,25 @@ export function frameRuntime(): void {
     if (document.fullscreenElement) return
     const content = contentHeight()
     const viewport = window.innerHeight
-    if (inline && !pinned && seenViewport > 0 && viewport !== seenViewport) {
+    if (inline && !pinned && probing) {
+      // Height transitions pass through one-pixel intermediate viewports. Wait
+      // for the full probe before deciding whether the content follows it.
+      if (viewport < probeViewport + 3) return
+      const followed = Math.abs((content - probeContent) - (viewport - probeViewport)) <= 1
+      if (followed) pinned = Math.round(Math.min(540, Math.max(320, window.innerWidth * 0.62)))
+      probing = false
+      follows = 0
+    } else if (inline && !pinned && seenViewport > 0 && viewport !== seenViewport) {
       const followed = content >= viewport - 1 && Math.abs((content - seenHeight) - (viewport - seenViewport)) <= 1
       follows = followed ? follows + 1 : 0
-      if (followed && (probing || follows >= 3)) pinned = Math.round(Math.min(540, Math.max(320, window.innerWidth * 0.62)))
-      probing = false
+      if (follows >= 3) pinned = Math.round(Math.min(540, Math.max(320, window.innerWidth * 0.62)))
     }
     seenHeight = content
     seenViewport = viewport
     const height = pinned || content
     // Until the page has run its scripts, only grow: it is not its real height yet.
     if (!pinned && !started && height <= viewport) return
-    root.toggleAttribute('data-lt-overflow', boot.mode !== 'panel' && height > maxHeight)
+    root.toggleAttribute('data-lt-overflow', boot.mode !== 'panel' && content > Math.min(height, maxHeight) + 1)
     if (Math.abs(height - reported) < 2) return
     reported = height
     post({ type: 'resize', height })
@@ -431,7 +452,7 @@ export function frameRuntime(): void {
   function schedule() { if (!queued) { queued = true; requestAnimationFrame(measure) } }
   /**
    * Content exactly as tall as the frame may be sized by the frame itself
-   * (an element of 100vh). Nudge the card 2 px taller once: if the content
+   * (an element of 100vh). Nudge the card 4 px taller once: if the content
    * grows with it, `measure` pins the card; if not, the card shrinks back.
    */
   function probe() {
@@ -441,9 +462,11 @@ export function frameRuntime(): void {
     const sized = Array.from(document.body.children).some((el) => Math.abs((el as HTMLElement).offsetHeight - viewport) <= 1)
     if (!sized) return
     probing = true
-    reported = viewport + 2
+    probeViewport = viewport
+    probeContent = contentHeight()
+    reported = viewport + 4
     post({ type: 'resize', height: reported })
-    setTimeout(() => { probing = false }, 1000)
+    setTimeout(() => { if (probing) { probing = false; schedule() } }, 1000)
   }
   if (typeof ResizeObserver === 'function') new ResizeObserver(schedule).observe(root)
   window.addEventListener('resize', schedule)

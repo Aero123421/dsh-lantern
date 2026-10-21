@@ -1,5 +1,6 @@
 /** Actual DSH integration; deterministic model, isolated home, no user accounts. */
 import assert from 'node:assert/strict'
+import { scenarios } from './scenarios.mjs'
 import { spawn, execFileSync } from 'node:child_process'
 import { mkdtemp, mkdir, readFile, writeFile, copyFile, symlink, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -87,6 +88,7 @@ try {
   await capture('dsh-wave')
   await writeFile(join(output, 'checks.json'), JSON.stringify({ actualDSH: true, nativeNode: true, noTailCopy: true, localSlider: true, errors }, null, 2))
   console.log('Actual DSH native-node and local-slider checks passed')
+  await scenarios({ page, context, output, capture, errors })
 } catch (error) {
   await capture('dsh-failure').catch(() => {})
   const message = redact(error.stack || error)
