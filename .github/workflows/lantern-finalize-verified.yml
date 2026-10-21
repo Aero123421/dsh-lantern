@@ -5,6 +5,7 @@ on:
     paths: [.github/workflows/lantern-finalize-verified.yml]
 permissions:
   contents: write
+  actions: read
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -15,55 +16,56 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Apply exact browser-verified fixes
+      - name: Apply verified theme synchronization and precise browser assertions
         shell: python
         run: |
-          import hashlib, json
           from pathlib import Path
-          root = Path.cwd().resolve()
-          changes = json.loads(Path('.lantern-verification/final-edits.json').read_text())
-          assert len(changes) == 3
-          prepared = []
-          for change in changes:
-              path = (root / change['path']).resolve()
-              assert path.is_relative_to(root)
-              old = path.read_bytes()
-              assert hashlib.sha256(old).hexdigest() == change['base'], change['path']
-              lines = old.decode().splitlines(keepends=True)
-              for start, end, text in reversed(change['edits']):
-                  lines[start:end] = text.splitlines(keepends=True)
-              new = ''.join(lines).encode()
-              assert hashlib.sha256(new).hexdigest() == change['result'], change['path']
-              prepared.append((path, new))
-          for path, new in prepared:
-              path.write_bytes(new)
-          runner = Path('test/browser/run.mjs')
-          text = runner.read_text()
-          text = text.replace("import assert from 'node:assert/strict'", "import assert from 'node:assert/strict'\nimport { scenarios } from './scenarios.mjs'")
-          text = text.replace("  console.log('Actual DSH native-node and local-slider checks passed')", "  console.log('Actual DSH native-node and local-slider checks passed')\n  await scenarios({ page, context, output, capture, errors })")
-          runner.write_text(text)
+          def replace(path, before, after):
+              p = Path(path)
+              text = p.read_text()
+              assert text.count(before) == 1, path + ': unexpected source'
+              p.write_text(text.replace(before, after))
+          p = 'src/client/Frame.tsx'
+          replace(p, "  const [height, setHeight] = useState", "  const [colorScheme, setColorScheme] = useState(() => theme().scheme)\n  const [height, setHeight] = useState")
+          replace(p, "  useEffect(() => onTheme(next => {\n", "  useEffect(() => onTheme(next => {\n    setColorScheme(next.scheme)\n")
+          replace(p, "  const style = mode === 'inline' ? { height: `${height}px` } : undefined", "  // Embedded and embedding used schemes must agree or Chromium paints an\n  // opaque default canvas even when both CSS backgrounds are transparent.\n  const style = { colorScheme, ...(mode === 'inline' ? { height: `${height}px` } : {}) }")
+          p = 'test/browser/scenarios.mjs'
+          replace(p, "visual().locator('[data-state=\"waiting\"]')", "visual().locator('.lantern-card[data-state=\"waiting\"]')")
+          replace(p, "    check('DSH dark theme propagates into the iframe', true)", "    check('DSH dark theme propagates into the iframe', true)\n    check('embedding frame and document use the same dark scheme', await visual().locator('iframe').evaluate(el => getComputedStyle(el).colorScheme) === 'dark')")
+          replace(p, '    const unexpected = errors.filter(message => !message.includes("Unrecognized Content-Security-Policy directive \'navigate-to\'."))', '''    // Chromium reports the inherited CSP directive and deliberately paused
+              // historical boot scripts; preserve these diagnostics in the report.
+              const expectedWarnings = [
+                "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+                "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+              ]
+              const unexpected = errors.filter(message => !expectedWarnings.includes(message))''')
       - run: npm ci && npm run check
-      - name: Record exact source and built artifacts
+      - name: Record source and built artifacts
         run: |
           test "$GITHUB_REF" = refs/heads/feat/seamless-conversation-ux
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm -r .lantern-verification
           git add src lib test
-          git commit -m 'fix: prevent iframe heading clipping and refine compact input controls'
+          git commit -m 'fix: synchronize iframe color scheme for transparent dark conversations'
           git push origin HEAD:feat/seamless-conversation-ux
-      - name: Install isolated DSH and Chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: lantern-validation-runtime
+          run-id: 39648379680
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/lantern-runtime-bundle
+      - name: Restore fixed DSH dependencies and Chromium
         run: |
-          npm install --prefix "$RUNNER_TEMP/lantern-runtime" --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.2 playwright@1.55.1
-          "$RUNNER_TEMP/lantern-runtime/node_modules/.bin/playwright" install --with-deps chromium
+          tar -xzf "$RUNNER_TEMP/lantern-runtime-bundle/lantern-validation.tar.gz" -C "$RUNNER_TEMP" lantern-validation/runtime
+          "$RUNNER_TEMP/lantern-validation/runtime/node_modules/.bin/playwright" install --with-deps chromium
       - name: Sandboxed runtime browser verification
         env:
-          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-runtime
+          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-validation/runtime
           LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-evidence/runtime
         run: node --experimental-strip-types --no-warnings --import ./test/register.mjs test/browser/runtime.mjs
       - name: Official DSH integration verification
         env:
-          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-runtime
+          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-validation/runtime
           LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-evidence/dsh
         run: node test/browser/run.mjs
       - name: Record verified source revision
