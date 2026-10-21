@@ -7,6 +7,7 @@ on:
       - .github/workflows/lantern-e2e-validation.yml
 permissions:
   contents: read
+  actions: read
 jobs:
   browser:
     runs-on: ubuntu-latest
@@ -20,19 +21,35 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci && npm run check
-      - name: Install isolated DSH and Chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: lantern-validation-runtime
+          run-id: 39648379680
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/lantern-runtime-bundle
+      - name: Restore fixed DSH dependencies and install Chromium
         run: |
-          npm install --prefix "$RUNNER_TEMP/lantern-runtime" --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.2 playwright@1.55.1
-          "$RUNNER_TEMP/lantern-runtime/node_modules/.bin/playwright" install --with-deps chromium
+          tar -xzf "$RUNNER_TEMP/lantern-runtime-bundle/lantern-validation.tar.gz" -C "$RUNNER_TEMP" lantern-validation/runtime
+          "$RUNNER_TEMP/lantern-validation/runtime/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Actual sandbox runtime verification
+        env:
+          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-validation/runtime
+          LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-evidence/runtime
+        run: node --experimental-strip-types --no-warnings --import ./test/register.mjs test/browser/runtime.mjs
       - name: Real DSH browser verification
         env:
-          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-runtime
-          LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-evidence
+          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-validation/runtime
+          LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-evidence/dsh
         run: node test/browser/run.mjs
+      - name: Record source revision
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/lantern-evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/lantern-evidence/commit.txt"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: lantern-dsh-browser-evidence
           path: ${{ runner.temp }}/lantern-evidence
-          retention-days: 7
-          if-no-files-found: warn
+          retention-days: 14
+          if-no-files-found: error
