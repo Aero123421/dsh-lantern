@@ -56,13 +56,15 @@ try {
     await new Promise(r => setTimeout(r, 100))
   }
   assert.ok(url, `DSH did not start: ${redact(serverLog)}`)
+  if (process.env.GITHUB_ACTIONS) console.log('::add-mask::' + new URL(url).searchParams.get('token'))
   browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--enable-unsafe-swiftshader'] })
   const context = await browser.newContext({ viewport: { width: 1440, height: 1050 }, locale: 'en-US' })
   page = await context.newPage()
   page.setDefaultTimeout(15000)
   page.on('pageerror', error => errors.push(redact(error.stack || error.message)))
   page.on('console', message => { if (message.type() === 'error') errors.push(redact(message.text())) })
-  await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 })
+  // DSH keeps background requests open. Readiness is the actual UI, not network silence.
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
   const notice = page.getByRole('button', { name: 'Continue', exact: true })
   await notice.waitFor({ state: 'visible', timeout: 30000 })
   await notice.click()
@@ -87,7 +89,9 @@ try {
   console.log('Actual DSH native-node and local-slider checks passed')
 } catch (error) {
   await capture('dsh-failure').catch(() => {})
-  throw error
+  const message = redact(error.stack || error)
+  await writeFile(join(output, 'failure.txt'), message)
+  throw new Error(message)
 } finally {
   await writeFile(join(output, 'errors.json'), JSON.stringify(errors, null, 2))
   if (browser) await browser.close()
