@@ -24,7 +24,7 @@
 
 ## 有何不同
 
-- 🪟 **留在对话里。** 卡片显示在回复下方，回合折叠后依然保留。已记录的答案可随对话恢复，可视化也能在同一浏览器中保存和恢复输入值。
+- 🪟 **留在对话里。** 可视化显示在工具调用的位置，过程折叠后依然保留。已记录的答案可随对话恢复，可视化也能在同一浏览器中保存和恢复输入值。
 - 🔁 **答案能回流。** 设置 `await_response: true` 后智能体会等待，用户的选择、排序或输入都作为工具结果返回。“继续追问”按钮则以用户身份发送消息。
 - 🎨 **与 DSH 一致。** DSH 当前的主题（明/暗、颜色、字体）实时传入每个可视化，切换主题无需刷新。
 - 🧰 **组件库只是起点。** 设计变量和组件通过 CSS 层叠层预先加载，可视化可以覆盖字体、颜色和布局。Three.js、D3、KaTeX、Chart.js 需要嵌入页面。CDN 脚本会被拒绝。
@@ -170,14 +170,14 @@ sequenceDiagram
     V->>C: lantern.submit(value)（由用户操作触发）
     C->>H: POST /api/lantern.respond（已认证）
     H-->>A: 工具结果：“用户的回答是……”
-    Note over C: 回合结束后，卡片移到最终回复下方
+    Note over C: 回合结束后，可视化仍留在调用位置
 ```
 
 ## 面向模型：`show_visual` 工具
 
 | 参数 | |
 |---|---|
-| `title` | 卡片和标签页标题（必填） |
+| `title` | 可视化的无障碍名称和侧栏标签标题（必填） |
 | `html` | 片段或完整文档均可，组件库和主题已预先加载 |
 | `path` | 用工作区的 `.html` 文件代替 `html`，总是在侧边栏打开 |
 | `display` | `inline`（默认）或 `panel`（右侧边栏） |
@@ -246,7 +246,8 @@ sequenceDiagram
 ```yaml
 - id: dsh-lantern
   config:
-    automaticVisuals: true     # 可选的系统指导；可在 Plugins 中实时更改
+    automaticVisuals: true     # 对话UX简短指导和轻量指南
+    advancedVisuals: true      # 显式调用的高级指南
     answerTimeoutMinutes: 15   # 等待回答的时间（默认 15 分钟，最多 1440）
     maxHtmlChars: 400000       # html 参数上限（默认 400000 字符）
 ```

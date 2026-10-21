@@ -170,14 +170,14 @@ sequenceDiagram
     V->>C: lantern.submit(value)（ユーザーの操作から）
     C->>H: POST /api/lantern.respond（認証つき）
     H-->>A: ツール結果「ユーザーの回答は…」
-    Note over C: ターンが終わると、カードは最終回答の下へ
+    Note over C: ターンが終わっても、UIは呼び出した位置に残る
 ```
 
 ## モデル向け: `show_visual` ツール
 
 | 引数 | |
 |---|---|
-| `title` | カードとタブの見出し（必須） |
+| `title` | UIのアクセシブルな名前とサイドバーのタブ名（必須） |
 | `html` | 断片でも完全な文書でも可。キットとテーマは読み込み済み |
 | `path` | `html` の代わりにワークスペースの `.html`。常にサイドバーで開く |
 | `display` | `inline`（既定）か `panel`（右サイドバー） |
@@ -246,7 +246,8 @@ sequenceDiagram
 ```yaml
 - id: dsh-lantern
   config:
-    automaticVisuals: true     # 短いシステムガイダンス。Plugins から即時変更可
+    automaticVisuals: true     # 会話UXの短い指示と軽量ガイド
+    advancedVisuals: true      # 明示利用する高度ガイド
     answerTimeoutMinutes: 15   # 回答を待つ時間（既定 15 分、最大 1440）
     maxHtmlChars: 400000       # html 引数の上限（既定 400000 文字）
 ```

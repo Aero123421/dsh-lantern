@@ -170,14 +170,14 @@ sequenceDiagram
     V->>C: lantern.submit(value), from the user's control
     C->>H: POST /api/lantern.respond (authenticated)
     H-->>A: tool result: "The user answered …"
-    Note over C: the turn ends and the card moves under the final answer
+    Note over C: the visual stays at its call position after the turn ends
 ```
 
 ## For the model: the `show_visual` tool
 
 | Argument | |
 |---|---|
-| `title` | Card and tab title (required). |
+| `title` | Accessible visual name and sidebar-tab title (required). |
 | `html` | A fragment or a complete document. The kit and theme are preloaded. |
 | `path` | A workspace `.html` file instead of `html`. It always opens in the sidebar. |
 | `display` | `inline` (default) or `panel` (the right sidebar). |

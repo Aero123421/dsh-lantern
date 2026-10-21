@@ -1,0 +1,86 @@
+{
+  "sourceCommit": "464bba8cf67e6fb7c63008934f01cd378ad542a3",
+  "run": "https://github.com/Aero123421/dsh-lantern/actions/runs/39660187182",
+  "unitTests": 89,
+  "integration": {
+    "checks": [
+      "visual remains before the following answer, not at the turn tail",
+      "inline wrapper has no enclosing border",
+      "normal content fits without clipped heading or internal focus scroll",
+      "range stays compact inside a vertical field",
+      "DSH dark theme propagates into the iframe",
+      "embedding frame and document use the same dark scheme",
+      "390px layout has no horizontal overflow inside the visual",
+      "history reconstruction does not automatically execute scripts",
+      "explicit Run restores saved exploration state",
+      "sidebar expansion retains current slider state",
+      "awaited form is visible before the model continues",
+      "textarea newline does not submit the awaited form",
+      "form answer reaches the real DSH waiting tool and resumes the model",
+      "form settlement does not duplicate its frame",
+      "answered form reconstructs its text and selected option from DSH history",
+      "both bundled guides appear in the live DSH skill menu",
+      "both guide switches start enabled",
+      "turning off chat guidance leaves the advanced guide enabled",
+      "both guide settings can be turned off",
+      "disabled guides disappear from a new session skill catalog",
+      "guides off removes automatic system guidance but leaves show_visual available",
+      "no unexpected browser errors during the complete DSH flow"
+    ],
+    "errors": [
+      "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+      "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+      "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+      "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+      "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+      "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+      "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+      "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+      "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+      "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+      "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+      "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+      "Unrecognized Content-Security-Policy directive 'navigate-to'."
+    ],
+    "model": "deterministic fixture, not a live model quality benchmark"
+  },
+  "runtime": {
+    "checks": [
+      "native required validation prevents empty submit",
+      "textarea Enter inserts a newline without submitting",
+      "synthetic IME composition guard prevents modifier submit",
+      "pending submission marks form busy",
+      "pending submission disables submit button",
+      "duplicate submission is suppressed",
+      "failure retains typed text and reenables retry",
+      "native form serializes Japanese, radio, checkbox, and submitter",
+      "special field names are ordinary own properties",
+      "successful answer locks controls and reports success",
+      "drafts are not implicitly persisted",
+      "committed form values reconstruct from history",
+      "password fields are not restored",
+      "form fits 320px viewport",
+      "inline body is transparent",
+      "sandbox still prevents access to parent DOM",
+      "auto-height does not mistake an ordinary flex stack for a viewport app",
+      "focusing a slider does not scroll away the heading",
+      "range height is independent of vertical flex basis",
+      "intentional viewport-sized applications receive a bounded usable height",
+      "custom SVG survives the shared kit",
+      "custom styles override the low-priority default surface",
+      "WebGL2 renders and reads back pixels inside the sandbox",
+      "runtime emits no uncaught browser exceptions"
+    ],
+    "errors": [],
+    "richRendering": {
+      "webgl2": "rendered",
+      "pixel": [
+        51,
+        153,
+        230,
+        255
+      ]
+    },
+    "note": "IME events are synthetic; native OS candidate windows are not automated."
+  }
+}
