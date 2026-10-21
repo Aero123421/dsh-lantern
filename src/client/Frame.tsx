@@ -64,6 +64,7 @@ export function Frame(props: FrameProps) {
   const frame = useRef<HTMLIFrameElement>(null)
   const ready = useRef(false)
   const connection = useRef<MessagePort | undefined>(undefined)
+  const [colorScheme, setColorScheme] = useState(() => theme().scheme)
   const [height, setHeight] = useState(mode === 'inline' ? (paused ? 220 : 120) : 0)
   const latest = useRef(props)
   latest.current = props
@@ -239,6 +240,7 @@ export function Frame(props: FrameProps) {
   }, [state, JSON.stringify(response ?? null)])
 
   useEffect(() => onTheme(next => {
+    setColorScheme(next.scheme)
     if (ready.current) post({ type: 'theme', css: next.css, scheme: next.scheme })
   }), [])
 
@@ -255,7 +257,9 @@ export function Frame(props: FrameProps) {
   }, [streaming, html])
   useEffect(() => () => { if (partialTimer.current !== undefined) clearTimeout(partialTimer.current) }, [])
 
-  const style = mode === 'inline' ? { height: `${height}px` } : undefined
+  // Embedded and embedding used schemes must agree or Chromium paints an
+  // opaque default canvas even when both CSS backgrounds are transparent.
+  const style = { colorScheme, ...(mode === 'inline' ? { height: `${height}px` } : {}) }
   return (
     <iframe
       ref={frame}

@@ -43,6 +43,7 @@ export async function scenarios({ page, context, output, capture, errors }) {
     await page.emulateMedia({ colorScheme: 'dark' })
     await child().locator('html[data-theme="dark"]').waitFor()
     check('DSH dark theme propagates into the iframe', true)
+    check('embedding frame and document use the same dark scheme', await visual().locator('iframe').evaluate(el => getComputedStyle(el).colorScheme) === 'dark')
     await capture('dsh-dark')
     await page.setViewportSize({ width: 390, height: 844 })
     await visual().scrollIntoViewIfNeeded()
@@ -69,7 +70,7 @@ export async function scenarios({ page, context, output, capture, errors }) {
     await page.getByRole('button', { name: 'New session', exact: true }).first().click()
     await send('Ask me using a form. FORM')
     await child().locator('textarea').waitFor({ state: 'visible', timeout: 30000 })
-    check('awaited form is visible before the model continues', await visual().locator('[data-state="waiting"]').count() === 1)
+    check('awaited form is visible before the model continues', await visual().locator('.lantern-card[data-state="waiting"]').count() === 1)
     const notes = child().locator('textarea')
     await notes.fill('図を中心に、日本語で説明してください。')
     await notes.press('End'); await notes.press('Enter'); await notes.pressSequentially('Extra detail')
@@ -120,7 +121,13 @@ export async function scenarios({ page, context, output, capture, errors }) {
     const latest = requests.at(-1)
     check('guides off removes automatic system guidance but leaves show_visual available', latest.automatic === false && latest.tools.includes('show_visual'))
     await capture('dsh-guides-off-runtime-on')
-    const unexpected = errors.filter(message => !message.includes("Unrecognized Content-Security-Policy directive 'navigate-to'."))
+    // Chromium reports the inherited CSP directive and deliberately paused
+    // historical boot scripts; preserve these diagnostics in the report.
+    const expectedWarnings = [
+      "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+      "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    ]
+    const unexpected = errors.filter(message => !expectedWarnings.includes(message))
     check('no unexpected browser errors during the complete DSH flow', unexpected.length === 0)
   } finally {
     await writeFile(join(output, 'integration-checks.json'), JSON.stringify({ checks, errors, model: 'deterministic fixture, not a live model quality benchmark' }, null, 2))
