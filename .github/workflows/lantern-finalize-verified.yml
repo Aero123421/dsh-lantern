@@ -1,0 +1,81 @@
+name: lantern-finalize-verified
+on:
+  push:
+    branches: [feat/seamless-conversation-ux]
+    paths: [.github/workflows/lantern-finalize-verified.yml]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply exact browser-verified fixes
+        shell: python
+        run: |
+          import hashlib, json
+          from pathlib import Path
+          root = Path.cwd().resolve()
+          changes = json.loads(Path('.lantern-verification/final-edits.json').read_text())
+          assert len(changes) == 3
+          prepared = []
+          for change in changes:
+              path = (root / change['path']).resolve()
+              assert path.is_relative_to(root)
+              old = path.read_bytes()
+              assert hashlib.sha256(old).hexdigest() == change['base'], change['path']
+              lines = old.decode().splitlines(keepends=True)
+              for start, end, text in reversed(change['edits']):
+                  lines[start:end] = text.splitlines(keepends=True)
+              new = ''.join(lines).encode()
+              assert hashlib.sha256(new).hexdigest() == change['result'], change['path']
+              prepared.append((path, new))
+          for path, new in prepared:
+              path.write_bytes(new)
+          runner = Path('test/browser/run.mjs')
+          text = runner.read_text()
+          text = text.replace("import assert from 'node:assert/strict'", "import assert from 'node:assert/strict'\nimport { scenarios } from './scenarios.mjs'")
+          text = text.replace("  console.log('Actual DSH native-node and local-slider checks passed')", "  console.log('Actual DSH native-node and local-slider checks passed')\n  await scenarios({ page, context, output, capture, errors })")
+          runner.write_text(text)
+      - run: npm ci && npm run check
+      - name: Record exact source and built artifacts
+        run: |
+          test "$GITHUB_REF" = refs/heads/feat/seamless-conversation-ux
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -r .lantern-verification
+          git add src lib test
+          git commit -m 'fix: prevent iframe heading clipping and refine compact input controls'
+          git push origin HEAD:feat/seamless-conversation-ux
+      - name: Install isolated DSH and Chromium
+        run: |
+          npm install --prefix "$RUNNER_TEMP/lantern-runtime" --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.2 playwright@1.55.1
+          "$RUNNER_TEMP/lantern-runtime/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Sandboxed runtime browser verification
+        env:
+          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-runtime
+          LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-evidence/runtime
+        run: node --experimental-strip-types --no-warnings --import ./test/register.mjs test/browser/runtime.mjs
+      - name: Official DSH integration verification
+        env:
+          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-runtime
+          LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-evidence/dsh
+        run: node test/browser/run.mjs
+      - name: Record verified source revision
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/lantern-evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/lantern-evidence/commit.txt"
+          git archive HEAD > "$RUNNER_TEMP/lantern-evidence/source.tar"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lantern-final-verification
+          path: ${{ runner.temp }}/lantern-evidence
+          retention-days: 14
+          if-no-files-found: error
