@@ -1,0 +1,79 @@
+name: lantern-apply-verified
+on:
+  push:
+    branches: [feat/seamless-conversation-ux]
+    paths: [.github/workflows/lantern-apply-verified.yml]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply exact locally tested source
+        shell: python
+        run: |
+          import hashlib, json
+          from pathlib import Path
+          root = Path.cwd().resolve()
+          changes = []
+          for source in sorted(Path('.lantern-verification').glob('edits-*.json')):
+              changes.extend(json.loads(source.read_text()))
+          assert len(changes) == 29
+          assert len({c['path'] for c in changes}) == 29
+          prepared = []
+          for change in changes:
+              path = (root / change['path']).resolve()
+              assert path.is_relative_to(root)
+              old = path.read_bytes() if path.exists() else b''
+              assert hashlib.sha256(old).hexdigest() == change['base'], 'base mismatch: ' + change['path']
+              lines = old.decode().splitlines(keepends=True)
+              for start, end, text in reversed(change['edits']):
+                  lines[start:end] = text.splitlines(keepends=True)
+              new = ''.join(lines).encode()
+              assert hashlib.sha256(new).hexdigest() == change['result'], 'result mismatch: ' + change['path']
+              prepared.append((path, new))
+          for path, new in prepared:
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_bytes(new)
+          path = Path('test/browser/run.mjs')
+          text = path.read_text().replace("- id: session-title-llm\\n  disabled: true\\n- insert:", "- id: session-title-llm\\n  disabled: true\\n- id: workspace-controller\\n  config:\\n    documentsDirectory: ${JSON.stringify(join(home, 'Documents'))}\\n- insert:")
+          text = text.replace("  await page.waitForTimeout(2000)", '''  await page.waitForTimeout(1000)
+            const notice = page.getByRole('button', { name: 'Continue', exact: true })
+            if (await notice.isVisible()) await notice.click()
+            await page.locator('[contenteditable="true"]').first().waitFor({ state: 'visible', timeout: 30000 })
+            await page.locator('[contenteditable="true"]').first().fill('波の干渉を動かして見せて。WAVE')
+            await page.getByRole('button', { name: 'Send message', exact: true }).click()
+            await page.waitForTimeout(10000)''')
+          path.write_text(text)
+      - run: npm ci && npm run check
+      - name: Publish verified source on the feature branch
+        run: |
+          test "$GITHUB_REF" = refs/heads/feat/seamless-conversation-ux
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -r .lantern-verification
+          git add src skills test lib README.md README.ja.md README.zh.md CHANGELOG.md
+          git commit -m 'feat: seamless conversation visuals, accessible forms, and two live guides'
+          git push origin HEAD:feat/seamless-conversation-ux
+      - name: Install isolated DSH and Chromium
+        run: |
+          npm install --prefix "$RUNNER_TEMP/lantern-runtime" --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.2 playwright@1.55.1
+          "$RUNNER_TEMP/lantern-runtime/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Real DSH browser verification
+        env:
+          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-runtime
+          LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-evidence
+        run: node test/browser/run.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lantern-dsh-browser-evidence
+          path: ${{ runner.temp }}/lantern-evidence
+          retention-days: 7
+          if-no-files-found: warn
