@@ -277,6 +277,29 @@ export function frameRuntime(): void {
       }
     })
     if (state === 'answered' && response !== undefined) {
+      // A single declarative form can reconstruct its committed answer from
+      // history without persisting unsubmitted drafts or replaying user events.
+      const forms = document.querySelectorAll<HTMLFormElement>('form[data-lt-form]')
+      if (forms.length === 1 && response !== null && typeof response === 'object' && !Array.isArray(response)) {
+        const answer = response as Record<string, unknown>
+        const positions = new Map<string, number>()
+        forms[0]!.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input[name], textarea[name], select[name]').forEach(control => {
+          if (!Object.hasOwn(answer, control.name) || control.type === 'password' || control.type === 'file') return
+          const raw = answer[control.name]
+          const values = Array.isArray(raw) ? raw : [raw]
+          if (control.type === 'checkbox' || control.type === 'radio') {
+            const input = control as HTMLInputElement
+            input.checked = values.some(value => value === input.value || (value === true && input.value === 'on'))
+          } else if (control.tagName === 'SELECT') {
+            Array.from((control as HTMLSelectElement).options).forEach(option => { option.selected = values.some(value => String(value) === option.value) })
+          } else {
+            const index = positions.get(control.name) ?? 0
+            control.value = values[index] === undefined ? '' : String(values[index])
+            positions.set(control.name, index + 1)
+          }
+          control.disabled = true
+        })
+      }
       const wanted = ([] as unknown[]).concat(response as unknown)
       document.querySelectorAll('[data-lt-choices]').forEach((group) => {
         group.querySelectorAll('[data-lt-choice]').forEach((el) => {
@@ -483,16 +506,19 @@ export function frameRuntime(): void {
     try { return JSON.parse(raw) } catch { return raw }
   }
   function formValue(form: HTMLFormElement): Record<string, unknown> {
-    const out: Record<string, unknown> = {}
+    const out: Record<string, unknown> = Object.create(null)
     new FormData(form).forEach((value, key) => {
       const text = typeof value === 'string' ? value : value.name
-      if (key in out) out[key] = ([] as unknown[]).concat(out[key], text)
+      if (Object.hasOwn(out, key)) out[key] = ([] as unknown[]).concat(out[key], text)
       else out[key] = text
     })
     form.querySelectorAll('input[type="checkbox"][name]').forEach((box) => {
       const input = box as HTMLInputElement
-      if (!(input.name in out) && !form.querySelector('input[type="checkbox"][name="' + input.name + '"][value]:not([value="on"])')) out[input.name] = false
-      else if (out[input.name] === 'on') out[input.name] = true
+      if (input.disabled) return
+      const customValue = Array.from(form.querySelectorAll<HTMLInputElement>('input[type="checkbox"][name]'))
+        .some(other => !other.disabled && other.name === input.name && other.value !== 'on')
+      if (!Object.hasOwn(out, input.name) && !customValue) out[input.name] = false
+      else if (!customValue && out[input.name] === 'on') out[input.name] = true
     })
     return out
   }
@@ -612,12 +638,80 @@ export function frameRuntime(): void {
     }
   }, false)
 
+  // IME Enter commits text, not a form. The short task guard covers browsers
+  // that dispatch compositionend immediately before the implicit submit.
+  const composingForms = new WeakSet<HTMLFormElement>()
+  const imeGuard = new WeakSet<HTMLFormElement>()
+  const submittingForms = new WeakSet<HTMLFormElement>()
+  const formOf = (target: EventTarget | null) => (target as Element | null)?.closest?.('form[data-lt-form]') as HTMLFormElement | null
+  document.addEventListener('compositionstart', event => {
+    const form = formOf(event.target)
+    if (form) composingForms.add(form)
+  }, true)
+  document.addEventListener('compositionend', event => {
+    const form = formOf(event.target)
+    if (!form) return
+    composingForms.delete(form)
+    imeGuard.add(form)
+    setTimeout(() => imeGuard.delete(form), 0)
+  }, true)
+  document.addEventListener('keydown', event => {
+    const form = formOf(event.target)
+    if (!form || event.key !== 'Enter') return
+    if (event.isComposing || event.keyCode === 229 || composingForms.has(form)) {
+      imeGuard.add(form)
+      setTimeout(() => imeGuard.delete(form), 0)
+      return
+    }
+    if (form.getAttribute('data-lt-submit-key') === 'mod-enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault()
+      form.requestSubmit()
+    }
+  }, true)
+  function formStatus(form: HTMLFormElement, message: string, error = false) {
+    let box = form.querySelector<HTMLElement>('[data-lt-form-status]')
+    if (!box) {
+      box = document.createElement('div')
+      box.className = 'lt-form-status'
+      box.setAttribute('data-lt-form-status', '')
+      form.appendChild(box)
+    }
+    box.setAttribute('role', error ? 'alert' : 'status')
+    box.setAttribute('aria-live', error ? 'assertive' : 'polite')
+    box.toggleAttribute('data-error', error)
+    box.textContent = message
+  }
+  function formCopy(sending: boolean): string {
+    const lang = String(boot.lang || 'en').toLowerCase()
+    if (startsWith(lang, 'ja')) return sending ? '送信中…' : '送信しました。'
+    if (startsWith(lang, 'zh')) return sending ? '正在提交…' : '已提交。'
+    return sending ? 'Sending…' : 'Sent.'
+  }
   document.addEventListener('submit', (event) => {
     const form = event.target as HTMLFormElement
     if (!form || !form.hasAttribute('data-lt-form')) return
     event.preventDefault()
+    if (composingForms.has(form) || imeGuard.has(form) || submittingForms.has(form) || isLocked()) return
     if (!form.checkValidity()) { form.reportValidity(); return }
-    lantern.submit(formValue(form)).catch((error: Error) => showError(form.lastElementChild || form, error.message))
+    const value = formValue(form)
+    const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | HTMLInputElement | null
+    if (submitter?.name && !submitter.disabled) value[submitter.name] = submitter.value
+    const controls = Array.from(form.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button:not([type]),button[type="submit"],input[type="submit"]'))
+      .map(control => ({ control, disabled: control.disabled }))
+    const previousBusy = form.getAttribute('aria-busy')
+    submittingForms.add(form)
+    form.setAttribute('aria-busy', 'true')
+    controls.forEach(({ control }) => { control.disabled = true })
+    formStatus(form, formCopy(true))
+    // Capture the value before disabling controls; never reset the user's draft.
+    lantern.submit(value).then(() => formStatus(form, formCopy(false)), (error: Error) => {
+      formStatus(form, error.message, true)
+    }).finally(() => {
+      submittingForms.delete(form)
+      if (previousBusy === null) form.removeAttribute('aria-busy')
+      else form.setAttribute('aria-busy', previousBusy)
+      controls.forEach(({ control, disabled }) => { control.disabled = disabled || isLocked() })
+    })
   })
 
   function stepTo(steps: Element, index: number) {

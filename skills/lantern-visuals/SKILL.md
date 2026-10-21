@@ -2,14 +2,14 @@
 name: lantern-visuals
 disable-model-invocation: true
 user-invocable: true
-description: Optional advanced guide for show_visual in DSH Web. Consult it for detailed Lantern kit examples, forms, charts, 3D scenes, simulations, draggable explorers, sortable answers or custom styling. Covers tokens, components, window.lantern and answers that return to the conversation. The tool description provides the essentials; loading this skill is not required before a show_visual call.
+description: Optional advanced guide for rich show_visual scenes in DSH Web. Consult it for detailed Lantern kit examples, forms, charts, 3D scenes, simulations, draggable explorers, sortable answers or custom styling. Covers tokens, components, window.lantern and answers that return to the conversation. The tool description provides the essentials; loading this skill is not required before a show_visual call.
 ---
 
 # Lantern visuals
 
 This advanced guide is loaded only by an explicit user invocation such as `/lantern-visuals`. Ordinary visuals use the short system guidance and the tool description without this guide.
 
-`show_visual` renders HTML in a sandboxed iframe in the chat (`display: "inline"`) or in the right sidebar (`display: "panel"`). Use it when seeing or touching something beats reading about it: a process, a structure, data over time, a comparison, a parameter to explore, a choice the user should make.
+`show_visual` renders HTML in a sandboxed iframe at its native conversation position in the chat (`display: "inline"`) or in the right sidebar (`display: "panel"`). Use it when seeing or touching something beats reading about it: a process, a structure, data over time, a comparison, a parameter to explore, a choice the user should make.
 
 ## Workflow
 

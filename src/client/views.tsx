@@ -1,17 +1,17 @@
 /**
- * The three places a visual appears: the `show_visual` tool row, the turn
- * tail under the final answer, and a sidebar tab.
+ * A visual belongs to its own Chat node. The tool row provides a streaming
+ * preview (or a missing-history fallback); the sidebar is an optional expansion.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { VisualCard } from './Card.tsx'
 import { copy, useCopy } from './i18n.ts'
 import { holdScripts, notifyScripts, observeVisual } from './live.ts'
 import { fetchVisual, openInSidebar, parseAddress } from './services.ts'
-import { getRecord, inTail, markTail, parseArgs, parseMeta, upsert, useRegistry, visualKey, type VisualRecord } from './store.ts'
+import { getRecord, inFlow, markFlow, parseArgs, parseMeta, upsert, useRegistry, visualKey, type VisualRecord } from './store.ts'
 
 import { TOOL_NAME, textOf, type TurnCall } from './definition.ts'
 
-export { TOOL_NAME, turnDefinition } from './definition.ts'
+export { TOOL_NAME, TURN_KEY, turnDefinition } from './definition.ts'
 
 function recordFromCall(item: TurnCall, sessionId: string | undefined): Omit<VisualRecord, 'callId'> {
   return {
@@ -80,7 +80,7 @@ export function ToolView(props: ToolViewProps) {
     }
   }, [phase, parsed?.display, errorText, key, sessionId])
 
-  const shownInTail = useRegistry(() => inTail(callId, sessionId))
+  const shownInFlow = useRegistry(() => inFlow(callId, sessionId))
   const stored = useRegistry(() => getRecord(callId, sessionId))
   const c = useCopy()
 
@@ -95,14 +95,9 @@ export function ToolView(props: ToolViewProps) {
     error: errorText ?? stored?.error,
   }
 
-  if (shownInTail) {
-    return (
-      <div className="lantern-row lantern-row-quiet" data-tool={TOOL_NAME}>
-        <span className="lantern-row-title">{record.args?.title || c.visual}</span>
-        <span className="lantern-muted">{c.shownBelow}</span>
-      </div>
-    )
-  }
+  // A dispatched native call already has a Chat node in this same assembly.
+  // Do not briefly execute two frames before the ownership effect publishes.
+  if (shownInFlow || (phase === 'start' && parsed !== undefined)) return null
   if (phase === 'result' && record.args === undefined && !record.error) {
     return <div className="lantern-row lantern-row-quiet" data-tool={TOOL_NAME}><span className="lantern-muted">{textOf(block.content)}</span></div>
   }
@@ -113,48 +108,29 @@ export function ToolView(props: ToolViewProps) {
   )
 }
 
-// ── turn tail ─────────────────────────────────────────────────────────────
+// ── native Chat node ──────────────────────────────────────────────────────
 
-interface TailProps {
-  readonly turn: { readonly turn: number }
-  readonly seq: number
+interface FlowVisualProps {
+  readonly node: { readonly data: TurnCall }
   readonly sessionId?: string
-  readonly useVisuals: (turn: string) => readonly TurnCall[] | undefined
 }
 
-export function Tail(props: TailProps) {
-  const calls = props.useVisuals(String(props.turn.turn)) ?? EMPTY_CALLS
-  const visible = calls.filter(item => item.seq < props.seq)
-  useEffect(() => {
-    for (const item of calls) upsert(item.callId, recordFromCall(item, props.sessionId))
-  }, [calls, props.sessionId])
-  if (visible.length === 0) return null
-  return (
-    <div className="lantern-tail">
-      {visible.map(item => <TailItem key={visualKey(item.callId, props.sessionId)} item={item} sessionId={props.sessionId} />)}
-    </div>
-  )
-}
-
-const EMPTY_CALLS: readonly TurnCall[] = []
-
-function TailItem({ item, sessionId }: { item: TurnCall; sessionId: string | undefined }) {
-  const c = useCopy()
+/** Preserve call order and frame identity through settlement, history, and folding. */
+export function FlowVisual({ node, sessionId }: FlowVisualProps) {
+  const item = node.data
   const record = useMemo<VisualRecord>(() => ({ callId: item.callId, ...recordFromCall(item, sessionId) }), [item, sessionId])
-  useEffect(() => record.args === undefined ? undefined : markTail(item.callId, sessionId), [item.callId, sessionId, record.args])
-  if (item.isError) {
-    return (
-      <div className="lantern-card" data-lantern-id={item.callId} data-state="error">
-        <div className="lantern-head">
-          <span className="lantern-title">{record.args?.title || c.error}</span>
-          <span className="lantern-badge" data-state="closed">{c.error}</span>
-        </div>
-        <div className="lantern-note" data-kind="error">{item.errorText || c.error}</div>
-      </div>
-    )
-  }
+  const key = visualKey(item.callId, sessionId)
+  const pathVisual = record.args?.path !== undefined
+  const phase = item.settled ? 'result' : 'start'
+  const fresh = observeVisual(key, phase, item.time, !pathVisual)
+  const held = pathVisual && holdScripts(key)
+  useEffect(() => { if (fresh || held) notifyScripts() }, [fresh, held, key])
+  useEffect(() => {
+    upsert(item.callId, recordFromCall(item, sessionId))
+    return record.args === undefined ? undefined : markFlow(item.callId, sessionId)
+  }, [item, sessionId, record.args])
   if (record.args === undefined) return null
-  return <VisualCard record={record} sessionId={sessionId} placement="tail" phase={item.settled ? 'result' : 'replay'} />
+  return <VisualCard record={record} sessionId={sessionId} placement="inline" phase={phase} />
 }
 
 // ── sidebar tab ───────────────────────────────────────────────────────────

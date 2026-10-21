@@ -1,18 +1,18 @@
 /* Card chrome inside DSH Web. Uses DSH's own tokens so it follows every theme. */
 .lantern-tool { margin: 6px 0; max-width: 100%; }
-.lantern-tail { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 10px; }
 
 .lantern-card {
-  border: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.25));
-  border-radius: var(--dsw-radius-md, 12px);
-  background: var(--dsw-alias-bg-base, transparent);
-  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  margin: 8px 0 16px;
   max-width: 100%;
 }
 .lantern-head {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-  height: auto; min-height: 36px; padding: 4px 6px 4px 12px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.2));
+  height: auto; min-height: 28px; padding: 0 0 4px;
+  border: 0;
   color: var(--dsw-alias-label-secondary, inherit);
   font-size: 13px;
 }
@@ -117,8 +117,8 @@
 .lantern-settings-status { min-height: 22px; margin-top: 12px; font-size: 12px; color: var(--dsw-alias-label-secondary, inherit); }
 .lantern-switch { flex: none; position: relative; width: 46px; height: 28px; border: 1px solid var(--dsw-alias-border-l2, #888); border-radius: 999px; padding: 3px; background: var(--dsw-alias-bg-layer-2, #767676); cursor: pointer; }
 .lantern-switch > span { display: block; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #0003; transition: transform .15s; }
-.lantern-switch[aria-checked="true"] { background: var(--dsw-alias-brand-primary, #4d6bfe); border-color: transparent; }
-.lantern-switch[aria-checked="true"] > span { transform: translateX(18px); }
+.lantern-switch[aria-checked="true"] { background: var(--dsw-alias-label-primary, #eee); border-color: transparent; }
+.lantern-switch[aria-checked="true"] > span { transform: translateX(18px); background: var(--dsw-alias-bg-base, #17181c); }
 .lantern-switch:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4d6bfe); outline-offset: 4px; }
 .lantern-switch:disabled { opacity: .5; cursor: default; }
 @media (max-width: 480px) { .lantern-settings-row { gap: 12px; } .lantern-switch { min-width: 46px; } }
@@ -129,3 +129,16 @@
   .lantern-paused { padding: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .lantern-switch > span { transition: none; } }
+
+/* Normal answer content has no tool title bar. Keep an accessible name and
+   small discoverable controls; waiting/error/collapsed states retain a label. */
+.lantern-card:not([data-state="waiting"]):not([data-state="closed"]):not(:has(.lantern-body[hidden])) > .lantern-head > .lantern-title {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.lantern-card > .lantern-head > .lantern-icon { display: none; }
+.lantern-head .lantern-action { min-width: 30px; height: 30px; }
+.lantern-head .lantern-action:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.lantern-card .lantern-frame { border-radius: 0; }
+.lantern-settings-row + .lantern-settings-row { margin-top: 24px; }
+@media (pointer: coarse) { .lantern-head .lantern-action { min-width: 44px; height: 44px; } }

@@ -351,13 +351,15 @@ test('path rendering refuses remote or missing filesystem mappings and propagate
 
 test('the optional guide is user-invocable only and served without its front matter', async () => {
   const { providers } = fakeHost()
-  const provider = providers[0]!() as { list(): Promise<any[]>; get(): Promise<any> }
-  const [candidate] = await provider.list()
+  const provider = providers[0]!() as { list(): Promise<any[]>; get(candidate: { locator: string }): Promise<any> }
+  const candidates = await provider.list()
+  assert.deepEqual(candidates.map(item => item.name), ['lantern-chat-ux', 'lantern-visuals'])
+  const candidate = candidates.find(item => item.name === 'lantern-visuals')
   assert.equal(candidate.name, 'lantern-visuals')
   assert.ok(candidate.description.length <= 500)
   assert.equal(candidate.rank, 600)
   assert.deepEqual(candidate.invocation, { modelInvocable: false, userInvocable: true })
-  const skill = await provider.get()
+  const skill = await provider.get({ locator: 'lantern-visuals' })
   assert.deepEqual(skill.invocation, { modelInvocable: false, userInvocable: true })
   assert.ok(skill.content.startsWith('\n# Lantern visuals') || skill.content.startsWith('# Lantern visuals'))
   assert.equal(skill.resourceBase.kind, 'directory')

@@ -67,7 +67,7 @@ export function parseMeta(meta: unknown): VisualResultMeta | undefined {
 // ── registry ──────────────────────────────────────────────────────────────
 
 const records = new Map<string, VisualRecord>()
-const tailMounted = new Map<string, number>()
+const flowMounted = new Map<string, number>()
 let version = 0
 const listeners = new Set<() => void>()
 
@@ -152,20 +152,20 @@ export function useRegistry<T>(select: () => T): T {
   return select()
 }
 
-export function markTail(callId: string, sessionId?: string): () => void {
+export function markFlow(callId: string, sessionId?: string): () => void {
   const key = visualKey(callId, sessionId)
-  tailMounted.set(key, (tailMounted.get(key) ?? 0) + 1)
+  flowMounted.set(key, (flowMounted.get(key) ?? 0) + 1)
   queueNotify()
   return () => {
-    const count = (tailMounted.get(key) ?? 1) - 1
-    if (count <= 0) tailMounted.delete(key)
-    else tailMounted.set(key, count)
+    const count = (flowMounted.get(key) ?? 1) - 1
+    if (count <= 0) flowMounted.delete(key)
+    else flowMounted.set(key, count)
     queueNotify()
   }
 }
 
-export function inTail(callId: string, sessionId?: string): boolean {
-  return tailMounted.has(visualKey(callId, sessionId))
+export function inFlow(callId: string, sessionId?: string): boolean {
+  return flowMounted.has(visualKey(callId, sessionId))
 }
 
 // ── per-browser state ─────────────────────────────────────────────────────

@@ -15,12 +15,13 @@ test('a nested PTC visual retains its resolved turn and call position when it se
     meta: { status: 'answered', response: '"pro"' },
   } } }
   assert.deepEqual(turnDefinition.match(start.event), { id: 'visual-1', role: 'start' })
-  assert.deepEqual(turnDefinition.match(finish.event), { id: 'visual-1', role: 'update' })
+  assert.deepEqual(turnDefinition.match(finish.event), { id: 'visual-1', role: 'start' })
   const initial = turnDefinition.start({}, start)
   const state = turnDefinition.update({ state: initial }, finish)
   const node = turnDefinition.buildViewNode({ key: 'visual-key', kind: 'lanternVisuals', id: 'visual-1', start, matches: [start, finish], state })!
   assert.equal(node.target, 'chat')
-  assert.equal(node.visibility, 'hidden')
+  assert.equal(node.visibility, 'visible')
+  assert.equal(node.groupTree, 'turn')
   assert.equal(node.location, location)
   assert.equal(node.anchorSeq, 42)
   assert.equal(node.data.callId, 'visual-1')
@@ -29,7 +30,7 @@ test('a nested PTC visual retains its resolved turn and call position when it se
   assert.deepEqual(node.data.meta, { status: 'answered', response: '"pro"' })
 })
 
-test('a PTC settlement outside its start history window can still rebuild a tail visual', () => {
+test('a PTC settlement outside its start history window can still rebuild a flow visual', () => {
   const finish = { location, event: { type: 'tool/ptc-dispatch', seq: 55, data: {
     rootCallId: 'python-1', subCallId: 'old-visual', name: 'show_visual', arguments: args,
     content: [], isError: false, meta: { status: 'shown' },
@@ -40,7 +41,7 @@ test('a PTC settlement outside its start history window can still rebuild a tail
   assert.equal(node.location, location)
 })
 
-test('native results preserve their call arguments and expose errors to the tail filter', () => {
+test('native results preserve their call arguments and expose errors to the flow renderer', () => {
   const start = { location, event: { type: 'tool/call', seq: 10, data: {
     name: 'show_visual', callId: 'native', arguments: JSON.stringify(args),
   } } }

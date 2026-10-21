@@ -15,6 +15,8 @@ import { onTheme, theme } from './theme.ts'
 
 export interface FrameProps {
   readonly callId: string
+  /** Human-readable accessible name, never the internal call id. */
+  readonly title?: string
   readonly sessionId?: string
   readonly mode: 'inline' | 'panel'
   /** Markup for an `html` visual. */
@@ -259,7 +261,7 @@ export function Frame(props: FrameProps) {
       ref={frame}
       className="lantern-frame"
       data-mode={mode}
-      title={callId}
+      title={props.title || copy().visual}
       sandbox={scriptsOff ? 'allow-downloads' : SANDBOX}
       data-scripts={scriptsOff ? 'off' : 'on'}
       onLoad={() => {

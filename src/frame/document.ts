@@ -9,7 +9,8 @@ import { frameRuntime, type FrameBoot } from './runtime.ts'
 const LAYERS = '@layer lantern-kit, lantern-theme;'
 /** The token half of the kit (everything before the element styles). */
 const TOKENS = kitCss.slice(0, Math.max(0, kitCss.indexOf('/* Base */')))
-const BASE = 'body{padding:var(--lt-pad,16px)}'
+const BASE = 'body{padding:var(--lt-pad,16px)}:root[data-lt-mode=inline] body{padding:var(--lt-pad,0);background:transparent}'
+  + ':root[data-lt-mode=inline] body>.lt-card{padding:0;border:0;box-shadow:none;background:transparent}'
 
 /** JSON safe to place inside a <script> element. */
 export function scriptJson(value: unknown): string {
