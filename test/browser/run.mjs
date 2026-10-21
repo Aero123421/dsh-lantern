@@ -9,7 +9,7 @@ import { createRequire } from 'node:module'
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const runtime = process.env.LANTERN_DSH_RUNTIME
-if (!runtime) throw new Error('Set LANTERN_DSH_RUNTIME to a directory with DSH 0.2.1-rc.2 and Playwright installed')
+if (!runtime) throw new Error('Set LANTERN_DSH_RUNTIME to an isolated directory with DSH 0.2.1-rc.2 and Playwright installed')
 const require = createRequire(join(resolve(runtime), 'package.json'))
 const { chromium } = require('playwright')
 const cli = join(resolve(runtime), 'node_modules/@deepseek-ai/dsh/lib/bin.js')
@@ -18,9 +18,15 @@ const output = resolve(process.env.LANTERN_E2E_OUTPUT || join(tmpdir(), 'lantern
 await mkdir(output, { recursive: true })
 const env = { ...process.env, DSH_HOME: home, LANTERN_E2E_LOG: join(output, 'model.jsonl') }
 const errors = []
-let browser, server
+let browser, server, page
 let serverLog = ''
 const redact = value => String(value).replace(/([?&]token=)[^\s"'&]+/g, '$1[redacted]')
+async function capture(name) {
+  if (!page || page.isClosed()) return
+  await page.screenshot({ path: join(output, name + '.png'), fullPage: true })
+  await writeFile(join(output, name + '.txt'), await page.locator('body').innerText())
+  await writeFile(join(output, name + '-controls.json'), JSON.stringify(await page.locator('button,input,textarea,[contenteditable],select').evaluateAll(items => items.map(el => ({ tag: el.tagName, role: el.getAttribute('role'), label: el.getAttribute('aria-label'), title: el.getAttribute('title'), disabled: el.disabled, placeholder: el.getAttribute('placeholder'), text: el.textContent?.slice(0,150), editable: el.getAttribute('contenteditable') }))), null, 2))
+}
 try {
   execFileSync(process.execPath, [cli, '--profile', 'web', '--dump-config'], { env, cwd: repo, stdio: 'pipe' })
   const profile = join(home, 'profiles/web')
@@ -52,24 +58,37 @@ try {
   assert.ok(url, `DSH did not start: ${redact(serverLog)}`)
   browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--enable-unsafe-swiftshader'] })
   const context = await browser.newContext({ viewport: { width: 1440, height: 1050 }, locale: 'en-US' })
-  const page = await context.newPage()
+  page = await context.newPage()
+  page.setDefaultTimeout(15000)
   page.on('pageerror', error => errors.push(redact(error.stack || error.message)))
   page.on('console', message => { if (message.type() === 'error') errors.push(redact(message.text())) })
   await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 })
   await page.waitForTimeout(1000)
   const notice = page.getByRole('button', { name: 'Continue', exact: true })
   if (await notice.isVisible()) await notice.click()
-  await page.locator('[contenteditable="true"]').first().waitFor({ state: 'visible', timeout: 30000 })
-  await page.locator('[contenteditable="true"]').first().fill('波の干渉を動かして見せて。WAVE')
+  const input = page.locator('[contenteditable="true"]').first()
+  await input.waitFor({ state: 'visible', timeout: 30000 })
+  await input.click()
+  await input.pressSequentially('Show an interactive wave simulation. WAVE', { delay: 25 })
+  await capture('dsh-composer')
   await page.getByRole('button', { name: 'Send message', exact: true }).click()
-  await page.waitForTimeout(10000)
-  await page.screenshot({ path: join(output, 'dsh-initial.png'), fullPage: true })
-  await writeFile(join(output, 'initial.txt'), await page.locator('body').innerText())
-  await writeFile(join(output, 'controls.json'), JSON.stringify(await page.locator('button,input,textarea,[contenteditable],select').evaluateAll(items => items.map(el => ({ tag: el.tagName, role: el.getAttribute('role'), label: el.getAttribute('aria-label'), title: el.getAttribute('title'), placeholder: el.getAttribute('placeholder'), text: el.textContent?.slice(0,150), editable: el.getAttribute('contenteditable') }))), null, 2))
-  console.log('DSH page:', await page.title(), redact(page.url()))
-  console.log((await page.locator('body').innerText()).slice(0, 6000))
-  await writeFile(join(output, 'errors.json'), JSON.stringify(errors, null, 2))
+  const visual = page.locator('[data-chat-flow-kind="lanternVisuals"]')
+  await visual.locator('iframe').waitFor({ state: 'visible', timeout: 30000 })
+  await page.getByText('この図や入力は会話の中に残ります。', { exact: false }).first().waitFor({ state: 'visible', timeout: 30000 })
+  await page.waitForTimeout(1000)
+  assert.equal(await visual.count(), 1)
+  assert.equal(await page.locator('.lantern-tail').count(), 0)
+  const frame = visual.frameLocator('iframe')
+  await frame.locator('#gap').press('ArrowRight')
+  assert.equal(await frame.locator('#value').innerText(), '181')
+  await capture('dsh-wave')
+  await writeFile(join(output, 'checks.json'), JSON.stringify({ actualDSH: true, nativeNode: true, noTailCopy: true, localSlider: true, errors }, null, 2))
+  console.log('Actual DSH native-node and local-slider checks passed')
+} catch (error) {
+  await capture('dsh-failure').catch(() => {})
+  throw error
 } finally {
+  await writeFile(join(output, 'errors.json'), JSON.stringify(errors, null, 2))
   if (browser) await browser.close()
   if (server) { server.kill('SIGTERM'); await new Promise(resolve => { server.once('exit', resolve); setTimeout(resolve, 3000).unref() }) }
   await writeFile(join(output, 'server.log'), redact(serverLog))
