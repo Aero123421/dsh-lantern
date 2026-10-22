@@ -1,0 +1,114 @@
+name: lantern-tail-revision
+on:
+  push:
+    branches: [feat/seamless-conversation-ux]
+    paths: [.github/workflows/lantern-tail-revision.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply exact locally checked changes
+        shell: python
+        run: |
+          import hashlib, json
+          from pathlib import Path
+          root = Path.cwd().resolve()
+          changes = json.loads(Path('.lantern-tail-edits.json').read_text())
+          assert len(changes) == 20 and len({c['path'] for c in changes}) == 20
+          prepared = []
+          for change in changes:
+              path = (root / change['path']).resolve()
+              assert path.is_relative_to(root)
+              old = path.read_bytes()
+              assert hashlib.sha256(old).hexdigest() == change['base'], 'base: ' + change['path']
+              lines = old.decode().splitlines(keepends=True)
+              for start, end, text in reversed(change['edits']):
+                  lines[start:end] = text.splitlines(keepends=True)
+              new = ''.join(lines).encode()
+              assert hashlib.sha256(new).hexdigest() == change['result'], 'result: ' + change['path']
+              prepared.append((path, new))
+          for path, new in prepared:
+              path.write_bytes(new)
+      - run: npm ci && npm run check
+      - uses: actions/download-artifact@v4
+        with:
+          name: lantern-validation-runtime
+          run-id: 39648379680
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/lantern-snapshot
+      - name: Prepare isolated official DSH runtime
+        run: |
+          cd "$RUNNER_TEMP/lantern-snapshot"
+          echo 'd6a92cdddb5d3b8644ce1bcf1a81aa7bca5947486d9b26beaae0f29aa59123f3  lantern-validation.tar.gz' | sha256sum -c -
+          tar -xzf lantern-validation.tar.gz
+          "$RUNNER_TEMP/lantern-snapshot/lantern-validation/runtime/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Verify actual iframe runtime
+        env:
+          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-snapshot/lantern-validation/runtime
+          LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-tail-evidence/runtime
+        run: node --experimental-strip-types --no-warnings --import ./test/register.mjs test/browser/runtime.mjs
+      - name: Verify official DSH final-answer tail and awaited forms
+        env:
+          LANTERN_DSH_RUNTIME: ${{ runner.temp }}/lantern-snapshot/lantern-validation/runtime
+          LANTERN_E2E_OUTPUT: ${{ runner.temp }}/lantern-tail-evidence/dsh
+        run: node test/browser/run.mjs
+      - name: Record current evidence and supersede placement report
+        shell: python
+        run: |
+          import hashlib, json, os, shutil
+          from pathlib import Path
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'lantern-tail-evidence'
+          target = Path('docs/verification/tail-placement')
+          target.mkdir(parents=True, exist_ok=True)
+          runtime = json.loads((evidence / 'runtime/runtime-checks.json').read_text())
+          integration = json.loads((evidence / 'dsh/integration-checks.json').read_text())
+          files = [p for folder in ('src', 'skills', 'lib') for p in Path(folder).rglob('*') if p.is_file()]
+          results = {'workflowRun': os.environ['GITHUB_RUN_ID'], 'runtime': runtime, 'integration': integration, 'sha256': {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(files)}}
+          (target / 'results.json').write_text(json.dumps(results, ensure_ascii=False, indent=2) + '\n')
+          for name in ('dsh-dark.png', 'dsh-form-input.png', 'dsh-form-answered.png', 'dsh-mobile.png'):
+              shutil.copyfile(evidence / 'dsh' / name, target / name)
+          run_url = 'https://github.com/Aero123421/dsh-lantern/actions/runs/' + os.environ['GITHUB_RUN_ID']
+          report = '# 回答末尾表示への復元と再検証\n\n表示位置を従来方式に戻しました。処理中のプレビュー・回答待ちフォームはツール欄、完了後のUIは最終回答の末尾に表示します。両SKILLとシステム指示から、文章を分割してUIを挟む誘導を削除しました。枠なし表示、配色修正、自由入力、2つのSKILL切替、リッチな描画基盤は維持しています。\n\n'
+          report += '## 結果\n\n公式DSH 0.2.1-rc.2、Node 22、Playwright 1.55.1 / Chromiumで検証しました。モデルのみ決定的なテストアダプターです。\n\n'
+          report += '- 型チェック・90テスト・ビルド成功。\n- iframeランタイム: ' + str(len(runtime['checks'])) + '項目成功。\n- 公式DSH: ' + str(len(integration['checks'])) + '項目成功。\n\n'
+          report += '最終回答の後への配置、独立会話ノードなし、枠なし、ライト/ダーク、390px幅、履歴とスライダー状態復元、サイドバー、回答待ちフォームの入力・送信・モデル再開、末尾への移動と重複なし、確定回答復元、2つのガイド切替を確認しました。\n\n'
+          report += '[検証実行](' + run_url + ') / [生のチェック一覧と製品ファイルのSHA-256](results.json)。前の会話途中表示の検証記録は過去の設計の証拠です。現在の配置はこの記録を参照してください。\n\n'
+          report += '## 実画面\n\n![回答末尾・ダーク](dsh-dark.png)\n\n![回答待ちの入力](dsh-form-input.png)\n\n![送信後の回答とUI](dsh-form-answered.png)\n\n<img src="dsh-mobile.png" width="390" alt="390px幅の表示">\n\n'
+          report += '## 検証の境界\n\n実LLMの自発利用率、OSのIME候補ウィンドウ、物理GPU性能は測定していません。DSH標準の処理履歴の折りたたみ自体は変更していません。既知のCSP警告と履歴停止中のスクリプト拒否は生ログに残しています。一時的な検証用ワークフローは差分から削除し、再実行手順はtest/browser/README.mdに残します。\n'
+          (target / 'README.md').write_text(report)
+          old = Path('docs/verification/seamless-chat-ux/README.md')
+          text = old.read_text()
+          old.write_text(text.replace('# シームレス会話UIの検証', '# シームレス会話UIの検証（以前の配置の記録）\n\n> 表示位置は従来の回答末尾方式に戻しました。このページは以前の設計の検証記録です。[現在の検証結果](../tail-placement/README.md)を参照してください。', 1))
+          p = Path('test/browser/README.md')
+          text = p.read_text().replace('../../docs/verification/seamless-chat-ux/README.md', '../../docs/verification/tail-placement/README.md')
+          text = text.replace('89 unit tests, 24 sandbox runtime checks, and 22 official-DSH integration checks passed.', '90 unit tests, ' + str(len(runtime['checks'])) + ' sandbox runtime checks, and ' + str(len(integration['checks'])) + ' official-DSH integration checks passed.')
+          text = text.replace('`runtime.mjs` additionally accepts `LANTERN_CHROMIUM` for an already-installed Chromium binary. `run.mjs` uses the Chromium installed by Playwright.', 'Both scripts accept `LANTERN_CHROMIUM` for an already-installed Chromium binary; otherwise they use the Chromium installed by Playwright.')
+          text = text.replace('call-position ordering, absence of a tail duplicate', 'final-answer-tail ordering, absence of standalone conversation nodes or duplicate tool frames')
+          p.write_text(text)
+      - name: Publish only after all verification passes
+        run: |
+          test "$GITHUB_REF" = refs/heads/feat/seamless-conversation-ux
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .lantern-tail-edits.json .github/workflows/lantern-tail-revision.yml
+          git add src lib skills test README.md README.ja.md README.zh.md CHANGELOG.md docs/verification
+          git diff --cached --check
+          git commit -m 'fix: restore final-answer visual placement and remove interleaving guidance'
+          git push origin HEAD:feat/seamless-conversation-ux
+          git rev-parse HEAD > "$RUNNER_TEMP/lantern-tail-evidence/commit.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lantern-tail-placement-evidence
+          path: ${{ runner.temp }}/lantern-tail-evidence
+          retention-days: 14
+          if-no-files-found: warn
