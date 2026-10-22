@@ -1,5 +1,6 @@
 /* Card chrome inside DSH Web. Uses DSH's own tokens so it follows every theme. */
 .lantern-tool { margin: 6px 0; max-width: 100%; }
+.lantern-tail { margin: 12px 0 4px; max-width: 100%; }
 
 .lantern-card {
   border: 0;

@@ -4,9 +4,9 @@ These are foreground integration scripts, not a new mandatory CI pipeline. The o
 
 ## Verified result
 
-[Report, actual DSH screenshots, and raw check lists](../../docs/verification/seamless-chat-ux/README.md).
+[Report, actual DSH screenshots, and raw check lists](../../docs/verification/tail-placement/README.md).
 
-Official DSH 0.2.1-rc.2, Node 22.23.3, Playwright 1.55.1 / Chromium: 89 unit tests, 24 sandbox runtime checks, and 22 official-DSH integration checks passed. The runtime checks include WebGL2 rendering and pixel readback. The DSH flow uses a deterministic adapter, not a live-model quality benchmark.
+Official DSH 0.2.1-rc.2, Node 22.23.3, Playwright 1.55.1 / Chromium: 90 unit tests, 24 sandbox runtime checks, and 24 official-DSH integration checks passed. The runtime checks include WebGL2 rendering and pixel readback. The DSH flow uses a deterministic adapter, not a live-model quality benchmark.
 
 ## Run locally
 
@@ -32,13 +32,13 @@ node test/browser/run.mjs
 printf 'Evidence: %s\n' "$LANTERN_E2E_OUTPUT"
 ```
 
-`runtime.mjs` additionally accepts `LANTERN_CHROMIUM` for an already-installed Chromium binary. `run.mjs` uses the Chromium installed by Playwright. Do not disable browser/network policies to run these tests; use an authorized environment where loopback navigation is allowed.
+Both scripts accept `LANTERN_CHROMIUM` for an already-installed Chromium binary; otherwise they use the Chromium installed by Playwright. Do not disable browser/network policies to run these tests; use an authorized environment where loopback navigation is allowed.
 
 The standalone runtime suite uses the actual `buildDocument` and iframe code on a blank browser page. Its parent acknowledgement is a test harness. The DSH suite starts the official application, loads the actual plugin, and exercises the real tool-result/session/form/settings paths through the rendered UI. Its model adapter is the only deterministic replacement.
 
 ## Evidence and limits
 
-`runtime-checks.json`, `integration-checks.json`, screenshots, and redacted diagnostics are written to the output directory. The latter suite verifies call-position ordering, absence of a tail duplicate, theme propagation, compact controls, 390px layout, restored script gating, saved slider state, panel expansion, awaited Japanese text input, submitted-answer history, both guide switches, catalog removal, and continued `show_visual` availability with both guides off.
+`runtime-checks.json`, `integration-checks.json`, screenshots, and redacted diagnostics are written to the output directory. The latter suite verifies final-answer-tail ordering, absence of standalone conversation nodes or duplicate tool frames, theme propagation, compact controls, 390px layout, restored script gating, saved slider state, panel expansion, awaited Japanese text input, submitted-answer history, both guide switches, catalog removal, and continued `show_visual` availability with both guides off.
 
 The iframe suite verifies 320px layout, native required validation, textarea newlines, synthetic IME composition, duplicate-send suppression, error/retry without losing text, committed values, password exclusion, own-property field serialization, no implicit draft persistence, height measurement, custom CSS/SVG, parent-DOM isolation, and WebGL2 where available.
 

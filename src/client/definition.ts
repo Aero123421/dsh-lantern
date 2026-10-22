@@ -104,9 +104,7 @@ export const turnDefinition = {
     if (first === undefined || data === undefined) return null
     return {
       key: context.key, kind: TURN_KEY, id: context.id, target: 'chat',
-      anchorSeq: data.seq, location: first.location, visibility: 'visible',
-      // This is answer content, not a tool/process detail. Do not fold it away.
-      groupTree: 'turn', data,
+      anchorSeq: data.seq, location: first.location, visibility: 'hidden', data,
     }
   },
 }

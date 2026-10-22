@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getRecord, inFlow, markFlow, readLocal, replacementOf, upsert, visualKey, visualState, watchLocalStorage, writeLocal } from '../src/client/store.ts'
+import { getRecord, inTail, markTail, readLocal, replacementOf, upsert, visualKey, visualState, watchLocalStorage, writeLocal } from '../src/client/store.ts'
 
 const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
 test.afterEach(() => {
@@ -24,11 +24,11 @@ test('forked sessions keep records, replacements and tail placement separate', a
   assert.equal(getRecord(callId, 'fork')?.args?.title, 'Fork')
   assert.equal(replacementOf(callId, 'original'), 'new-call')
   assert.equal(replacementOf(callId, 'fork'), undefined)
-  const unmount = markFlow(callId, 'original')
-  assert.equal(inFlow(callId, 'original'), true)
-  assert.equal(inFlow(callId, 'fork'), false)
+  const unmount = markTail(callId, 'original')
+  assert.equal(inTail(callId, 'original'), true)
+  assert.equal(inTail(callId, 'fork'), false)
   unmount()
-  assert.equal(inFlow(callId, 'original'), false)
+  assert.equal(inTail(callId, 'original'), false)
   assert.notEqual(visualKey('c', 'a:b'), visualKey('b:c', 'a'))
 })
 

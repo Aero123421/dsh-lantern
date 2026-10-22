@@ -28,7 +28,6 @@ export const Config = z.object({
 })
 
 export const INTERACTIVE_PROMPT = 'Use show_visual proactively when touching or seeing helps explain, compare, explore, choose, or provide information. '
-  + 'Write useful prose before and after a compact inline visual; it appears at the tool call position. '
   + 'Use the preloaded DSH theme and controls, without an outer card, duplicate heading, or custom page background. '
   + 'Prefer choices with an optional labeled text field, concise comparisons, and small interactive diagrams. '
   + 'Keep titles above descriptions, readable contrast, mobile and keyboard access, and reduced motion. '

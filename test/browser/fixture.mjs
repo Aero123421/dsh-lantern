@@ -20,7 +20,7 @@ class Fixture extends LlmAdapter {
     if(count===0){
       const user=options.messages.filter(m=>m.role==='user').flatMap(m=>m.content||[]).map(b=>b.text||'').join('\n')
       const isForm=user.includes('FORM')
-      yield* text(isForm?'説明をあなたに合わせるため、条件を教えてください。':'2つの波の重なり方は、実際に動かしてみるとよく分かります。')
+      if(isForm) yield* text('説明をあなたに合わせるため、条件を教えてください。')
       const id='lantern-e2e-'+Date.now();const args=JSON.stringify({title:isForm?'説明の条件':'波の干渉',html:isForm?form:wave,await_response:isForm})
       yield {type:'block-start',index:1,blockType:'tool-call'}
       for(let i=0;i<args.length;i+=120){options.signal?.throwIfAborted();yield {type:'tool-call-delta',index:1,id,name:'show_visual',argumentsDelta:args.slice(i,i+120)};await new Promise(r=>setTimeout(r,15))}

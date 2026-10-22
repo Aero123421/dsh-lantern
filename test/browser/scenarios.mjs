@@ -6,7 +6,7 @@ import { join } from 'node:path'
 export async function scenarios({ page, context, output, capture, errors }) {
   const checks = []
   const check = (name, value) => { assert.ok(value, name); checks.push(name) }
-  const visual = () => page.locator('[data-chat-flow-kind="lanternVisuals"]')
+  const visual = () => page.locator('.lantern-tail')
   const child = () => visual().frameLocator('iframe')
   const composer = () => page.locator('[contenteditable="true"]').first()
   async function send(text) {
@@ -28,12 +28,15 @@ export async function scenarios({ page, context, output, capture, errors }) {
     return values
   }
   try {
-    const order = await page.locator('[data-chat-flow-key]').evaluateAll(nodes => {
-      const ui = nodes.findIndex(node => node.getAttribute('data-chat-flow-kind') === 'lanternVisuals')
-      const after = nodes.findIndex(node => node.getAttribute('data-chat-flow-kind') === 'assistant-step' && node.textContent.includes('この図や入力は会話の中に残ります。'))
-      return { ui, after }
+    const answer = page.getByText('この図や入力は会話の中に残ります。', { exact: false }).first()
+    const tailBelowAnswer = await visual().evaluate(tail => {
+      const answer = [...document.querySelectorAll('[data-chat-flow-kind="assistant-step"]')]
+        .find(el => el.textContent.includes('この図や入力は会話の中に残ります。'))
+      return !!answer && !!(answer.compareDocumentPosition(tail) & Node.DOCUMENT_POSITION_FOLLOWING)
     })
-    check('visual remains before the following answer, not at the turn tail', order.ui >= 0 && order.after > order.ui)
+    check('visual appears below the final answer, not between assistant steps', tailBelowAnswer)
+    check('the complete final explanation is visible without opening process details', await answer.isVisible())
+    check('no standalone visual node is registered in the conversation flow', await page.locator('[data-chat-flow-kind="lanternVisuals"]').count() === 0)
     check('inline wrapper has no enclosing border', await visual().locator('.lantern-card').evaluate(el => getComputedStyle(el).borderTopWidth === '0px'))
     const size = await dimensions('dsh-light')
     check('normal content fits without clipped heading or internal focus scroll', size.scroll === 0 && size.content <= size.viewport + 1)
@@ -69,20 +72,22 @@ export async function scenarios({ page, context, output, capture, errors }) {
 
     await page.getByRole('button', { name: 'New session', exact: true }).first().click()
     await send('Ask me using a form. FORM')
-    await child().locator('textarea').waitFor({ state: 'visible', timeout: 30000 })
-    check('awaited form is visible before the model continues', await visual().locator('.lantern-card[data-state="waiting"]').count() === 1)
-    const notes = child().locator('textarea')
+    const waiting = page.locator('.lantern-tool .lantern-card[data-state="waiting"]')
+    const pendingForm = waiting.frameLocator('iframe')
+    await pendingForm.locator('textarea').waitFor({ state: 'visible', timeout: 30000 })
+    check('awaited form remains available in the tool row before the model continues', await waiting.count() === 1)
+    const notes = pendingForm.locator('textarea')
     await notes.fill('図を中心に、日本語で説明してください。')
     await notes.press('End'); await notes.press('Enter'); await notes.pressSequentially('Extra detail')
     check('textarea newline does not submit the awaited form', await notes.isEnabled() && (await notes.inputValue()).includes('\n'))
-    await child().locator('input[value="math"]').check()
+    await pendingForm.locator('input[value="math"]').check()
     const submitted = await notes.inputValue()
     await capture('dsh-form-input')
-    await child().getByRole('button', { name: 'この内容で続ける', exact: true }).click()
+    await pendingForm.getByRole('button', { name: 'この内容で続ける', exact: true }).click()
     await completed()
     await child().locator('textarea:disabled').waitFor()
-    check('form answer reaches the real DSH waiting tool and resumes the model', await notes.inputValue() === submitted)
-    check('form settlement does not duplicate its frame', await visual().count() === 1 && await visual().locator('iframe').count() === 1)
+    check('form answer reaches the real DSH waiting tool and resumes the model', await child().locator('textarea').inputValue() === submitted)
+    check('form settlement moves to the final-answer tail without a duplicate tool frame', await visual().count() === 1 && await visual().locator('iframe').count() === 1 && await page.locator('.lantern-tool iframe').count() === 0)
     await capture('dsh-form-answered')
     await page.reload({ waitUntil: 'domcontentloaded' })
     await visual().locator('iframe[data-scripts="off"]').waitFor({ state: 'visible', timeout: 30000 })

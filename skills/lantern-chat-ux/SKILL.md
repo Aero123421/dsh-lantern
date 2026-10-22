@@ -14,7 +14,7 @@ Make the next conversational step easier to understand or perform. A visual is p
 
 Use two to six choices for a decision, a labeled form when several details are needed, a compact comparison when trade-offs matter, or a diagram with one or two controls when changing a parameter teaches something. Include an optional text field when fixed options cannot express the user's intent. Keep advanced controls behind a disclosure.
 
-Call `show_visual` at the point where the visual belongs: useful explanation, visual, then interpretation or the next step. It becomes a native conversation node; it is not an arbitrary insertion into an already-written Markdown paragraph. Use the panel only when the user needs a larger workspace.
+Use the panel only when the user needs a larger workspace.
 
 ## Use the built-in DSH appearance
 

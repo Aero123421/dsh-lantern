@@ -1,12 +1,12 @@
 /**
- * dsh-lantern, browser half: the `show_visual` tool row, visuals at their original position in the
- * conversation, and the sidebar tab type that shows a visual full size.
+ * dsh-lantern, browser half: the `show_visual` tool row, the cards under the
+ * final answer, and the sidebar tab type that shows a visual full size.
  */
 import css from './style.css'
 import { bind, TAB_ID, TAB_KIND } from './services.ts'
 import { watchLocalStorage } from './store.ts'
 import { Settings, type SettingsForm, type SettingsLocale } from './Settings.tsx'
-import { SidebarTab, FlowVisual, tabTitle, ToolView, TOOL_NAME, TURN_KEY, turnDefinition } from './views.tsx'
+import { SidebarTab, Tail, tabTitle, ToolView, TOOL_NAME, turnDefinition } from './views.tsx'
 
 export const name = 'dsh-lantern'
 export const inject = ['slots', 'uiConversation', 'sidebarRight', 'sidebarRightTabs', 'sessions', 'configForms', 'locale']
@@ -18,6 +18,7 @@ interface ClientContext {
   }
   uiConversation: {
     events: { register(definition: unknown): unknown }
+    binding(binding: unknown): { target(name: string): { getSnapshot(): { nodes: { turnDataSource(turn: number, kind: string): unknown } } | undefined } }
   }
   sidebarRight: unknown
   sidebarRightTabs: { register(definition: Record<string, unknown>): unknown }
@@ -51,8 +52,24 @@ export function apply(rawCtx: unknown): void {
     { name: 'plugins.bundle.config', key: 'dsh-lantern', inject: () => ({ form, locale: ctx.locale }) }, Settings,
   ))
 
-  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
-    { name: 'conversation.chat.node', key: TURN_KEY }, FlowVisual,
+  ctx.slots.inject('conversation.chat.turnTail', () => ctx.slots.register(
+    {
+      name: 'conversation.chat.turnTail', id: 'dsh-lantern',
+      inject: (sessionId: string) => {
+        const binding = ctx.sessions.binding(sessionId)
+        if (binding === undefined) throw new Error('dsh-lantern: session binding unavailable')
+        const chat = ctx.uiConversation.binding(binding).target('chat')
+        return {
+          keyedHooks: {
+            visuals: (turn: string) => {
+              const snapshot = chat.getSnapshot()
+              if (snapshot === undefined) throw new Error('dsh-lantern: Chat target unavailable')
+              return snapshot.nodes.turnDataSource(Number(turn), 'lanternVisuals')
+            },
+          },
+        }
+      },
+    }, Tail,
   ))
 
   ctx.effect(() => ctx.sidebarRightTabs.register({

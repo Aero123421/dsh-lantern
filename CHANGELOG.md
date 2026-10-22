@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Native Chat-node placement at the visual call, instead of moving every visual to the reply tail. Visuals survive process folding; full Markdown paragraph anchoring is not implemented.
+- Keep the established placement: live previews/forms in the tool row, completed visuals below the final answer. Remove interleaving instructions from both bundled guides and the system prompt; do not split explanations around visuals.
 - Frameless inline defaults, readable iframe names, wider choices, mobile inputs, and contrast-derived semantic text/button colors. Custom HTML, Canvas, SVG, WebGL, panel pages and sandbox boundaries remain available.
 - Two independently toggleable bundled guides: lightweight `lantern-chat-ux` with automatic guidance, and explicit `lantern-visuals`. Live catalog invalidation rejects stale disabled guide loads without removing the runtime.
 - Declarative forms guard IME composition and duplicate submission, retain values on errors, show accessible progress, and restore committed ordinary fields for single-form visuals. Draft persistence remains opt-in.

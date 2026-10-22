@@ -1,7 +1,7 @@
 /**
  * The chrome around a visual: title, status, actions and the frame. The same
- * card appears in the tool row while a turn runs, at its call position in the
- * conversation, and in the sidebar.
+ * card appears in the tool row while a turn runs, below the final answer,
+ * and in the sidebar.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useCopy } from './i18n.ts'
@@ -10,7 +10,7 @@ import { armScripts, releaseScripts, retainScripts, scriptsEnabled, subscribeScr
 import { answer, dismiss, openInSidebar, sendAsUser, workspaceUrl } from './services.ts'
 import { readLocal, replacementOf, useRegistry, visualKey, visualState, writeLocal, type VisualRecord } from './store.ts'
 
-export type Placement = 'tool' | 'inline' | 'panel'
+export type Placement = 'tool' | 'tail' | 'panel'
 
 export interface CardProps {
   readonly record: VisualRecord

@@ -24,7 +24,7 @@
 
 ## Why it feels different
 
-- 🪟 **It lives in the conversation.** Visuals stay at their tool-call position and remain visible after the process folds away. Recorded answers return with the conversation; visuals can save inputs for restoration in the same browser.
+- 🪟 **It lives in the conversation.** Visuals appear below the final answer, independently of folded process details. Recorded answers return with the conversation; visuals can save inputs for restoration in the same browser.
 - 🔁 **Answers flow back.** With `await_response: true` the agent waits, and whatever the user picks, ranks or types returns as the tool result. Follow-up buttons post a message as the user.
 - 🎨 **It looks like DSH.** The live DSH theme (light or dark, colours, fonts) flows into every visual and switches instantly, with no reload.
 - 🧰 **A kit, not a cage.** Tokens and components are preloaded in CSS cascade layers, so a visual can supply its own fonts, colours and layout. Three.js, D3, KaTeX and Chart.js have to be embedded; a CDN script is refused.
@@ -148,7 +148,7 @@ In **Plugins → dsh-lantern**, two independent switches are on by default:
 
 Turning either switch off removes its guide from new catalog reads and rejects stale loads. The first switch also removes automatic system guidance on the next model step. Already loaded instructions remain in that conversation's history. Neither switch disables `show_visual`, custom HTML, scripting, the panel, or existing visuals. Disabling the whole plugin still unloads its tools and UI.
 
-Visuals are native Chat nodes at the tool-call position, not cards appended below the final answer. Call the tool between explanatory steps to get **prose → visual → prose**. This does not insert a visual into an arbitrary paragraph of one already-written Markdown message; earlier prose follows DSH's normal process-folding policy. The visual itself remains outside process folding. Streaming preview and history reconstruction use the same saved invocation, without an extra tail copy.
+Display placement remains unchanged: the tool row shows live previews and forms while a turn runs, and the completed visual appears below the final answer. Model guidance does not ask the assistant to split its explanation around a visual. The final answer stays readable without expanding process details; an active form can still be answered before the model continues.
 
 The default inline surface is frameless and follows DSH typography and colors. Semantic colored labels use contrast-adjusted `--lt-*-text` tokens; artwork, series and custom CSS are not recolored. The kit lives in low-priority CSS layers, so explicit custom styles still win.
 

@@ -20,8 +20,8 @@ test('a nested PTC visual retains its resolved turn and call position when it se
   const state = turnDefinition.update({ state: initial }, finish)
   const node = turnDefinition.buildViewNode({ key: 'visual-key', kind: 'lanternVisuals', id: 'visual-1', start, matches: [start, finish], state })!
   assert.equal(node.target, 'chat')
-  assert.equal(node.visibility, 'visible')
-  assert.equal(node.groupTree, 'turn')
+  assert.equal(node.visibility, 'hidden')
+  assert.equal('groupTree' in node, false)
   assert.equal(node.location, location)
   assert.equal(node.anchorSeq, 42)
   assert.equal(node.data.callId, 'visual-1')
@@ -30,7 +30,7 @@ test('a nested PTC visual retains its resolved turn and call position when it se
   assert.deepEqual(node.data.meta, { status: 'answered', response: '"pro"' })
 })
 
-test('a PTC settlement outside its start history window can still rebuild a flow visual', () => {
+test('a PTC settlement outside its start history window can still rebuild a tail visual', () => {
   const finish = { location, event: { type: 'tool/ptc-dispatch', seq: 55, data: {
     rootCallId: 'python-1', subCallId: 'old-visual', name: 'show_visual', arguments: args,
     content: [], isError: false, meta: { status: 'shown' },
@@ -41,7 +41,7 @@ test('a PTC settlement outside its start history window can still rebuild a flow
   assert.equal(node.location, location)
 })
 
-test('native results preserve their call arguments and expose errors to the flow renderer', () => {
+test('native results preserve their call arguments and expose errors to the tail renderer', () => {
   const start = { location, event: { type: 'tool/call', seq: 10, data: {
     name: 'show_visual', callId: 'native', arguments: JSON.stringify(args),
   } } }

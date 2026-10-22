@@ -9,7 +9,7 @@ description: Optional advanced guide for rich show_visual scenes in DSH Web. Con
 
 This advanced guide is loaded only by an explicit user invocation such as `/lantern-visuals`. Ordinary visuals use the short system guidance and the tool description without this guide.
 
-`show_visual` renders HTML in a sandboxed iframe at its native conversation position in the chat (`display: "inline"`) or in the right sidebar (`display: "panel"`). Use it when seeing or touching something beats reading about it: a process, a structure, data over time, a comparison, a parameter to explore, a choice the user should make.
+`show_visual` renders HTML in a sandboxed iframe in the chat (`display: "inline"`) or in the right sidebar (`display: "panel"`). Use it when seeing or touching something beats reading about it: a process, a structure, data over time, a comparison, a parameter to explore, a choice the user should make.
 
 ## Workflow
 
