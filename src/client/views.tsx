@@ -139,20 +139,8 @@ export function Tail(props: TailProps) {
 const EMPTY_CALLS: readonly TurnCall[] = []
 
 function TailItem({ item, sessionId }: { item: TurnCall; sessionId: string | undefined }) {
-  const c = useCopy()
   const record = useMemo<VisualRecord>(() => ({ callId: item.callId, ...recordFromCall(item, sessionId) }), [item, sessionId])
   useEffect(() => record.args === undefined ? undefined : markTail(item.callId, sessionId), [item.callId, sessionId, record.args])
-  if (item.isError) {
-    return (
-      <div className="lantern-card" data-lantern-id={item.callId} data-state="error">
-        <div className="lantern-head">
-          <span className="lantern-title">{record.args?.title || c.error}</span>
-          <span className="lantern-badge" data-state="closed">{c.error}</span>
-        </div>
-        <div className="lantern-note" data-kind="error">{item.errorText || c.error}</div>
-      </div>
-    )
-  }
   if (record.args === undefined) return null
   return <VisualCard record={record} sessionId={sessionId} placement="tail" phase={item.settled ? 'result' : 'replay'} />
 }

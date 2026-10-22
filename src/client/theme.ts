@@ -4,6 +4,7 @@
  * values are read from there and handed to every visual.
  */
 import { themeCss } from '../frame/document.ts'
+import { foreground, readable, type RGB } from './contrast.ts'
 
 export interface ThemeSnapshot {
   readonly scheme: 'light' | 'dark'
@@ -58,15 +59,18 @@ function sameColor(a: string, b: string): boolean {
   return a === b || resolved(a) === resolved(b)
 }
 
-/** Relative luminance (0–1) of any CSS color, resolved by the browser. */
-function luminance(color: string): number {
-  const match = /rgba?\(([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/.exec(resolved(color))
-  if (!match) return 0
-  const [r, g, b] = [match[1], match[2], match[3]].map(value => {
-    const c = Number(value) / 255
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  }) as [number, number, number]
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+let colorCanvas: CanvasRenderingContext2D | null | undefined
+/** Resolve modern CSS colors and alpha against an opaque background in browser sRGB. */
+function rgb(color: string, background: string): RGB {
+  if (colorCanvas === undefined) colorCanvas = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
+  if (!colorCanvas) return [0, 0, 0]
+  colorCanvas.clearRect(0, 0, 1, 1)
+  colorCanvas.fillStyle = resolved(background)
+  colorCanvas.fillRect(0, 0, 1, 1)
+  colorCanvas.fillStyle = resolved(color)
+  colorCanvas.fillRect(0, 0, 1, 1)
+  const pixel = colorCanvas.getImageData(0, 0, 1, 1).data
+  return [pixel[0]!, pixel[1]!, pixel[2]!]
 }
 
 export function readTheme(): ThemeSnapshot {
@@ -95,7 +99,17 @@ export function readTheme(): ThemeSnapshot {
     if (value !== undefined) vars[token] = `color-mix(in srgb, ${value} ${percent}%, transparent)`
   }
   const accent = vars['--lt-accent']
-  if (accent !== undefined) vars['--lt-accent-fg'] = luminance(accent) > 0.55 ? '#111111' : '#ffffff'
+  const fallback = scheme === 'dark' ? '#17181c' : '#ffffff'
+  if (accent !== undefined) vars['--lt-accent-fg'] = foreground(rgb(accent, bg ?? fallback))
+  if (bg !== undefined) {
+    const background = rgb(bg, fallback)
+    for (const role of ['accent', 'success', 'warning', 'danger']) {
+      const value = vars[`--lt-${role}`]
+      if (value === undefined) continue
+      const text = readable(rgb(value, bg), background)
+      vars[`--lt-${role}-text`] = `rgb(${text.join(',')})`
+    }
+  }
   const text = read(style, ['--dsh-font-family-text', '--dsw-font-family'])
   if (text !== '') vars['--lt-font-sans'] = `${text}, system-ui, "Hiragino Sans", "Noto Sans JP", "Noto Sans CJK JP", sans-serif`
   const code = read(style, ['--dsh-font-family-code', '--ds-font-family-code'])

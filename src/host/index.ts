@@ -6,14 +6,14 @@
  * DSH services are reached through the Cordis context with structural types;
  * the live configuration schema uses DSH's Schemastery package.
  */
-import { readFile, realpath } from 'node:fs/promises'
+import { realpath } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { PARAMETERS, SKILL_NAME, TOOL_NAME, toolDescription } from './description.ts'
+import { PARAMETERS, TOOL_NAME, toolDescription } from './description.ts'
 import { FILE_ROUTE, FileRefusal, FileServer, resolveEntry } from './files.ts'
 import { readRecordedVisual, recordedSource, recordedStatus, type VisualSource } from './history.ts'
 import { PendingResponses, type Outcome } from './pending.ts'
 import { registerPrompt, type Config, type PromptHost } from './prompt.ts'
+import { skillProvider } from './skills.ts'
 
 export { Config } from './prompt.ts'
 
@@ -66,9 +66,6 @@ interface HostContext extends PromptHost {
   on(event: string, listener: (...args: unknown[]) => unknown): unknown
   [key: string]: unknown
 }
-
-// lib/index.js in the package; src/host/index.ts when the tests run the source.
-const SKILL_DIR = new URL(import.meta.url.endsWith('/src/host/index.ts') ? '../../skills/lantern-visuals/' : '../skills/lantern-visuals/', import.meta.url)
 
 function positive(value: unknown, fallback: number, what: string, max: number): number {
   if (value === undefined) return fallback
@@ -279,8 +276,14 @@ export function apply(rawCtx: unknown, config: Config = {}): void {
   })
 
   ctx.inject(['skills'], (scope) => {
-    const skills = scope.skills as { registerProvider(factory: () => unknown): unknown }
-    skills.registerProvider(() => skillProvider())
+    const skills = scope.skills as { registerProvider(factory: (control: { invalidate(): void; signal: AbortSignal }) => unknown): unknown }
+    skills.registerProvider((control) => {
+      const provider = skillProvider(config)
+      scope.on('loader/volatile-update', () => {
+        if (provider.refresh() && !control.signal.aborted) control.invalidate()
+      })
+      return provider
+    })
   })
   ctx.inject(['settings'], (scope) => {
     const settings = scope.settings as { configure(options: { auto: false }, fiber: unknown): unknown }
@@ -381,37 +384,3 @@ function route(ctx: HostContext, method: string, run: (payload: Record<string, u
   }) as never, `dsh-lantern: ${method}`)
 }
 
-// ── skill ────────────────────────────────────────────────────────────────
-
-async function readSkill(): Promise<{ description: string; content: string }> {
-  const text = await readFile(new URL('SKILL.md', SKILL_DIR), 'utf8')
-  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text)
-  const front = match?.[1] ?? ''
-  const description = /^description:\s*(.+)$/m.exec(front)?.[1]?.trim() ?? 'Design guide for the show_visual tool.'
-  return { description: description.slice(0, 500), content: match ? text.slice(match[0].length) : text }
-}
-
-function skillProvider() {
-  const summary = (description: string) => ({
-    name: SKILL_NAME,
-    description,
-    // Keep the advanced guide available through an explicit /lantern-visuals
-    // gesture, without DSH's automatic skill catalog requiring it first.
-    invocation: { modelInvocable: false, userInvocable: true },
-    provider: 'dsh-lantern',
-    source: 'bundled',
-    resourceBase: { kind: 'directory', path: fileURLToPath(SKILL_DIR) },
-  })
-  return {
-    name: 'dsh-lantern',
-    async list() {
-      const { description } = await readSkill()
-      // 600 is DSH's rank for bundled skills; a user's own skill of the same name wins.
-      return [{ ...summary(description), rank: 600, locator: SKILL_NAME }]
-    },
-    async get() {
-      const { description, content } = await readSkill()
-      return { ...summary(description), content }
-    },
-  }
-}

@@ -1,7 +1,7 @@
 /**
  * The chrome around a visual: title, status, actions and the frame. The same
- * card appears in the tool row while a turn runs, under the final answer once
- * the turn has ended, and in the sidebar.
+ * card appears in the tool row while a turn runs, below the final answer,
+ * and in the sidebar.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useCopy } from './i18n.ts'
@@ -150,7 +150,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
     : isPath
       ? <PathFrame key={generation + (paused ? ':paused' : ':run')} record={record} sessionId={session} state={state} response={response} onSubmit={onSubmit} onSend={onSend} onError={onError} onGlLost={onGlLost} paused={paused} />
       : args?.html !== undefined || partialHtml !== undefined
-        ? <Frame key={(phase === 'preparing' ? 'stream' : 'full') + generation + (paused ? ':paused' : ':run')} callId={callId} sessionId={session} mode={placement === 'panel' ? 'panel' : 'inline'}
+        ? <Frame key={(phase === 'preparing' ? 'stream' : 'full') + generation + (paused ? ':paused' : ':run')} callId={callId} sessionId={session} title={title} mode={placement === 'panel' ? 'panel' : 'inline'}
             html={phase === 'preparing' ? partialHtml ?? '' : args?.html ?? ''} streaming={phase === 'preparing'} paused={paused}
             state={state} response={response} onSubmit={onSubmit} onSend={onSend} onExpand={placement === 'panel' ? undefined : onExpand} onError={onError}
             onWheelHint={onWheelHint} onGlLost={onGlLost} />
