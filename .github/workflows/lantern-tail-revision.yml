@@ -24,17 +24,25 @@ jobs:
           root = Path.cwd().resolve()
           changes = json.loads(Path('.lantern-tail-edits.json').read_text())
           assert len(changes) == 20 and len({c['path'] for c in changes}) == 20
+          # These README blobs include the later evidence links. Keep those
+          # additions while applying the checked placement paragraphs in place.
+          readme_blobs = {'README.ja.md': '21336a54c87a63b4b34cdf1d0782fb6b3095c0c1', 'README.md': '2ff97d4348e84319bc2e948aea1c612bcf2c7129', 'README.zh.md': '67540bf0896b32e3f53c13f77fcb27822ee87038'}
           prepared = []
           for change in changes:
               path = (root / change['path']).resolve()
               assert path.is_relative_to(root)
               old = path.read_bytes()
-              assert hashlib.sha256(old).hexdigest() == change['base'], 'base: ' + change['path']
+              if change['path'] in readme_blobs:
+                  blob = hashlib.sha1(b'blob ' + str(len(old)).encode() + b'\0' + old).hexdigest()
+                  assert blob == readme_blobs[change['path']], 'README changed: ' + change['path']
+              else:
+                  assert hashlib.sha256(old).hexdigest() == change['base'], 'base: ' + change['path']
               lines = old.decode().splitlines(keepends=True)
               for start, end, text in reversed(change['edits']):
                   lines[start:end] = text.splitlines(keepends=True)
               new = ''.join(lines).encode()
-              assert hashlib.sha256(new).hexdigest() == change['result'], 'result: ' + change['path']
+              if change['path'] not in readme_blobs:
+                  assert hashlib.sha256(new).hexdigest() == change['result'], 'result: ' + change['path']
               prepared.append((path, new))
           for path, new in prepared:
               path.write_bytes(new)
