@@ -1,0 +1,133 @@
+
+> dsh-lantern@0.2.3 check
+> npm run typecheck && npm test && npm run build
+
+
+> dsh-lantern@0.2.3 typecheck
+> tsc --noEmit
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+npm notice To update run: npm install -g npm@12.2.1
+npm notice
+
+> dsh-lantern@0.2.3 test
+> node --test --experimental-strip-types --no-warnings --import ./test/register.mjs test/*.test.ts
+
+✔ a port is accepted only from this frame, this bridge, and an opaque origin (0.764184ms)
+✔ the port accepts only known messages, and only an opaque child origin (0.691935ms)
+✔ sRGB contrast and luminance have the expected endpoints (0.98028ms)
+✔ button foreground chooses a readable pair, including the old mid-tone failure (19.245408ms)
+✔ semantic text is readable without changing an already readable color (1.452042ms)
+✔ a nested PTC visual retains its resolved turn and call position when it settles (4.052689ms)
+✔ a PTC settlement outside its start history window can still rebuild a tail visual (0.223978ms)
+✔ native results preserve their call arguments and expose errors to the tail renderer (1.057156ms)
+✔ scriptJson cannot close the script element (2.687668ms)
+✔ themeCss keeps only --lt-* names and safe values (0.306643ms)
+✔ inline scripts are caged and meta refresh is removed (1.01349ms)
+✔ a fragment is wrapped with the runtime, the kit layers and the theme (0.698895ms)
+✔ a full document follows a trusted head and the strict visual policy (0.594658ms)
+✔ the policy and runtime precede early scripts and misleading head tags (2.612104ms)
+✔ html visuals refuse external images, scripts and CDNs (0.446605ms)
+✔ paused markup drops external subresources the CSP would also refuse (0.824685ms)
+✔ the streaming preview shows complete tags only and never scripts (4.198589ms)
+✔ workspace pages get tokens only unless they ask for the kit (0.427385ms)
+✔ folder preludes do not add a self CSP that would miss the token prefix (0.155875ms)
+✔ streaming previews authorize only their own runtime script (0.461217ms)
+✔ inline cards never show a scrollbar of their own, unless taller than the largest card (0.228926ms)
+✔ the runtime keeps download links, wheel gating and visibility self-contained (1.12587ms)
+✔ confine keeps reads inside the working directory (23.919395ms)
+✔ file CSP uses the request origin and the token prefix (0.716151ms)
+✔ the file route serves a granted root with sandbox headers (108.933973ms)
+✔ show_visual registers with a short description and validates its arguments (3.232341ms)
+✔ an awaited visual returns the answer posted through the route (13.157946ms)
+✔ skip and timeout end the wait (70.310778ms)
+✔ path visuals resolve inside the working directory and open in the panel (31.362313ms)
+✔ a saved folder is served only while it stays inside the session working directory (40.628543ms)
+✔ a saved root that only shares a name prefix with the working directory is refused (13.202343ms)
+✔ a saved root that is a symlink pointing outside the working directory is refused (9.477449ms)
+✔ a saved folder is refused when the session working directory is unknown (1.982974ms)
+✔ replacing a granted folder with a symlink to an outside directory is refused (44.992572ms)
+✔ a symlink file inside a granted folder that points outside is refused over /lantern/files (12.812094ms)
+✔ an awaited workspace visual can load its source before the tool result exists (7.688849ms)
+✔ PTC history restores the card and completed answers without guessing old path sources (1.259802ms)
+✔ unloading while a path resolves prevents a later answer wait (1.82785ms)
+✔ a second browser receives the existing answer state instead of a new submission (1.248816ms)
+✔ path rendering refuses remote or missing filesystem mappings and propagates directory cancellation (1.118909ms)
+✔ the optional guide is user-invocable only and served without its front matter (4.21213ms)
+✔ Lantern follows only the document language (0.68908ms)
+✔ run, badges and the permission line are real sentences in ja, en and zh-CN (2.107612ms)
+✔ card chrome stays inside 320px and 390px widths (1.664954ms)
+✔ a restored call is not a live birth, even while it is still waiting (0.803623ms)
+✔ only the first live display may run, and a later open stays paused (0.282827ms)
+✔ a workspace page never auto-runs, and hold drops an unconfirmed run (0.140742ms)
+✔ a pending card restored as start does not run until Run (0.095013ms)
+✔ an answer settles the waiting call (1.908371ms)
+✔ waiting ends with timeout (9.705815ms)
+✔ cancelling the call closes it (0.37746ms)
+✔ a second wait for the same call closes the first; closeAll releases everything (0.368997ms)
+✔ recorded outcomes stay bounded and closeAll drops them (2.488698ms)
+✔ a 0.2.1 config keeps its numbers and defaults automatic visuals on (1.590171ms)
+✔ the prompt section is fixed text, registered once, and empty when the setting or the tool is gone (1.696171ms)
+✔ model guidance does not prescribe an interleaved conversation layout (8.459553ms)
+✔ the release workflow only invokes the draft helper (1.242226ms)
+✔ the workflow and draft script never publish or replace release notes (0.298991ms)
+✔ a missing release is created as a draft with notes and assets (16.175512ms)
+✔ an existing draft keeps its notes and only receives assets (20.49861ms)
+✔ an existing draft asset is kept and the run fails without uploading (28.479289ms)
+✔ a draft that already has one asset is not uploaded at all (38.505156ms)
+✔ a full release list that does not include the tag does not create a release (13.507755ms)
+✔ a new draft is the changelog section and includes the pnpm 12 note once (17.064625ms)
+✔ a missing or empty changelog section does not create a release (37.805014ms)
+✔ a published release is left untouched (11.143114ms)
+✔ workspace state is available synchronously before app scripts and its bootstrap name is cleared (10.176294ms)
+✔ history stays inside the folder and does not walk back into another document (2.577872ms)
+✔ public action methods reject a call without native activation inside the child (7.833748ms)
+✔ later prototype changes cannot forge activation or turn a state update into a user message (1.630441ms)
+✔ workspace restoration rejects another invocation or damaged data and always consumes its name (2.579755ms)
+✔ settled instant choices keep the committed answer and update when another view answers (7.266511ms)
+✔ a timeout allows a late choice without enabling controls disabled by the page (1.280302ms)
+✔ a rejected state value does not replace the last valid widget state (1.058078ms)
+✔ forks can answer copied call ids independently, with one answer per session (6.256967ms)
+✔ only a confirmed timeout turns a waiting answer into a user message (3.524471ms)
+✔ a tab rechecks the answer after acquiring its browser lock (1.199121ms)
+✔ denied Web Locks retain the page-local fallback without retrying a failed send (1.092039ms)
+✔ workspace and history requests identify the recorded invocation without a caller-provided path (0.892217ms)
+✔ both guides are bundled but only the small chat guide is model-invocable (7.90773ms)
+✔ guide switches are independent and stale candidates cannot load disabled guides (4.411561ms)
+✔ volatile getters are read live; unrelated settings do not invalidate catalogs (0.360194ms)
+✔ existing configurations acquire a default-enabled advanced guide (0.611474ms)
+✔ replacement links reach the terminal revision beyond twenty hops in their session (10.647126ms)
+✔ two- and three-node cycles terminate without hiding their cards (0.988122ms)
+✔ failed replacements leave the latest successful revision available (0.814029ms)
+✔ forked sessions keep records, replacements and tail placement separate (0.912768ms)
+✔ answers and widget state survive unavailable storage without crossing sessions (1.406153ms)
+✔ a full storage quota does not restore stale widget state (0.265702ms)
+✔ malformed stored JSON is ignored (0.249637ms)
+✔ available storage still picks up answers written by another tab (0.653386ms)
+✔ storage events discard a superseded fallback and unsubscribe on plugin disposal (0.657192ms)
+✔ returning to visuals reads theme changes made while no visual was mounted (2.584672ms)
+ℹ tests 93
+ℹ suites 0
+ℹ pass 93
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1386.958139
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+npm notice To update run: npm install -g npm@12.2.1
+npm notice
+
+> dsh-lantern@0.2.3 build
+> node scripts/build.mjs
+
+built lib/index.js and lib/client.js
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+npm notice To update run: npm install -g npm@12.2.1
+npm notice

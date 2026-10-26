@@ -24,7 +24,7 @@
 
 ## Why it feels different
 
-- 🪟 **It lives in the conversation.** Cards render under the reply and stay there after the turn folds away. Recorded answers return with the conversation; visuals can save inputs for restoration in the same browser.
+- 🪟 **It lives in the conversation.** Visuals appear below the final answer, independently of folded process details. Recorded answers return with the conversation; visuals can save inputs for restoration in the same browser.
 - 🔁 **Answers flow back.** With `await_response: true` the agent waits, and whatever the user picks, ranks or types returns as the tool result. Follow-up buttons post a message as the user.
 - 🎨 **It looks like DSH.** The live DSH theme (light or dark, colours, fonts) flows into every visual and switches instantly, with no reload.
 - 🧰 **A kit, not a cage.** Tokens and components are preloaded in CSS cascade layers, so a visual can supply its own fonts, colours and layout. Three.js, D3, KaTeX and Chart.js have to be embedded; a CDN script is refused.
@@ -141,11 +141,18 @@ Then just ask. For example:
 
 ## Automatic conversation visuals
 
-Open **Plugins → dsh-lantern → Use conversation visuals automatically**. It is on by default. Changes save automatically and apply when DSH assembles the prompt for its next model step; no restart or skill loading is needed.
+In **Plugins → dsh-lantern**, two independent switches are on by default:
 
-When enabled, Lantern registers [102 English words of guidance](src/host/prompt.ts) in the system prompt layer. It encourages compact cards for explanation, comparison and exploration, local responses to controls, and deliberate submission back to the conversation. Simple answers can stay in prose. This guidance is independent of SKILLS content. The token count depends on the model's tokenizer; tool descriptions also occupy context. The bundled advanced guide is excluded from the automatic skill catalog and can be loaded explicitly by starting a message with `/lantern-visuals`.
+- **Use conversation visuals automatically** enables the short system guidance and the optional, model-invocable [`lantern-chat-ux`](skills/lantern-chat-ux/SKILL.md) guide for choices, forms, comparisons and small explorers.
+- **Advanced visual guide** makes `/lantern-visuals` available explicitly for 3D, WebGL and custom applications. It is not a prerequisite for ordinary visuals.
 
-Turning this setting off removes that guidance and keeps `show_visual` available for direct requests. Disabling the whole plugin in Plugins unloads its tools, routes, prompt section and UI. The optional design guide is never a prerequisite for using the tool.
+Turning either switch off removes its guide from new catalog reads and rejects stale loads. The first switch also removes automatic system guidance on the next model step. Already loaded instructions remain in that conversation's history. Neither switch disables `show_visual`, custom HTML, scripting, the panel, or existing visuals. Disabling the whole plugin still unloads its tools and UI.
+
+Display placement remains unchanged: the tool row shows live previews and forms while a turn runs, and the completed visual appears below the final answer. Model guidance does not ask the assistant to split its explanation around a visual. The final answer stays readable without expanding process details; an active form can still be answered before the model continues.
+
+The default inline surface is frameless and follows DSH typography and colors. Semantic colored labels use contrast-adjusted `--lt-*-text` tokens; artwork, series and custom CSS are not recolored. The kit lives in low-priority CSS layers, so explicit custom styles still win.
+
+A native `<form data-lt-form>` supports labeled inputs, textareas, selects, browser validation, duplicate-submit prevention, IME composition guards, and sending/error/success feedback. Enter in a textarea remains a newline; opt in to Ctrl/Command+Enter with `data-lt-submit-key="mod-enter"`. Failed submissions keep the entered values. A single declarative form restores committed non-password/non-file fields from the saved answer; unsubmitted drafts are not automatically persisted. Use `lantern.setState/getState` explicitly for non-sensitive exploration state.
 
 ## How it works
 
@@ -163,14 +170,14 @@ sequenceDiagram
     V->>C: lantern.submit(value), from the user's control
     C->>H: POST /api/lantern.respond (authenticated)
     H-->>A: tool result: "The user answered …"
-    Note over C: the turn ends and the card moves under the final answer
+    Note over C: the visual stays at its call position after the turn ends
 ```
 
 ## For the model: the `show_visual` tool
 
 | Argument | |
 |---|---|
-| `title` | Card and tab title (required). |
+| `title` | Accessible visual name and sidebar-tab title (required). |
 | `html` | A fragment or a complete document. The kit and theme are preloaded. |
 | `path` | A workspace `.html` file instead of `html`. It always opens in the sidebar. |
 | `display` | `inline` (default) or `panel` (the right sidebar). |
@@ -239,7 +246,8 @@ Use the Plugins toggle for automatic visuals. You can also configure defaults in
 ```yaml
 - id: dsh-lantern
   config:
-    automaticVisuals: true     # optional system guidance; change live in Plugins
+    automaticVisuals: true     # chat UX guidance + lightweight guide
+    advancedVisuals: true      # optional explicit advanced guide
     answerTimeoutMinutes: 15   # how long an awaited visual waits (default 15, max 1440)
     maxHtmlChars: 400000       # the largest html argument (default 400000)
 ```

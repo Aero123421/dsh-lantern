@@ -132,14 +132,18 @@ function replacements(): Map<string, string> {
   return map
 }
 
-/** The visual that replaced `callId`, following chains to the newest. */
+/** The newest replacement, or none when a malformed chain has no terminal visual. */
 export function replacementOf(callId: string, sessionId?: string): string | undefined {
   const map = replacements()
+  const visited = new Set([callId])
   let found: string | undefined
   let current = callId
-  for (let hops = 0; hops < 20; hops++) {
+  while (true) {
     const next = map.get(visualKey(current, sessionId))
     if (next === undefined) break
+    // Keep cyclic records visible instead of hiding every card behind links.
+    if (visited.has(next)) return undefined
+    visited.add(next)
     found = next
     current = next
   }

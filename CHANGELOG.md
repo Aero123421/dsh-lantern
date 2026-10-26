@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Keep the established placement: live previews/forms in the tool row, completed visuals below the final answer. Remove interleaving instructions from both bundled guides and the system prompt; do not split explanations around visuals.
+- Frameless inline defaults, readable iframe names, wider choices, mobile inputs, and contrast-derived semantic text/button colors. Custom HTML, Canvas, SVG, WebGL, panel pages and sandbox boundaries remain available.
+- Two independently toggleable bundled guides: lightweight `lantern-chat-ux` with automatic guidance, and explicit `lantern-visuals`. Live catalog invalidation rejects stale disabled guide loads without removing the runtime.
+- Declarative forms guard IME composition and duplicate submission, retain values on errors, show accessible progress, and restore committed ordinary fields for single-form visuals. Draft persistence remains opt-in.
+- Add contrast/guide regressions and an isolated, deterministic-model browser integration runner for official DSH 0.2.1-rc.2.
+
 ## 0.2.3
 
 0.2.2 was not published. It stayed a draft GitHub Release and was withdrawn. 0.2.3 includes every change from that unpublished 0.2.2. The notes in this section are the complete set of changes since 0.2.1.

@@ -15,12 +15,13 @@ test('a nested PTC visual retains its resolved turn and call position when it se
     meta: { status: 'answered', response: '"pro"' },
   } } }
   assert.deepEqual(turnDefinition.match(start.event), { id: 'visual-1', role: 'start' })
-  assert.deepEqual(turnDefinition.match(finish.event), { id: 'visual-1', role: 'update' })
+  assert.deepEqual(turnDefinition.match(finish.event), { id: 'visual-1', role: 'start' })
   const initial = turnDefinition.start({}, start)
   const state = turnDefinition.update({ state: initial }, finish)
   const node = turnDefinition.buildViewNode({ key: 'visual-key', kind: 'lanternVisuals', id: 'visual-1', start, matches: [start, finish], state })!
   assert.equal(node.target, 'chat')
   assert.equal(node.visibility, 'hidden')
+  assert.equal('groupTree' in node, false)
   assert.equal(node.location, location)
   assert.equal(node.anchorSeq, 42)
   assert.equal(node.data.callId, 'visual-1')
@@ -40,7 +41,7 @@ test('a PTC settlement outside its start history window can still rebuild a tail
   assert.equal(node.location, location)
 })
 
-test('native results preserve their call arguments and expose errors to the tail filter', () => {
+test('native results preserve their call arguments and expose errors to the tail renderer', () => {
   const start = { location, event: { type: 'tool/call', seq: 10, data: {
     name: 'show_visual', callId: 'native', arguments: JSON.stringify(args),
   } } }

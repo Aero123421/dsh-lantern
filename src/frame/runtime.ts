@@ -259,6 +259,7 @@ export function frameRuntime(): void {
     window.dispatchEvent(new CustomEvent('lantern:' + name, { detail }))
   }
 
+  const answerLockedControls = new WeakSet<Element>()
   function applyState() {
     document.documentElement.setAttribute('data-lt-state', state)
     // A visual that timed out still accepts a late answer (it reaches the
@@ -277,6 +278,38 @@ export function frameRuntime(): void {
       }
     })
     if (state === 'answered' && response !== undefined) {
+      // A single declarative form can reconstruct its committed answer from
+      // history without persisting unsubmitted drafts or replaying user events.
+      const forms = document.querySelectorAll<HTMLFormElement>('form[data-lt-form]')
+      if (forms.length === 1 && response !== null && typeof response === 'object' && !Array.isArray(response)) {
+        const answer = response as Record<string, unknown>
+        const positions = new Map<string, number>()
+        forms[0]!.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input[name], textarea[name], select[name]').forEach(control => {
+          // Exclude non-data inputs and originally disabled controls before
+          // consuming values. Our own answer locks still accept later state.
+          if (control.tagName === 'INPUT' && ['button', 'reset', 'submit', 'image'].includes(control.type)) return
+          if (control.matches(':disabled') && !answerLockedControls.has(control)) return
+          const present = Object.hasOwn(answer, control.name)
+          // Native FormData omits unchecked checkboxes and empty multiple
+          // selects. Clear their defaults while preserving disabled controls.
+          const emptySelection = control.type === 'checkbox' || control.type === 'select-multiple'
+          if ((!present && !emptySelection) || control.type === 'password' || control.type === 'file') return
+          const raw = present ? answer[control.name] : undefined
+          const values = !present ? [] : Array.isArray(raw) ? raw : [raw]
+          if (control.type === 'checkbox' || control.type === 'radio') {
+            const input = control as HTMLInputElement
+            input.checked = values.some(value => value === input.value || (value === true && input.value === 'on'))
+          } else if (control.tagName === 'SELECT') {
+            Array.from((control as HTMLSelectElement).options).forEach(option => { option.selected = values.some(value => String(value) === option.value) })
+          } else {
+            const index = positions.get(control.name) ?? 0
+            control.value = values[index] === undefined ? '' : String(values[index])
+            positions.set(control.name, index + 1)
+          }
+          control.disabled = true
+          answerLockedControls.add(control)
+        })
+      }
       const wanted = ([] as unknown[]).concat(response as unknown)
       document.querySelectorAll('[data-lt-choices]').forEach((group) => {
         group.querySelectorAll('[data-lt-choice]').forEach((el) => {
@@ -377,11 +410,26 @@ export function frameRuntime(): void {
   let seenViewport = -1
   let follows = 0
   let probing = false
+  let probeViewport = 0
+  let probeContent = 0
   let pinned = 0
   let started = false
   function contentHeight(): number {
     const rect = root.getBoundingClientRect()
-    return Math.ceil(Math.max(rect.height, document.body ? document.body.scrollHeight : 0))
+    const body = document.body
+    if (!body) return Math.ceil(rect.height)
+    // body.scrollHeight is at least the viewport height. Using it during the
+    // two-pixel probe falsely classifies ordinary flex stacks as 100vh pages,
+    // pins the frame and clips its heading after a control receives focus.
+    // A Range measures intrinsic content (including overflowing descendants)
+    // without that viewport floor. Use document coordinates so collapsed top
+    // margins count, and retain the root box for collapsed trailing margins.
+    const range = document.createRange()
+    range.selectNodeContents(body)
+    const content = range.getBoundingClientRect()
+    const bodyRect = body.getBoundingClientRect()
+    const padding = parseFloat(getComputedStyle(body).paddingBottom) || 0
+    return Math.ceil(Math.max(rect.height, bodyRect.bottom + window.scrollY, content.bottom + window.scrollY + padding))
   }
   function measure() {
     queued = false
@@ -389,18 +437,25 @@ export function frameRuntime(): void {
     if (document.fullscreenElement) return
     const content = contentHeight()
     const viewport = window.innerHeight
-    if (inline && !pinned && seenViewport > 0 && viewport !== seenViewport) {
+    if (inline && !pinned && probing) {
+      // Height transitions pass through one-pixel intermediate viewports. Wait
+      // for the full probe before deciding whether the content follows it.
+      if (viewport < probeViewport + 3) return
+      const followed = Math.abs((content - probeContent) - (viewport - probeViewport)) <= 1
+      if (followed) pinned = Math.round(Math.min(540, Math.max(320, window.innerWidth * 0.62)))
+      probing = false
+      follows = 0
+    } else if (inline && !pinned && seenViewport > 0 && viewport !== seenViewport) {
       const followed = content >= viewport - 1 && Math.abs((content - seenHeight) - (viewport - seenViewport)) <= 1
       follows = followed ? follows + 1 : 0
-      if (followed && (probing || follows >= 3)) pinned = Math.round(Math.min(540, Math.max(320, window.innerWidth * 0.62)))
-      probing = false
+      if (follows >= 3) pinned = Math.round(Math.min(540, Math.max(320, window.innerWidth * 0.62)))
     }
     seenHeight = content
     seenViewport = viewport
     const height = pinned || content
     // Until the page has run its scripts, only grow: it is not its real height yet.
     if (!pinned && !started && height <= viewport) return
-    root.toggleAttribute('data-lt-overflow', boot.mode !== 'panel' && height > maxHeight)
+    root.toggleAttribute('data-lt-overflow', boot.mode !== 'panel' && content > Math.min(height, maxHeight) + 1)
     if (Math.abs(height - reported) < 2) return
     reported = height
     post({ type: 'resize', height })
@@ -408,7 +463,7 @@ export function frameRuntime(): void {
   function schedule() { if (!queued) { queued = true; requestAnimationFrame(measure) } }
   /**
    * Content exactly as tall as the frame may be sized by the frame itself
-   * (an element of 100vh). Nudge the card 2 px taller once: if the content
+   * (an element of 100vh). Nudge the card 4 px taller once: if the content
    * grows with it, `measure` pins the card; if not, the card shrinks back.
    */
   function probe() {
@@ -418,9 +473,11 @@ export function frameRuntime(): void {
     const sized = Array.from(document.body.children).some((el) => Math.abs((el as HTMLElement).offsetHeight - viewport) <= 1)
     if (!sized) return
     probing = true
-    reported = viewport + 2
+    probeViewport = viewport
+    probeContent = contentHeight()
+    reported = viewport + 4
     post({ type: 'resize', height: reported })
-    setTimeout(() => { probing = false }, 1000)
+    setTimeout(() => { if (probing) { probing = false; schedule() } }, 1000)
   }
   if (typeof ResizeObserver === 'function') new ResizeObserver(schedule).observe(root)
   window.addEventListener('resize', schedule)
@@ -483,16 +540,19 @@ export function frameRuntime(): void {
     try { return JSON.parse(raw) } catch { return raw }
   }
   function formValue(form: HTMLFormElement): Record<string, unknown> {
-    const out: Record<string, unknown> = {}
+    const out: Record<string, unknown> = Object.create(null)
     new FormData(form).forEach((value, key) => {
       const text = typeof value === 'string' ? value : value.name
-      if (key in out) out[key] = ([] as unknown[]).concat(out[key], text)
+      if (Object.hasOwn(out, key)) out[key] = ([] as unknown[]).concat(out[key], text)
       else out[key] = text
     })
     form.querySelectorAll('input[type="checkbox"][name]').forEach((box) => {
       const input = box as HTMLInputElement
-      if (!(input.name in out) && !form.querySelector('input[type="checkbox"][name="' + input.name + '"][value]:not([value="on"])')) out[input.name] = false
-      else if (out[input.name] === 'on') out[input.name] = true
+      if (input.disabled) return
+      const customValue = Array.from(form.querySelectorAll<HTMLInputElement>('input[type="checkbox"][name]'))
+        .some(other => !other.disabled && other.name === input.name && other.value !== 'on')
+      if (!Object.hasOwn(out, input.name) && !customValue) out[input.name] = false
+      else if (!customValue && out[input.name] === 'on') out[input.name] = true
     })
     return out
   }
@@ -612,12 +672,80 @@ export function frameRuntime(): void {
     }
   }, false)
 
+  // IME Enter commits text, not a form. The short task guard covers browsers
+  // that dispatch compositionend immediately before the implicit submit.
+  const composingForms = new WeakSet<HTMLFormElement>()
+  const imeGuard = new WeakSet<HTMLFormElement>()
+  const submittingForms = new WeakSet<HTMLFormElement>()
+  const formOf = (target: EventTarget | null) => (target as Element | null)?.closest?.('form[data-lt-form]') as HTMLFormElement | null
+  document.addEventListener('compositionstart', event => {
+    const form = formOf(event.target)
+    if (form) composingForms.add(form)
+  }, true)
+  document.addEventListener('compositionend', event => {
+    const form = formOf(event.target)
+    if (!form) return
+    composingForms.delete(form)
+    imeGuard.add(form)
+    setTimeout(() => imeGuard.delete(form), 0)
+  }, true)
+  document.addEventListener('keydown', event => {
+    const form = formOf(event.target)
+    if (!form || event.key !== 'Enter') return
+    if (event.isComposing || event.keyCode === 229 || composingForms.has(form)) {
+      imeGuard.add(form)
+      setTimeout(() => imeGuard.delete(form), 0)
+      return
+    }
+    if (form.getAttribute('data-lt-submit-key') === 'mod-enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault()
+      form.requestSubmit()
+    }
+  }, true)
+  function formStatus(form: HTMLFormElement, message: string, error = false) {
+    let box = form.querySelector<HTMLElement>('[data-lt-form-status]')
+    if (!box) {
+      box = document.createElement('div')
+      box.className = 'lt-form-status'
+      box.setAttribute('data-lt-form-status', '')
+      form.appendChild(box)
+    }
+    box.setAttribute('role', error ? 'alert' : 'status')
+    box.setAttribute('aria-live', error ? 'assertive' : 'polite')
+    box.toggleAttribute('data-error', error)
+    box.textContent = message
+  }
+  function formCopy(sending: boolean): string {
+    const lang = String(boot.lang || 'en').toLowerCase()
+    if (startsWith(lang, 'ja')) return sending ? '送信中…' : '送信しました。'
+    if (startsWith(lang, 'zh')) return sending ? '正在提交…' : '已提交。'
+    return sending ? 'Sending…' : 'Sent.'
+  }
   document.addEventListener('submit', (event) => {
     const form = event.target as HTMLFormElement
     if (!form || !form.hasAttribute('data-lt-form')) return
     event.preventDefault()
+    if (composingForms.has(form) || imeGuard.has(form) || submittingForms.has(form) || isLocked()) return
     if (!form.checkValidity()) { form.reportValidity(); return }
-    lantern.submit(formValue(form)).catch((error: Error) => showError(form.lastElementChild || form, error.message))
+    const value = formValue(form)
+    const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | HTMLInputElement | null
+    if (submitter?.name && !submitter.disabled) value[submitter.name] = submitter.value
+    const controls = Array.from(form.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button:not([type]),button[type="submit"],input[type="submit"]'))
+      .map(control => ({ control, disabled: control.disabled }))
+    const previousBusy = form.getAttribute('aria-busy')
+    submittingForms.add(form)
+    form.setAttribute('aria-busy', 'true')
+    controls.forEach(({ control }) => { control.disabled = true })
+    formStatus(form, formCopy(true))
+    // Capture the value before disabling controls; never reset the user's draft.
+    lantern.submit(value).then(() => formStatus(form, formCopy(false)), (error: Error) => {
+      formStatus(form, error.message, true)
+    }).finally(() => {
+      submittingForms.delete(form)
+      if (previousBusy === null) form.removeAttribute('aria-busy')
+      else form.setAttribute('aria-busy', previousBusy)
+      controls.forEach(({ control, disabled }) => { control.disabled = disabled || isLocked() })
+    })
   })
 
   function stepTo(steps: Element, index: number) {

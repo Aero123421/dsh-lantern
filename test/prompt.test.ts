@@ -47,3 +47,14 @@ test('the prompt section is fixed text, registered once, and empty when the sett
   registerPrompt(uninstalled, Config({}))
   assert.equal(sections.at(-1)!.text({}), '')
 })
+
+
+test('model guidance does not prescribe an interleaved conversation layout', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const { toolDescription } = await import('../src/host/description.ts')
+  const guides = await Promise.all(['lantern-chat-ux', 'lantern-visuals'].map(name =>
+    readFile(new URL(`../skills/${name}/SKILL.md`, import.meta.url), 'utf8')))
+  for (const text of [INTERACTIVE_PROMPT, toolDescription(15), ...guides]) {
+    assert.doesNotMatch(text, /tool.call position|native conversation (?:node|position)|before and after|explanation, visual, then|prose\s*→\s*visual|Markdown paragraph/i)
+  }
+})

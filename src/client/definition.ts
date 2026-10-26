@@ -5,6 +5,7 @@ export const TURN_KEY = 'lanternVisuals'
 export interface TurnCall {
   readonly callId: string
   readonly seq: number
+  readonly time?: number
   readonly argsRaw: string
   readonly meta?: unknown
   readonly settled: boolean
@@ -15,6 +16,7 @@ export interface TurnCall {
 interface ConvEvent {
   readonly type: string
   readonly seq: number
+  readonly time?: number
   readonly data: Record<string, unknown>
 }
 
@@ -63,7 +65,7 @@ function call(event: ConvEvent): TurnCall | undefined {
   const argsRaw = native ? event.data.arguments : JSON.stringify(event.data.arguments)
   if (typeof argsRaw !== 'string') return undefined
   const settled = event.type === 'tool/ptc-dispatch'
-  return { callId, seq: event.seq, argsRaw, settled, ...settled ? result(event) : { isError: false } }
+  return { callId, seq: event.seq, time: event.time, argsRaw, settled, ...settled ? result(event) : { isError: false } }
 }
 
 /** Each invocation keeps its engine-resolved Turn even when turn/start is outside the history window. */
@@ -81,7 +83,9 @@ export const turnDefinition = {
       return { id: event.data.callId, role: 'start' as const }
     }
     if ((event.type === 'tool/ptc-dispatch-start' || event.type === 'tool/ptc-dispatch') && typeof event.data.subCallId === 'string') {
-      return { id: event.data.subCallId, role: event.type === 'tool/ptc-dispatch-start' ? 'start' as const : 'update' as const }
+      // A terminal PTC event is a complete checkpoint, including arguments.
+      // Treat it as a start too so a paged history window can rebuild it.
+      return { id: event.data.subCallId, role: 'start' as const }
     }
     return null
   },

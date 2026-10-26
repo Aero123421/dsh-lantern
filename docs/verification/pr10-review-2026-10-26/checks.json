@@ -1,0 +1,12 @@
+{
+  "actualDSH": true,
+  "finalAnswerTail": true,
+  "noStandaloneNode": true,
+  "localSlider": true,
+  "errors": [
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'."
+  ]
+}

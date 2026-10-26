@@ -1,0 +1,32 @@
+{
+  "checks": [
+    "native required validation prevents empty submit",
+    "textarea Enter inserts a newline without submitting",
+    "synthetic IME composition guard prevents modifier submit",
+    "pending submission marks form busy",
+    "pending submission disables submit button",
+    "duplicate submission is suppressed",
+    "failure retains typed text and reenables retry",
+    "native form serializes Japanese, radio, checkbox, and submitter",
+    "special field names are ordinary own properties",
+    "successful answer locks controls and reports success",
+    "drafts are not implicitly persisted",
+    "committed form values reconstruct from history",
+    "password fields are not restored",
+    "form fits 320px viewport",
+    "inline body is transparent",
+    "sandbox still prevents access to parent DOM",
+    "auto-height does not mistake an ordinary flex stack for a viewport app",
+    "focusing a slider does not scroll away the heading",
+    "range height is independent of vertical flex basis"
+  ],
+  "errors": [],
+  "geometry": {
+    "collapsedMargin": {
+      "bottom": 170,
+      "viewport": 24,
+      "scroll": 0
+    }
+  },
+  "failure": "AssertionError [ERR_ASSERTION]: collapsed top margin remains inside the auto-sized frame"
+}

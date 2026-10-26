@@ -2,7 +2,7 @@
 name: lantern-visuals
 disable-model-invocation: true
 user-invocable: true
-description: Optional advanced guide for show_visual in DSH Web. Consult it for detailed Lantern kit examples, forms, charts, 3D scenes, simulations, draggable explorers, sortable answers or custom styling. Covers tokens, components, window.lantern and answers that return to the conversation. The tool description provides the essentials; loading this skill is not required before a show_visual call.
+description: Optional advanced guide for rich show_visual scenes in DSH Web. Consult it for detailed Lantern kit examples, forms, charts, 3D scenes, simulations, draggable explorers, sortable answers or custom styling. Covers tokens, components, window.lantern and answers that return to the conversation. The tool description provides the essentials; loading this skill is not required before a show_visual call.
 ---
 
 # Lantern visuals

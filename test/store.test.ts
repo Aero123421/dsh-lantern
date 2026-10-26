@@ -14,6 +14,44 @@ function setStorage(value: unknown): void {
 
 const args = (title: string, replace?: string) => ({ title, html: '<p>x</p>', display: 'inline' as const, await: true, ...replace ? { replace } : {} })
 
+test('replacement links reach the terminal revision beyond twenty hops in their session', async () => {
+  for (const sessionId of ['chain-original', 'chain-fork']) {
+    const length = sessionId === 'chain-original' ? 1000 : 22
+    for (let i = 0; i <= length; i++) {
+      upsert(`r${i}`, { sessionId, seq: i, args: args(`Revision ${i}`, i ? `r${i - 1}` : undefined), result: { status: 'shown' } })
+    }
+  }
+  await Promise.resolve()
+  for (const i of [0, 1, 19, 20, 21, 999]) assert.equal(replacementOf(`r${i}`, 'chain-original'), 'r1000')
+  assert.equal(replacementOf('r0', 'chain-fork'), 'r22')
+  assert.equal(replacementOf('r1000', 'chain-original'), undefined)
+  assert.equal(replacementOf('r0', 'absent-session'), undefined)
+})
+
+test('two- and three-node cycles terminate without hiding their cards', async () => {
+  upsert('a', { sessionId: 'cycle', args: args('A', 'b'), seq: 1 })
+  upsert('b', { sessionId: 'cycle', args: args('B', 'a'), seq: 2 })
+  upsert('self', { sessionId: 'cycle', args: args('Self', 'self') })
+  await Promise.resolve()
+  for (const id of ['a', 'b', 'self']) assert.equal(replacementOf(id, 'cycle'), undefined)
+  upsert('c', { sessionId: 'cycle', args: args('C', 'b'), seq: 3 })
+  upsert('a', { sessionId: 'cycle', args: args('A', 'c'), seq: 4 })
+  await Promise.resolve()
+  for (const id of ['a', 'b', 'c']) assert.equal(replacementOf(id, 'cycle'), undefined)
+})
+
+test('failed replacements leave the latest successful revision available', async () => {
+  upsert('first', { sessionId: 'failed-chain', seq: 1, args: args('First') })
+  upsert('second', { sessionId: 'failed-chain', seq: 2, args: args('Second', 'first'), result: { status: 'shown' } })
+  upsert('failed', { sessionId: 'failed-chain', seq: 3, args: args('Failed', 'second'), error: 'fixture failure' })
+  await Promise.resolve()
+  assert.equal(replacementOf('first', 'failed-chain'), 'second')
+  assert.equal(replacementOf('second', 'failed-chain'), undefined)
+  upsert('third', { sessionId: 'failed-chain', seq: 4, args: args('Retry', 'second'), result: { status: 'shown' } })
+  await Promise.resolve()
+  assert.equal(replacementOf('first', 'failed-chain'), 'third')
+})
+
 test('forked sessions keep records, replacements and tail placement separate', async () => {
   const callId = 'copied-call'
   upsert(callId, { sessionId: 'original', args: args('Original'), seq: 1 })
