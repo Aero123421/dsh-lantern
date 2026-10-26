@@ -1,0 +1,178 @@
+{
+  "productSha256": {
+    "src/frame/runtime.ts": "36c8c4bdf90347feb66c7b4d4b91d4901d9969c9ae3ab833038d6c12d7369a4a",
+    "lib/client.js": "4386760e1a065e6958a014f1a74419fdf7a377e68108352be6dc0f40094d6442",
+    "lib/index.js": "36cd69a55a36db6203b8bab1cea1500c6f822ef1c0bf7f395820d638088f789c"
+  },
+  "images": [
+    {
+      "image": "action-inputs-restored.png",
+      "state": "action-inputs-restored",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "1e011c2ff1055d0cc3b65f9e30c437330793487fde4b8c1445810f3c38523cb7",
+      "result": "pass: expected fixed and active states, no clipping or overlap; pixels opened and inspected"
+    },
+    {
+      "image": "baseline-action-inputs-restored.png",
+      "state": "baseline-action-inputs-restored",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "e27d45a78569a9600b5dc79c4c0f7d2c27e0b019",
+      "sha256": "e72edc369955e4ba957f11c3b27b6ae907f585cc755aa18351569f2724d03a03",
+      "result": "expected failure: disabled values or non-data input values consume active field positions"
+    },
+    {
+      "image": "baseline-checkbox-attribute-restored.png",
+      "state": "baseline-checkbox-attribute-restored",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "e27d45a78569a9600b5dc79c4c0f7d2c27e0b019",
+      "sha256": "bcb95265860df410b102e36733df1b5a97ca3abf09ff2bb4f1eac76261f7fabf",
+      "result": "expected failure: disabled values or non-data input values consume active field positions"
+    },
+    {
+      "image": "baseline-text-scalar-attribute-restored.png",
+      "state": "baseline-text-scalar-attribute-restored",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "e27d45a78569a9600b5dc79c4c0f7d2c27e0b019",
+      "sha256": "4275921b9ccbb7ec6526fda02ed1094f2d5ac5b11d68f971d88b3be948268244",
+      "result": "expected failure: disabled values or non-data input values consume active field positions"
+    },
+    {
+      "image": "checkbox-attribute-restored.png",
+      "state": "checkbox-attribute-restored",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "464f0c4f71d4c8bdd3e652342689fedcb8f61ab4210cec252d51167b4d640400",
+      "result": "pass: expected fixed and active states, no clipping or overlap; pixels opened and inspected"
+    },
+    {
+      "image": "checkbox-first-legend-restored.png",
+      "state": "checkbox-first-legend-restored",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "18a6526f376441a96110cc58ba9434304d78279c4c4d632c5ae48c15885d3594",
+      "result": "pass: expected fixed and active states, no clipping or overlap; pixels opened and inspected"
+    },
+    {
+      "image": "disabled-mobile-dark.png",
+      "state": "disabled-mobile-dark",
+      "viewport": [
+        390,
+        844
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "33c09a90e2f3b737d7be22baaeec91470fce8b072236e1f5fed3a6c6cc5ba76c",
+      "result": "pass: expected fixed and active states, no clipping or overlap; pixels opened and inspected"
+    },
+    {
+      "image": "disabled-mobile-light.png",
+      "state": "disabled-mobile-light",
+      "viewport": [
+        390,
+        844
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "dc3ad3bd947eb6fca0decadb0737a6c486a29e7a7067841d7b73814029ee3d7a",
+      "result": "pass: expected fixed and active states, no clipping or overlap; pixels opened and inspected"
+    },
+    {
+      "image": "dsh-disabled-history-mobile.png",
+      "state": "dsh-disabled-history-mobile",
+      "viewport": [
+        390,
+        844
+      ],
+      "scope": "official DSH 0.2.1-rc.2 + deterministic model",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "2e5f77de78197999cb07dbcd4dd00b197940814d47d710021d135baa1fa87182",
+      "result": "pass: expected fixed and active states, no clipping or overlap; pixels opened and inspected"
+    },
+    {
+      "image": "dsh-disabled-history.png",
+      "state": "dsh-disabled-history",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "scope": "official DSH 0.2.1-rc.2 + deterministic model",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "9b74af3d541138f48f8a1907ce546998849cd81a4a760cbcaeb81805969bba8f",
+      "result": "pass: expected fixed and active states, no clipping or overlap; pixels opened and inspected"
+    },
+    {
+      "image": "radio-fieldset-restored.png",
+      "state": "radio-fieldset-restored",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "330e0fd6aea3e227d9a05201613da4fdea270a0f5e71393cd00dea42aad58c40",
+      "result": "pass: expected fixed and active states, no clipping or overlap; pixels opened and inspected"
+    },
+    {
+      "image": "select-multiple-fieldset-restored.png",
+      "state": "select-multiple-fieldset-restored",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "3b5ef81187d90986ce45ceac10227e95c1f142f7629bc873a49a0839fe49fa4f",
+      "result": "pass: expected fixed and active states, no clipping or overlap; pixels opened and inspected"
+    },
+    {
+      "image": "text-scalar-attribute-restored.png",
+      "state": "text-scalar-attribute-restored",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "cc5ac0c41cf863090db9260c2c8daf06f6333b5b54538f9409ebb8ef3092303a",
+      "result": "pass: expected fixed and active states, no clipping or overlap; pixels opened and inspected"
+    },
+    {
+      "image": "text-scalar-repeated-state.png",
+      "state": "text-scalar-repeated-state",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "3d6735627054a67cdadd09b8cf6f3608397e45f9b3df3d1550ea6d6dbc0862ef",
+      "result": "pass: expected fixed and active states, no clipping or overlap; pixels opened and inspected"
+    }
+  ],
+  "finalHeadRerun": "/tmp/lantern-disabled-final-evidence/image-review.json"
+}

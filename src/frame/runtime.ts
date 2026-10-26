@@ -259,6 +259,7 @@ export function frameRuntime(): void {
     window.dispatchEvent(new CustomEvent('lantern:' + name, { detail }))
   }
 
+  const answerLockedControls = new WeakSet<Element>()
   function applyState() {
     document.documentElement.setAttribute('data-lt-state', state)
     // A visual that timed out still accepts a late answer (it reaches the
@@ -284,10 +285,14 @@ export function frameRuntime(): void {
         const answer = response as Record<string, unknown>
         const positions = new Map<string, number>()
         forms[0]!.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input[name], textarea[name], select[name]').forEach(control => {
+          // Exclude non-data inputs and originally disabled controls before
+          // consuming values. Our own answer locks still accept later state.
+          if (control.tagName === 'INPUT' && ['button', 'reset', 'submit', 'image'].includes(control.type)) return
+          if (control.matches(':disabled') && !answerLockedControls.has(control)) return
           const present = Object.hasOwn(answer, control.name)
           // Native FormData omits unchecked checkboxes and empty multiple
           // selects. Clear their defaults while preserving disabled controls.
-          const emptySelection = (control.type === 'checkbox' || control.type === 'select-multiple') && !control.matches(':disabled')
+          const emptySelection = control.type === 'checkbox' || control.type === 'select-multiple'
           if ((!present && !emptySelection) || control.type === 'password' || control.type === 'file') return
           const raw = present ? answer[control.name] : undefined
           const values = !present ? [] : Array.isArray(raw) ? raw : [raw]
@@ -302,6 +307,7 @@ export function frameRuntime(): void {
             positions.set(control.name, index + 1)
           }
           control.disabled = true
+          answerLockedControls.add(control)
         })
       }
       const wanted = ([] as unknown[]).concat(response as unknown)

@@ -1,0 +1,1808 @@
+{
+  "checks": [
+    "checkbox-attribute: native FormData excludes disabled values",
+    "checkbox-attribute: disabled value preserved at settlement",
+    "checkbox-attribute: disabled value preserved on replay",
+    "checkbox-attribute: enabled peer restores its committed value and lock",
+    "checkbox-attribute: repeating the same state preserves the restored form",
+    "checkbox-attribute: runtime-locked controls still accept a later state",
+    "checkbox-attribute: later state keeps original disabled controls unchanged",
+    "radio-attribute: native FormData excludes disabled values",
+    "radio-attribute: disabled value preserved at settlement",
+    "radio-attribute: disabled value preserved on replay",
+    "radio-attribute: enabled peer restores its committed value and lock",
+    "radio-attribute: repeating the same state preserves the restored form",
+    "radio-attribute: runtime-locked controls still accept a later state",
+    "radio-attribute: later state keeps original disabled controls unchanged",
+    "select-one-attribute: native FormData excludes disabled values",
+    "select-one-attribute: disabled value preserved at settlement",
+    "select-one-attribute: disabled value preserved on replay",
+    "select-one-attribute: enabled peer restores its committed value and lock",
+    "select-one-attribute: repeating the same state preserves the restored form",
+    "select-one-attribute: runtime-locked controls still accept a later state",
+    "select-one-attribute: later state keeps original disabled controls unchanged",
+    "select-multiple-attribute: native FormData excludes disabled values",
+    "select-multiple-attribute: disabled value preserved at settlement",
+    "select-multiple-attribute: disabled value preserved on replay",
+    "select-multiple-attribute: enabled peer restores its committed value and lock",
+    "select-multiple-attribute: repeating the same state preserves the restored form",
+    "select-multiple-attribute: runtime-locked controls still accept a later state",
+    "select-multiple-attribute: later state keeps original disabled controls unchanged",
+    "text-attribute: native FormData excludes disabled values",
+    "text-attribute: disabled value preserved at settlement",
+    "text-attribute: disabled value preserved on replay",
+    "text-attribute: enabled peer restores its committed value and lock",
+    "text-attribute: repeating the same state preserves the restored form",
+    "text-attribute: runtime-locked controls still accept a later state",
+    "text-attribute: later state keeps original disabled controls unchanged",
+    "checkbox-fieldset: native FormData excludes disabled values",
+    "checkbox-fieldset: disabled value preserved at settlement",
+    "checkbox-fieldset: disabled value preserved on replay",
+    "checkbox-fieldset: enabled peer restores its committed value and lock",
+    "checkbox-fieldset: repeating the same state preserves the restored form",
+    "checkbox-fieldset: runtime-locked controls still accept a later state",
+    "checkbox-fieldset: later state keeps original disabled controls unchanged",
+    "radio-fieldset: native FormData excludes disabled values",
+    "radio-fieldset: disabled value preserved at settlement",
+    "radio-fieldset: disabled value preserved on replay",
+    "radio-fieldset: enabled peer restores its committed value and lock",
+    "radio-fieldset: repeating the same state preserves the restored form",
+    "radio-fieldset: runtime-locked controls still accept a later state",
+    "radio-fieldset: later state keeps original disabled controls unchanged",
+    "select-one-fieldset: native FormData excludes disabled values",
+    "select-one-fieldset: disabled value preserved at settlement",
+    "select-one-fieldset: disabled value preserved on replay",
+    "select-one-fieldset: enabled peer restores its committed value and lock",
+    "select-one-fieldset: repeating the same state preserves the restored form",
+    "select-one-fieldset: runtime-locked controls still accept a later state",
+    "select-one-fieldset: later state keeps original disabled controls unchanged",
+    "select-multiple-fieldset: native FormData excludes disabled values",
+    "select-multiple-fieldset: disabled value preserved at settlement",
+    "select-multiple-fieldset: disabled value preserved on replay",
+    "select-multiple-fieldset: enabled peer restores its committed value and lock",
+    "select-multiple-fieldset: repeating the same state preserves the restored form",
+    "select-multiple-fieldset: runtime-locked controls still accept a later state",
+    "select-multiple-fieldset: later state keeps original disabled controls unchanged",
+    "text-fieldset: native FormData excludes disabled values",
+    "text-fieldset: disabled value preserved at settlement",
+    "text-fieldset: disabled value preserved on replay",
+    "text-fieldset: enabled peer restores its committed value and lock",
+    "text-fieldset: repeating the same state preserves the restored form",
+    "text-fieldset: runtime-locked controls still accept a later state",
+    "text-fieldset: later state keeps original disabled controls unchanged",
+    "checkbox-first-legend: native FormData excludes disabled values",
+    "checkbox-first-legend: disabled value preserved at settlement",
+    "checkbox-first-legend: disabled value preserved on replay",
+    "checkbox-first-legend: enabled peer restores its committed value and lock",
+    "checkbox-first-legend: repeating the same state preserves the restored form",
+    "checkbox-first-legend: runtime-locked controls still accept a later state",
+    "checkbox-first-legend: later state keeps original disabled controls unchanged",
+    "text-scalar-attribute: native FormData excludes disabled values",
+    "text-scalar-attribute: disabled value preserved at settlement",
+    "text-scalar-attribute: disabled value preserved on replay",
+    "text-scalar-attribute: enabled peer restores its committed value and lock",
+    "text-scalar-attribute: repeating the same state preserves the restored form",
+    "text-scalar-attribute: runtime-locked controls still accept a later state",
+    "text-scalar-attribute: later state keeps original disabled controls unchanged",
+    "text-scalar-fieldset: native FormData excludes disabled values",
+    "text-scalar-fieldset: disabled value preserved at settlement",
+    "text-scalar-fieldset: disabled value preserved on replay",
+    "text-scalar-fieldset: enabled peer restores its committed value and lock",
+    "text-scalar-fieldset: repeating the same state preserves the restored form",
+    "text-scalar-fieldset: runtime-locked controls still accept a later state",
+    "text-scalar-fieldset: later state keeps original disabled controls unchanged",
+    "action-inputs: native FormData excludes disabled values",
+    "action-inputs: disabled value preserved at settlement",
+    "action-inputs: disabled value preserved on replay",
+    "action-inputs: enabled peer restores its committed value and lock",
+    "action-inputs: repeating the same state preserves the restored form",
+    "action-inputs: runtime-locked controls still accept a later state",
+    "action-inputs: later state keeps original disabled controls unchanged",
+    "action input values are neither restored nor consumed as data positions",
+    "no uncaught browser exceptions"
+  ],
+  "rows": [
+    {
+      "case": "checkbox-attribute",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "optional"
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {},
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "radio-attribute",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": false,
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "second": {
+          "value": "second",
+          "checked": false,
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "second": {
+          "value": "second",
+          "checked": false,
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "optional"
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "second",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "second",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "second",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {
+        "features": "second"
+      },
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "second",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "select-one-attribute",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "optional"
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {
+        "features": "changed"
+      },
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "changed",
+          "selected": [
+            "changed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "select-multiple-attribute",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "optional"
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {},
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "",
+          "selected": [],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "text-attribute",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "second": {
+          "value": "second",
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "second": {
+          "value": "edited-second",
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": [
+          "edited-first",
+          "edited-second"
+        ]
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "edited-second",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "edited-second",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "edited-second",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {
+        "features": [
+          "changed-first",
+          "changed-second"
+        ]
+      },
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "changed-first",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "changed-second",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "checkbox-fieldset",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "optional"
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {},
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "radio-fieldset",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": false,
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "second": {
+          "value": "second",
+          "checked": false,
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "second": {
+          "value": "second",
+          "checked": false,
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "optional"
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "second",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "second",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "second",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {
+        "features": "second"
+      },
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "second",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "select-one-fieldset",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "optional"
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {
+        "features": "changed"
+      },
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "changed",
+          "selected": [
+            "changed"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "select-multiple-fieldset",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "optional"
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "selected": [
+            "optional"
+          ],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {},
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "selected": [
+            "fixed"
+          ],
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "",
+          "selected": [],
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "text-fieldset",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "second": {
+          "value": "second",
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "second": {
+          "value": "edited-second",
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": [
+          "edited-first",
+          "edited-second"
+        ]
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "edited-second",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "edited-second",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "edited-second",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {
+        "features": [
+          "changed-first",
+          "changed-second"
+        ]
+      },
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "changed-first",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "second": {
+          "value": "changed-second",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "checkbox-first-legend",
+      "initial": {
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "optional"
+      },
+      "committed": {
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        }
+      },
+      "restored": {
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        }
+      },
+      "repeated": {
+        "optional": {
+          "value": "optional",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        }
+      },
+      "changedAnswer": {},
+      "changed": {
+        "optional": {
+          "value": "optional",
+          "checked": false,
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "fixed": {
+          "value": "fixed",
+          "checked": true,
+          "disabled": true,
+          "ownDisabled": false
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "text-scalar-attribute",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "optional",
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "edited-first"
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {
+        "features": "changed-first"
+      },
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "optional": {
+          "value": "changed-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "text-scalar-fieldset",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "edited-first"
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {
+        "features": "changed-first"
+      },
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "changed-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    },
+    {
+      "case": "action-inputs",
+      "initial": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "action-button": {
+          "value": "Action button",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-reset": {
+          "value": "Action reset",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-submit": {
+          "value": "Action submit",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-image": {
+          "value": "Action image",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "optional",
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "before": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "action-button": {
+          "value": "Action button",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-reset": {
+          "value": "Action reset",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-submit": {
+          "value": "Action submit",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-image": {
+          "value": "Action image",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": false,
+          "ownDisabled": false
+        }
+      },
+      "answer": {
+        "features": "edited-first"
+      },
+      "committed": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "action-button": {
+          "value": "Action button",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-reset": {
+          "value": "Action reset",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-submit": {
+          "value": "Action submit",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "action-image": {
+          "value": "Action image",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "restored": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "action-button": {
+          "value": "Action button",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-reset": {
+          "value": "Action reset",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-submit": {
+          "value": "Action submit",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "action-image": {
+          "value": "Action image",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "repeated": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "action-button": {
+          "value": "Action button",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-reset": {
+          "value": "Action reset",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-submit": {
+          "value": "Action submit",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "action-image": {
+          "value": "Action image",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "edited-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "changedAnswer": {
+        "features": "changed-first"
+      },
+      "changed": {
+        "fixed": {
+          "value": "fixed",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "action-button": {
+          "value": "Action button",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-reset": {
+          "value": "Action reset",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "action-submit": {
+          "value": "Action submit",
+          "disabled": true,
+          "ownDisabled": true
+        },
+        "action-image": {
+          "value": "Action image",
+          "disabled": false,
+          "ownDisabled": false
+        },
+        "optional": {
+          "value": "changed-first",
+          "disabled": true,
+          "ownDisabled": true
+        }
+      },
+      "wireMatches": true,
+      "fixedOnCommit": true,
+      "fixedOnReplay": true,
+      "enabledOnReplay": true,
+      "repeatedSame": true,
+      "changedApplied": true,
+      "fixedOnRepeated": true,
+      "actionsPreserved": true
+    }
+  ],
+  "errors": [],
+  "scope": "actual sandbox runtime + fixture parent; native radio group exclusion applies before submission"
+}

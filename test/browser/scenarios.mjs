@@ -104,12 +104,14 @@ export async function scenarios({ page, context, output, capture, errors }) {
     check('form settlement moves to the final-answer tail without a duplicate tool frame', await visual().count() === 1 && await visual().locator('iframe').count() === 1 && await page.locator('.lantern-tool iframe').count() === 0)
     const formState = () => child().locator('form').evaluate(form => ({
       response: window.lantern.response,
-      choices: [...form.querySelectorAll('input[type=checkbox]')].map(input => ({checked:input.checked,disabled:input.disabled})),
+      choices: [...form.querySelectorAll('input[type=checkbox]:not([name=features])')].map(input => ({checked:input.checked,disabled:input.disabled})),
+      disabledPeers: [...form.querySelectorAll('input[name=features]')].map(input => ({value:input.value,checked:input.checked,disabled:input.matches(':disabled')})),
       selections: [...form.querySelectorAll('select[multiple]')].map(select => ({selected:[...select.selectedOptions].map(option=>option.value),disabled:select.matches(':disabled')})),
     }))
     const committedForm = await formState()
     check('real DSH settlement preserves native omissions and locks unchecked custom checkboxes', !Object.hasOwn(committedForm.response,'newsletter') && !Object.hasOwn(committedForm.response,'extras') && committedForm.choices.every(input => !input.checked && input.disabled))
     check('real DSH settlement preserves an omitted empty multiple select and locks it', !Object.hasOwn(committedForm.response,'materials') && committedForm.selections.every(select => select.selected.length === 0 && select.disabled))
+    check('real DSH settlement preserves a disabled checked peer sharing a submitted name', committedForm.response.features === 'optional' && committedForm.disabledPeers.every(input=>input.checked && input.disabled))
     await capture('dsh-form-answered')
     await page.reload({ waitUntil: 'domcontentloaded' })
     await visual().locator('iframe[data-scripts="off"]').waitFor({ state: 'visible', timeout: 30000 })
@@ -119,6 +121,8 @@ export async function scenarios({ page, context, output, capture, errors }) {
     const restoredForm = await formState()
     check('real DSH history restores unchecked single and same-name custom checkboxes', JSON.stringify(restoredForm) === JSON.stringify(committedForm))
     check('real DSH history restores an all-cleared multiple select after reload and Run', restoredForm.selections.length === 1 && restoredForm.selections[0].selected.length === 0 && restoredForm.selections[0].disabled)
+    check('real DSH history preserves the disabled peer and the enabled submitted peer', restoredForm.disabledPeers.length === 2 && restoredForm.disabledPeers.every(input=>input.checked && input.disabled))
+    await capture('dsh-disabled-history')
     await capture('dsh-select-history')
     await capture('dsh-checkbox-history')
     await page.setViewportSize({width:390,height:844})
@@ -127,6 +131,7 @@ export async function scenarios({ page, context, output, capture, errors }) {
     check('restored real DSH checkbox form fits mobile width', await child().locator('body').evaluate(body => body.scrollWidth <= body.clientWidth))
     await child().getByRole('button', { name: 'この内容で続ける', exact: true }).scrollIntoViewIfNeeded()
     await capture('dsh-select-history-mobile')
+    await capture('dsh-disabled-history-mobile')
     await page.setViewportSize({width:1440,height:1050})
 
     await composer().click(); await composer().pressSequentially('/lantern-', { delay: 50 })
