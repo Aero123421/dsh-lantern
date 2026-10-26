@@ -4,7 +4,7 @@
  * user, and opening the sidebar.
  */
 import { copy } from './i18n.ts'
-import { getRecord, readLocal, visualKey, writeLocal } from './store.ts'
+import { getRecord, readLocal, retainSession, visualKey, writeLocal } from './store.ts'
 
 export const TAB_ID = 'dsh-lantern/visual'
 export const TAB_KIND = 'lanternVisual'
@@ -87,6 +87,7 @@ export async function answer(callId: string, sessionId: string | undefined, valu
   // Reject repeated clicks immediately. The browser lock additionally
   // serializes this operation with other tabs using the same storage.
   if (answering.has(key)) throw new Error('already answered')
+  const release = retainSession(session)
   answering.add(key)
   try {
     const submit = async () => {
@@ -122,6 +123,7 @@ export async function answer(callId: string, sessionId: string | undefined, valu
     }
   } finally {
     answering.delete(key)
+    release()
   }
 }
 

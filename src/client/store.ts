@@ -68,6 +68,10 @@ export function parseMeta(meta: unknown): VisualResultMeta | undefined {
 
 const records = new Map<string, VisualRecord>()
 const tailMounted = new Map<string, number>()
+const sessionRefs = new Map<string, number>()
+const idleSessions = new Map<string, ReturnType<typeof setTimeout>>()
+// Cover tool-to-tail handoff and React remounts without retaining old HTML forever.
+const IDLE_SESSION_MS = 1500
 let version = 0
 const listeners = new Set<() => void>()
 
@@ -101,6 +105,53 @@ export function upsert(callId: string, patch: Partial<Omit<VisualRecord, 'callId
   const next: Record<string, unknown> = { ...previous, callId }
   for (const [key, value] of Object.entries(patch)) if (value !== undefined) next[key] = value
   records.set(key, next as unknown as VisualRecord)
+  releaseWhenIdle(patch.sessionId)
+  queueNotify()
+}
+
+function releaseWhenIdle(sessionId: string | undefined): void {
+  const session = sessionId ?? ''
+  if (sessionRefs.has(session) || idleSessions.has(session)) return
+  const timer = setTimeout(() => {
+    idleSessions.delete(session)
+    if (sessionRefs.has(session)) return
+    let changed = false
+    for (const [key, record] of records) {
+      if ((record.sessionId ?? '') !== session) continue
+      records.delete(key)
+      changed = true
+    }
+    if (changed) { replacedIndex = undefined; queueNotify() }
+  }, IDLE_SESSION_MS)
+  ;(timer as { unref?: () => void }).unref?.()
+  idleSessions.set(session, timer)
+}
+
+/** Mounted views and in-flight submissions own the session's replayable cache. */
+export function retainSession(sessionId: string | undefined): () => void {
+  const session = sessionId ?? ''
+  const timer = idleSessions.get(session)
+  if (timer !== undefined) { clearTimeout(timer); idleSessions.delete(session) }
+  sessionRefs.set(session, (sessionRefs.get(session) ?? 0) + 1)
+  let live = true
+  return () => {
+    if (!live) return
+    live = false
+    const count = sessionRefs.get(session)
+    if (count === undefined) return // registry disposed before the view
+    if (count > 1) sessionRefs.set(session, count - 1)
+    else { sessionRefs.delete(session); releaseWhenIdle(sessionId) }
+  }
+}
+
+/** Plugin teardown releases HTML and timers; browser answers/widget state stay separate. */
+export function clearRegistry(): void {
+  for (const timer of idleSessions.values()) clearTimeout(timer)
+  idleSessions.clear()
+  sessionRefs.clear()
+  records.clear()
+  tailMounted.clear()
+  replacedIndex = undefined
   queueNotify()
 }
 
@@ -157,6 +208,7 @@ export function useRegistry<T>(select: () => T): T {
 }
 
 export function markTail(callId: string, sessionId?: string): () => void {
+  const release = retainSession(sessionId)
   const key = visualKey(callId, sessionId)
   tailMounted.set(key, (tailMounted.get(key) ?? 0) + 1)
   queueNotify()
@@ -165,6 +217,7 @@ export function markTail(callId: string, sessionId?: string): () => void {
     if (count <= 0) tailMounted.delete(key)
     else tailMounted.set(key, count)
     queueNotify()
+    release()
   }
 }
 

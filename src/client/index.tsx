@@ -4,7 +4,7 @@
  */
 import css from './style.css'
 import { bind, TAB_ID, TAB_KIND } from './services.ts'
-import { watchLocalStorage } from './store.ts'
+import { clearRegistry, watchLocalStorage } from './store.ts'
 import { Settings, type SettingsForm, type SettingsLocale } from './Settings.tsx'
 import { SidebarTab, Tail, tabTitle, ToolView, TOOL_NAME, turnDefinition } from './views.tsx'
 
@@ -32,6 +32,7 @@ export function apply(rawCtx: unknown): void {
   const ctx = rawCtx as ClientContext
   bind({ sidebarRight: ctx.sidebarRight, sessions: ctx.sessions })
   ctx.effect(watchLocalStorage, 'dsh-lantern: other browser tabs')
+  ctx.effect(() => clearRegistry, 'dsh-lantern: visual cache')
 
   ctx.effect(() => {
     const style = document.createElement('style')

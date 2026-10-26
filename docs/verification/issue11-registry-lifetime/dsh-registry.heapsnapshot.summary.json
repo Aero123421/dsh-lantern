@@ -1,0 +1,30 @@
+{
+  "snapshot": "/tmp/lantern-registry-evidence/dsh-registry.heapsnapshot",
+  "definition": "objects matching callId/sessionId/args.html/args.await, not a plugin-only byte measurement",
+  "records": [
+    {
+      "nodeId": 583335,
+      "callId": "lantern-e2e-1793012190714",
+      "sessionId": "session-adef9160-5c98-4cac-b604-a474f4fb1c59"
+    },
+    {
+      "nodeId": 1016609,
+      "callId": "lantern-e2e-1793012190714",
+      "sessionId": "session-adef9160-5c98-4cac-b604-a474f4fb1c59"
+    },
+    {
+      "nodeId": 1119877,
+      "callId": "lantern-e2e-1793012190714",
+      "sessionId": "session-adef9160-5c98-4cac-b604-a474f4fb1c59"
+    }
+  ],
+  "bulkRecords": 0,
+  "activeCallIds": [
+    "lantern-e2e-1793012190714"
+  ],
+  "inactiveCallIds": [
+    "lantern-e2e-1793012177584",
+    "lantern-e2e-1793012183581"
+  ],
+  "inactiveRecords": []
+}

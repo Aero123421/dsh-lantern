@@ -1,0 +1,37 @@
+{
+  "checks": [],
+  "errors": [],
+  "diagnostics": [
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'."
+  ],
+  "retention": {
+    "before": {
+      "visitedSessions": 300,
+      "retainedRecords": 300,
+      "retainedHtmlChars": 30172090
+    },
+    "after": {
+      "visitedSessions": 300,
+      "retainedRecords": 300,
+      "retainedHtmlChars": 30172090
+    }
+  },
+  "heap": {
+    "before": {
+      "usedSize": 33060652,
+      "totalSize": 42500096,
+      "embedderHeapUsedSize": 571896,
+      "backingStorageSize": 1231771
+    },
+    "after": {
+      "usedSize": 33083944,
+      "totalSize": 42500096,
+      "embedderHeapUsedSize": 454520,
+      "backingStorageSize": 1231771
+    },
+    "note": "Whole-page Chromium heap usage after explicit GC, not HTML string length or a production DSH heap guarantee."
+  },
+  "failure": "AssertionError [ERR_ASSERTION]: 300 inactive synthetic sessions release all registry records and HTML",
+  "scope": "mock DSH host, real Tail/VisualCard/SidebarTab/store; synthetic data only"
+}

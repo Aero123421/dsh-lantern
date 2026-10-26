@@ -7,7 +7,7 @@ import { VisualCard } from './Card.tsx'
 import { copy, useCopy } from './i18n.ts'
 import { holdScripts, notifyScripts, observeVisual } from './live.ts'
 import { fetchVisual, openInSidebar, parseAddress } from './services.ts'
-import { getRecord, inTail, markTail, parseArgs, parseMeta, upsert, useRegistry, visualKey, type VisualRecord } from './store.ts'
+import { getRecord, inTail, markTail, parseArgs, parseMeta, retainSession, upsert, useRegistry, visualKey, type VisualRecord } from './store.ts'
 
 import { TOOL_NAME, textOf, type TurnCall } from './definition.ts'
 
@@ -157,6 +157,8 @@ export function SidebarTab(props: TabProps) {
   const target = parseAddress(tab.navigation.address)
   const record = useRegistry(() => target ? getRecord(target.callId, target.sessionId) : undefined)
   const targetKey = target ? visualKey(target.callId, target.sessionId) : undefined
+  // An open tab may be hidden or loading, with no VisualCard mounted yet.
+  useEffect(() => target ? retainSession(target.sessionId) : undefined, [targetKey])
   const hasArguments = record?.args !== undefined
   const [load, setLoad] = useState<{ key: string; error?: string } | undefined>(undefined)
   useEffect(() => {

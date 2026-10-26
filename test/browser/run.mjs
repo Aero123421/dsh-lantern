@@ -19,11 +19,13 @@ const output = resolve(process.env.LANTERN_E2E_OUTPUT || join(tmpdir(), 'lantern
 await mkdir(output, { recursive: true })
 const env = { ...process.env, DSH_HOME: home, LANTERN_E2E_LOG: join(output, 'model.jsonl') }
 const errors = []
+const seenVisuals = new Set()
 let browser, server, page
 let serverLog = ''
 const redact = value => String(value).replace(/([?&]token=)[^\s"'&]+/g, '$1[redacted]')
 async function capture(name) {
   if (!page || page.isClosed()) return
+  for (const id of await page.locator('[data-lantern-id]').evaluateAll(items=>items.map(el=>el.dataset.lanternId))) seenVisuals.add(id)
   await page.screenshot({ path: join(output, name + '.png'), fullPage: true })
   await writeFile(join(output, name + '.txt'), await page.locator('body').innerText())
   await writeFile(join(output, name + '-controls.json'), JSON.stringify(await page.locator('button,input,textarea,[contenteditable],select').evaluateAll(items => items.map(el => ({ tag: el.tagName, role: el.getAttribute('role'), label: el.getAttribute('aria-label'), title: el.getAttribute('title'), disabled: el.disabled, placeholder: el.getAttribute('placeholder'), text: el.textContent?.slice(0,150), editable: el.getAttribute('contenteditable') }))), null, 2))
@@ -89,6 +91,18 @@ try {
   await writeFile(join(output, 'checks.json'), JSON.stringify({ actualDSH: true, finalAnswerTail: true, noStandaloneNode: true, localSlider: true, errors }, null, 2))
   console.log('Actual DSH final-answer tail and local-slider checks passed')
   await scenarios({ page, context, output, capture, errors })
+  if (process.env.LANTERN_HEAP_SNAPSHOTS === '1') {
+    await page.waitForTimeout(1700)
+    const cdp=await context.newCDPSession(page)
+    await cdp.send('HeapProfiler.collectGarbage')
+    const usage=await cdp.send('Runtime.getHeapUsage')
+    const active=await page.locator('[data-lantern-id]').evaluateAll(items=>items.map(el=>el.dataset.lanternId))
+    const chunks=[];cdp.on('HeapProfiler.addHeapSnapshotChunk',({chunk})=>chunks.push(chunk))
+    await cdp.send('HeapProfiler.takeHeapSnapshot',{reportProgress:false})
+    await writeFile(join(output,'dsh-registry.heapsnapshot'),chunks.join(''))
+    await writeFile(join(output,'dsh-registry-heap.json'),JSON.stringify({usage,seen:[...seenVisuals],active,inactive:[...seenVisuals].filter(id=>!active.includes(id)),scope:'official DSH with synthetic fixture only; whole-page heap usage is not plugin-only memory'},null,2))
+    await cdp.detach()
+  }
 } catch (error) {
   await capture('dsh-failure').catch(() => {})
   const message = redact(error.stack || error)

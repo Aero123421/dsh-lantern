@@ -8,7 +8,7 @@ import { useCopy } from './i18n.ts'
 import { Frame } from './Frame.tsx'
 import { armScripts, releaseScripts, retainScripts, scriptsEnabled, subscribeScripts } from './live.ts'
 import { answer, dismiss, openInSidebar, sendAsUser, workspaceUrl } from './services.ts'
-import { readLocal, replacementOf, useRegistry, visualKey, visualState, writeLocal, type VisualRecord } from './store.ts'
+import { readLocal, replacementOf, retainSession, useRegistry, visualKey, visualState, writeLocal, type VisualRecord } from './store.ts'
 
 export type Placement = 'tool' | 'tail' | 'panel'
 
@@ -48,8 +48,9 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
   const key = visualKey(callId, session)
   const scripts = useScripts(key)
   useEffect(() => {
+    const release = retainSession(session)
     retainScripts(key)
-    return () => releaseScripts(key)
+    return () => { releaseScripts(key); release() }
   }, [key])
   const onRun = useCallback(() => armScripts(key), [key])
   const replacedBy = useRegistry(() => replacementOf(callId, session))

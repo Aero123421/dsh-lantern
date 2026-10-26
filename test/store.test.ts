@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getRecord, inTail, markTail, readLocal, replacementOf, upsert, visualKey, visualState, watchLocalStorage, writeLocal } from '../src/client/store.ts'
+import { clearRegistry, getRecord, inTail, markTail, readLocal, replacementOf, retainSession, upsert, visualKey, visualState, watchLocalStorage, writeLocal } from '../src/client/store.ts'
 
 const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
 test.afterEach(() => {
@@ -13,6 +13,56 @@ function setStorage(value: unknown): void {
 }
 
 const args = (title: string, replace?: string) => ({ title, html: '<p>x</p>', display: 'inline' as const, await: true, ...replace ? { replace } : {} })
+
+test('departed synthetic sessions release their records and HTML after the remount grace', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  for (let i = 0; i < 300; i++) {
+    const session = `idle-${i}`
+    upsert('visual', { sessionId: session, args: { ...args('Synthetic'), html: '<!--' + 'x'.repeat(100000) + '-->' } })
+    markTail('visual', session)()
+  }
+  assert.equal(Array.from({ length: 300 }, (_, i) => getRecord('visual', `idle-${i}`)).filter(Boolean).length, 300)
+  t.mock.timers.tick(1501)
+  assert.equal(Array.from({ length: 300 }, (_, i) => getRecord('visual', `idle-${i}`)).filter(Boolean).length, 0)
+})
+
+test('all session owners must leave before its replacement chain can expire', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const tail = markTail('old', 'retained')
+  const panel = retainSession('retained')
+  upsert('old', { sessionId: 'retained', args: args('Old') })
+  upsert('new', { sessionId: 'retained', args: args('New', 'old'), seq: 2 })
+  upsert('old', { sessionId: 'retained-fork', args: args('Fork') })
+  await Promise.resolve()
+  tail()
+  t.mock.timers.tick(1501)
+  assert.equal(replacementOf('old', 'retained'), 'new')
+  assert.equal(getRecord('old', 'retained-fork'), undefined)
+  panel()
+  t.mock.timers.tick(1000)
+  const remount = retainSession('retained')
+  t.mock.timers.tick(1000)
+  assert.ok(getRecord('new', 'retained'))
+  remount()
+  t.mock.timers.tick(1501)
+  await Promise.resolve()
+  assert.equal(getRecord('new', 'retained'), undefined)
+  assert.equal(replacementOf('old', 'retained'), undefined)
+})
+
+test('plugin disposal clears cache timers without clearing browser answers', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  setStorage({ getItem() { throw new Error('denied') }, setItem() { throw new Error('denied') } })
+  const release = retainSession('dispose-cache')
+  upsert('visual', { sessionId: 'dispose-cache', args: args('Keep answer') })
+  writeLocal('visual', { answer: 'true', state: '{"step":2}' }, 'dispose-cache')
+  clearRegistry()
+  release()
+  t.mock.timers.tick(10000)
+  assert.equal(getRecord('visual', 'dispose-cache'), undefined)
+  assert.equal(readLocal('visual', 'dispose-cache').answer, 'true')
+  assert.equal(readLocal('visual', 'dispose-cache').state, '{"step":2}')
+})
 
 test('replacement links reach the terminal revision beyond twenty hops in their session', async () => {
   for (const sessionId of ['chain-original', 'chain-fork']) {

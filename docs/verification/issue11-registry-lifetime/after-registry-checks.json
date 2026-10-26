@@ -1,0 +1,51 @@
+{
+  "checks": [
+    "300 inactive synthetic sessions release all registry records and HTML",
+    "a mounted session survives bulk idle-session cleanup",
+    "removing one view keeps the same-session sidebar and its record",
+    "closing the last sidebar owner releases the session",
+    "a cold sidebar rehydrates through fetchVisual and owns the loaded session",
+    "closing a rehydrated sidebar releases its fetched record",
+    "idle replacement records expire together",
+    "replayed history restores long replacement chains without crossing fork IDs",
+    "unmounted pending view cache can expire while synthetic host wait remains",
+    "recreated scripts restore saved widget state only after explicit Run",
+    "in-flight answer owns its cache after every view unmounts",
+    "settlement releases the idle cache while preserving the committed answer",
+    "recreated card restores its committed form answer",
+    "no uncaught browser errors"
+  ],
+  "errors": [],
+  "diagnostics": [
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'."
+  ],
+  "retention": {
+    "before": {
+      "visitedSessions": 300,
+      "retainedRecords": 300,
+      "retainedHtmlChars": 30172090
+    },
+    "after": {
+      "visitedSessions": 300,
+      "retainedRecords": 0,
+      "retainedHtmlChars": 0
+    }
+  },
+  "heap": {
+    "before": {
+      "usedSize": 33089392,
+      "totalSize": 42237952,
+      "embedderHeapUsedSize": 554360,
+      "backingStorageSize": 1233334
+    },
+    "after": {
+      "usedSize": 3326688,
+      "totalSize": 4751360,
+      "embedderHeapUsedSize": 454208,
+      "backingStorageSize": 1233334
+    },
+    "note": "Whole-page Chromium heap usage after explicit GC, not HTML string length or a production DSH heap guarantee."
+  },
+  "scope": "mock DSH host, real Tail/VisualCard/SidebarTab/store; synthetic data only"
+}

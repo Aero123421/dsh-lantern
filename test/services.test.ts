@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { answer, bind, fetchVisual, workspaceUrl } from '../src/client/services.ts'
-import { readLocal, upsert, writeLocal } from '../src/client/store.ts'
+import { getRecord, readLocal, upsert, writeLocal } from '../src/client/store.ts'
 
 function replaceGlobal(t: test.TestContext, name: string, value: unknown): void {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, name)
@@ -11,6 +11,42 @@ function replaceGlobal(t: test.TestContext, name: string, value: unknown): void 
     else Reflect.deleteProperty(globalThis, name)
   })
 }
+
+test('a queued submission retains its session until it settles after its views leave', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  replaceGlobal(t, 'localStorage', { getItem() { return null }, setItem() { throw new Error('denied') } })
+  let enter: (() => Promise<void>) | undefined
+  replaceGlobal(t, 'navigator', { locks: { request: (_name: string, run: () => Promise<void>) => new Promise<void>((resolve, reject) => {
+    enter = () => run().then(resolve, reject)
+  }) } })
+  let sent = 0
+  bind({ sessions: { scope: () => ({ get: () => ({ send: async () => { sent++ } }) }) } })
+  t.after(() => bind({}))
+  upsert('queued', { sessionId: 'queued-session', args: { title: 'Queued', html: '<p>synthetic</p>', display: 'inline', await: false } })
+  const sending = answer('queued', 'queued-session', 'yes')
+  t.mock.timers.tick(1501)
+  assert.ok(getRecord('queued', 'queued-session'))
+  assert.equal(sent, 0)
+  await enter!()
+  await sending
+  t.mock.timers.tick(1501)
+  assert.equal(getRecord('queued', 'queued-session'), undefined)
+  assert.equal(sent, 1)
+  assert.equal(readLocal('queued', 'queued-session').answer, '"yes"')
+})
+
+test('a failed submission releases its idle session without recording an answer', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  replaceGlobal(t, 'localStorage', { getItem() { return null }, setItem() { throw new Error('denied') } })
+  replaceGlobal(t, 'navigator', {})
+  bind({ sessions: { scope: () => ({ get: () => ({ send: async () => { throw new Error('synthetic failure') } }) }) } })
+  t.after(() => bind({}))
+  upsert('failed', { sessionId: 'failed-session', args: { title: 'Failed', html: '<p>synthetic</p>', display: 'inline', await: false } })
+  await assert.rejects(answer('failed', 'failed-session', 'yes'), /synthetic failure/)
+  t.mock.timers.tick(1501)
+  assert.equal(getRecord('failed', 'failed-session'), undefined)
+  assert.equal(readLocal('failed', 'failed-session').answer, undefined)
+})
 
 test('forks can answer copied call ids independently, with one answer per session', async () => {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')

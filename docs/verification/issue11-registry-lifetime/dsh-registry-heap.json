@@ -1,0 +1,21 @@
+{
+  "usage": {
+    "usedSize": 31764488,
+    "totalSize": 32694272,
+    "embedderHeapUsedSize": 5291224,
+    "backingStorageSize": 13503976
+  },
+  "seen": [
+    "lantern-e2e-1793012177584",
+    "lantern-e2e-1793012183581",
+    "lantern-e2e-1793012190714"
+  ],
+  "active": [
+    "lantern-e2e-1793012190714"
+  ],
+  "inactive": [
+    "lantern-e2e-1793012177584",
+    "lantern-e2e-1793012183581"
+  ],
+  "scope": "official DSH with synthetic fixture only; whole-page heap usage is not plugin-only memory"
+}
