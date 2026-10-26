@@ -285,12 +285,12 @@ export function frameRuntime(): void {
         const positions = new Map<string, number>()
         forms[0]!.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input[name], textarea[name], select[name]').forEach(control => {
           const present = Object.hasOwn(answer, control.name)
-          // Native FormData omits unchecked custom-valued checkboxes. Clear
-          // their markup defaults too, while preserving disabled controls.
-          const unchecked = control.type === 'checkbox' && !control.matches(':disabled')
-          if ((!present && !unchecked) || control.type === 'password' || control.type === 'file') return
+          // Native FormData omits unchecked checkboxes and empty multiple
+          // selects. Clear their defaults while preserving disabled controls.
+          const emptySelection = (control.type === 'checkbox' || control.type === 'select-multiple') && !control.matches(':disabled')
+          if ((!present && !emptySelection) || control.type === 'password' || control.type === 'file') return
           const raw = present ? answer[control.name] : undefined
-          const values = Array.isArray(raw) ? raw : [raw]
+          const values = !present ? [] : Array.isArray(raw) ? raw : [raw]
           if (control.type === 'checkbox' || control.type === 'radio') {
             const input = control as HTMLInputElement
             input.checked = values.some(value => value === input.value || (value === true && input.value === 'on'))

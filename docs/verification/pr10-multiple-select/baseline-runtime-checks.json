@@ -1,0 +1,296 @@
+{
+  "checks": [
+    "native required validation prevents empty submit",
+    "textarea Enter inserts a newline without submitting",
+    "synthetic IME composition guard prevents modifier submit",
+    "pending submission marks form busy",
+    "pending submission disables submit button",
+    "duplicate submission is suppressed",
+    "failure retains typed text and reenables retry",
+    "native form serializes Japanese, radio, checkbox, and submitter",
+    "special field names are ordinary own properties",
+    "successful answer locks controls and reports success",
+    "drafts are not implicitly persisted",
+    "committed form values reconstruct from history",
+    "password fields are not restored",
+    "unchecked custom checkbox and all-unchecked custom group keep native FormData omissions",
+    "same-name checkbox arrays, boolean false and hidden fallback keep their existing wire values",
+    "unchecked custom checkbox is cleared and locked on settlement and history restoration",
+    "all-unchecked custom checkbox group stays cleared and locked after history restoration",
+    "partially selected and multiple selected checkbox groups reconstruct every choice",
+    "one selected custom checkbox in a same-name group keeps its scalar answer",
+    "unchecked boolean checkbox and hidden fallback remain unchecked after history restoration",
+    "disabled checkbox defaults excluded from FormData remain unchanged",
+    "settled and restored checkbox states match",
+    "an empty committed object clears and locks every enabled checkbox",
+    "restored checkbox form fits mobile width in both themes",
+    "empty multiple select retains native FormData omission while scalar and array selections keep their wire format"
+  ],
+  "errors": [],
+  "geometry": {},
+  "formRestoration": {
+    "answer": {
+      "partial": [
+        "b",
+        "c"
+      ],
+      "one": "b",
+      "mixed": [
+        "on",
+        "custom"
+      ],
+      "fallback": "no",
+      "boolean": false
+    },
+    "committed": {
+      "single": {
+        "checked": false,
+        "disabled": true
+      },
+      "none-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "none-b": {
+        "checked": false,
+        "disabled": true
+      },
+      "partial-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "partial-b": {
+        "checked": true,
+        "disabled": true
+      },
+      "partial-c": {
+        "checked": true,
+        "disabled": true
+      },
+      "one-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "one-b": {
+        "checked": true,
+        "disabled": true
+      },
+      "mixed-on": {
+        "checked": true,
+        "disabled": true
+      },
+      "mixed-custom": {
+        "checked": true,
+        "disabled": true
+      },
+      "boolean": {
+        "checked": false,
+        "disabled": true
+      },
+      "fallback": {
+        "checked": false,
+        "disabled": true
+      },
+      "disabled": {
+        "checked": true,
+        "disabled": true
+      },
+      "fieldset-disabled": {
+        "checked": true,
+        "disabled": true
+      }
+    },
+    "restored": {
+      "single": {
+        "checked": false,
+        "disabled": true
+      },
+      "none-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "none-b": {
+        "checked": false,
+        "disabled": true
+      },
+      "partial-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "partial-b": {
+        "checked": true,
+        "disabled": true
+      },
+      "partial-c": {
+        "checked": true,
+        "disabled": true
+      },
+      "one-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "one-b": {
+        "checked": true,
+        "disabled": true
+      },
+      "mixed-on": {
+        "checked": true,
+        "disabled": true
+      },
+      "mixed-custom": {
+        "checked": true,
+        "disabled": true
+      },
+      "boolean": {
+        "checked": false,
+        "disabled": true
+      },
+      "fallback": {
+        "checked": false,
+        "disabled": true
+      },
+      "disabled": {
+        "checked": true,
+        "disabled": true
+      },
+      "fieldset-disabled": {
+        "checked": true,
+        "disabled": true
+      }
+    },
+    "emptyAnswer": {
+      "single": {
+        "checked": false,
+        "disabled": true
+      },
+      "none-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "none-b": {
+        "checked": false,
+        "disabled": true
+      },
+      "partial-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "partial-b": {
+        "checked": false,
+        "disabled": true
+      },
+      "partial-c": {
+        "checked": false,
+        "disabled": true
+      },
+      "one-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "one-b": {
+        "checked": false,
+        "disabled": true
+      },
+      "mixed-on": {
+        "checked": false,
+        "disabled": true
+      },
+      "mixed-custom": {
+        "checked": false,
+        "disabled": true
+      },
+      "boolean": {
+        "checked": false,
+        "disabled": true
+      },
+      "fallback": {
+        "checked": false,
+        "disabled": true
+      },
+      "disabled": {
+        "checked": true,
+        "disabled": true
+      },
+      "fieldset-disabled": {
+        "checked": true,
+        "disabled": true
+      }
+    }
+  },
+  "selectRestoration": {
+    "answer": {
+      "oneSelect": "b",
+      "manySelect": [
+        "b",
+        "c"
+      ]
+    },
+    "committed": {
+      "empty-select": {
+        "selected": [],
+        "disabled": false
+      },
+      "one-select": {
+        "selected": [
+          "b"
+        ],
+        "disabled": true
+      },
+      "many-select": {
+        "selected": [
+          "b",
+          "c"
+        ],
+        "disabled": true
+      },
+      "disabled-select": {
+        "selected": [
+          "keep"
+        ],
+        "disabled": true
+      },
+      "fieldset-select": {
+        "selected": [
+          "keep"
+        ],
+        "disabled": true
+      }
+    },
+    "restored": {
+      "empty-select": {
+        "selected": [
+          "a",
+          "literal",
+          ""
+        ],
+        "disabled": false
+      },
+      "one-select": {
+        "selected": [
+          "b"
+        ],
+        "disabled": true
+      },
+      "many-select": {
+        "selected": [
+          "b",
+          "c"
+        ],
+        "disabled": true
+      },
+      "disabled-select": {
+        "selected": [
+          "keep"
+        ],
+        "disabled": true
+      },
+      "fieldset-select": {
+        "selected": [
+          "keep"
+        ],
+        "disabled": true
+      }
+    }
+  },
+  "failure": "AssertionError [ERR_ASSERTION]: all-cleared multiple select stays empty and locked on settlement and history restoration"
+}

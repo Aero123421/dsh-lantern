@@ -1,0 +1,142 @@
+{
+  "productSha256": {
+    "src/frame/runtime.ts": "2c75d61f72170eebd076bdd614594f68dc0c40819eb6cbb348935a6551489e19",
+    "lib/client.js": "92bc43a10bc590e5b0ebb83cbb04577184905bc06751492149c8c622496b8f12",
+    "lib/index.js": "e7a2695d049045a57cc9ef89711f8539ee7a785dd056d830ea4bb67ad352c357"
+  },
+  "images": [
+    {
+      "image": "baseline-select-restored.png",
+      "state": "baseline-select-restored",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "19c82d4cff1d2b41661dcc09d44ce179646712c8",
+      "sha256": "a16c2768996aabf9f12b1c71c5bd04405f4078c8327c5505b58fd6b28b72feb2",
+      "result": "expected failure: three initial selections resurrect and select remains enabled"
+    },
+    {
+      "image": "dsh-select-history-mobile.png",
+      "state": "dsh-select-history-mobile",
+      "viewport": [
+        390,
+        844
+      ],
+      "scope": "official DSH 0.2.1-rc.2 + deterministic model",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "5f0214fb584c2b4c1cd6aff7922d181d2f002f409cce13ebf4c3ab321f523329",
+      "result": "pass: empty or chosen options match committed answer, lock state and stable bounds checked in Chromium and image pixels"
+    },
+    {
+      "image": "dsh-select-history.png",
+      "state": "dsh-select-history",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "scope": "official DSH 0.2.1-rc.2 + deterministic model",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "7930293fd7eba446b2eab46d3b39b5d6a06ae4e5dae218363d7fc16f6ba5dcab",
+      "result": "pass: empty or chosen options match committed answer, lock state and stable bounds checked in Chromium and image pixels"
+    },
+    {
+      "image": "runtime-select-cleared-draft.png",
+      "state": "runtime-select-cleared-draft",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "321bed2967213131271f4a4bb07f032fc68169441ff1e380975726f7308f29cb",
+      "result": "pass: empty or chosen options match committed answer, lock state and stable bounds checked in Chromium and image pixels"
+    },
+    {
+      "image": "runtime-select-committed.png",
+      "state": "runtime-select-committed",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "7c268eff5dba1fefcce9a697d5101c34f1c89bf01b61d79e5df44789d4a825f4",
+      "result": "pass: empty or chosen options match committed answer, lock state and stable bounds checked in Chromium and image pixels"
+    },
+    {
+      "image": "runtime-select-defaults.png",
+      "state": "runtime-select-defaults",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "f4557af0ec261997d1d2daecb4e1ad73088a26cf2c46b4806f718d44985bb6cb",
+      "result": "pass: empty or chosen options match committed answer, lock state and stable bounds checked in Chromium and image pixels"
+    },
+    {
+      "image": "runtime-select-empty-answer.png",
+      "state": "runtime-select-empty-answer",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "462678b3dd846f224879800f424ff662e48cd823456a0af764f774c0257617bc",
+      "result": "pass: empty or chosen options match committed answer, lock state and stable bounds checked in Chromium and image pixels"
+    },
+    {
+      "image": "runtime-select-mobile-dark.png",
+      "state": "runtime-select-mobile-dark",
+      "viewport": [
+        390,
+        844
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "9759e44f63ad6c413ddbc015d07e1f42e20f2c73cf17c6eb8707d258a5811a57",
+      "result": "pass: empty or chosen options match committed answer, lock state and stable bounds checked in Chromium and image pixels"
+    },
+    {
+      "image": "runtime-select-mobile-light.png",
+      "state": "runtime-select-mobile-light",
+      "viewport": [
+        390,
+        844
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "dce3041a7444df0aa5760509f150f8e584cb6cbbcd63df71fb0ae30b6de8aa55",
+      "result": "pass: empty or chosen options match committed answer, lock state and stable bounds checked in Chromium and image pixels"
+    },
+    {
+      "image": "runtime-select-restored.png",
+      "state": "runtime-select-restored",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "68a1361b4f9f1e013fba9b767dbef7cd32b83fc41a0848f0786c02c3f1d1a3dc",
+      "result": "pass: empty or chosen options match committed answer, lock state and stable bounds checked in Chromium and image pixels"
+    },
+    {
+      "image": "runtime-select-sending.png",
+      "state": "runtime-select-sending",
+      "viewport": [
+        900,
+        900
+      ],
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; product SHA256 below",
+      "sha256": "cfd3fca2b6750349945dff129fdd33b5d1d601cd439061912464472c1bf0bc98",
+      "result": "pass: empty or chosen options match committed answer, lock state and stable bounds checked in Chromium and image pixels"
+    }
+  ],
+  "finalHeadRerun": "/tmp/lantern-select-final-evidence/image-review.json"
+}

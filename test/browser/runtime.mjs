@@ -19,6 +19,7 @@ const checks = []
 const errors = []
 const geometry = {}
 let formRestoration
+let selectRestoration
 const page = await browser.newPage({ viewport: { width: 900, height: 900 } })
 page.on('pageerror', error => errors.push(String(error)))
 const check = (name, result) => { assert.ok(result, name); checks.push(name) }
@@ -152,6 +153,55 @@ try {
   await capture('runtime-checkbox-restored-mobile-dark')
   check('restored checkbox form fits mobile width in both themes', await frame.locator('body').evaluate(body => body.scrollWidth <= body.clientWidth))
   await page.setViewportSize({width:900,height:900})
+  const selectForm = `<form data-lt-form class="lt-stack"><h3>Committed multiple select choices</h3>
+    <label class="lt-field">Clear all<select id="empty-select" name="emptySelect" multiple size="3"><option value="a" selected>Alpha</option><option value="literal" selected>Literal value</option><option value="" selected>Empty value</option></select></label>
+    <label class="lt-field">One selection<select id="one-select" name="oneSelect" multiple size="3"><option value="a" selected>Alpha</option><option value="b" selected>Beta</option><option value="c">Gamma</option></select></label>
+    <label class="lt-field">Several selections<select id="many-select" name="manySelect" multiple size="3"><option value="a" selected>Alpha</option><option value="b">Beta</option><option value="c">Gamma</option></select></label>
+    <select id="disabled-select" name="disabledSelect" multiple disabled><option value="keep" selected>Disabled default</option></select>
+    <fieldset disabled><select id="fieldset-select" name="fieldsetSelect" multiple><option value="keep" selected>Disabled fieldset default</option></select></fieldset>
+    <button type="submit">Commit selections</button></form>`
+  async function captureSelect(name) {
+    for (let attempt = 0; attempt < 30; attempt++) {
+      if (await frame.locator('form').evaluate(form => form.getBoundingClientRect().bottom <= innerHeight + 1)) { await capture(name); return }
+      await page.waitForTimeout(50)
+    }
+    assert.fail('multiple select form remains clipped')
+  }
+  frame = await mount({},selectForm,true)
+  await captureSelect('runtime-select-defaults')
+  await frame.locator('#empty-select').selectOption([])
+  await frame.locator('#one-select').selectOption(['b'])
+  await frame.locator('#many-select').selectOption(['b','c'])
+  await captureSelect('runtime-select-cleared-draft')
+  await page.evaluate(() => { window.failNext = false })
+  await frame.getByRole('button',{name:'Commit selections',exact:true}).click()
+  await captureSelect('runtime-select-sending')
+  await frame.locator('[data-lt-form-status]').filter({hasText:'送信しました'}).waitFor()
+  const selectAnswer = JSON.parse(await page.evaluate(() => requests[0].json))
+  const readSelects = () => frame.locator('select').evaluateAll(items => Object.fromEntries(items.map(select => [select.id,{selected:[...select.selectedOptions].map(option=>option.value),disabled:select.matches(':disabled')} ])))
+  const committedSelects = await readSelects()
+  await captureSelect('runtime-select-committed')
+  frame = await mount({state:'answered',response:selectAnswer},selectForm,true)
+  const restoredSelects = await readSelects()
+  selectRestoration = {answer:selectAnswer,committed:committedSelects,restored:restoredSelects}
+  await captureSelect('runtime-select-restored')
+  check('empty multiple select retains native FormData omission while scalar and array selections keep their wire format', !Object.hasOwn(selectAnswer,'emptySelect') && selectAnswer.oneSelect === 'b' && JSON.stringify(selectAnswer.manySelect) === '["b","c"]')
+  check('all-cleared multiple select stays empty and locked on settlement and history restoration', [committedSelects,restoredSelects].every(items => items['empty-select'].selected.length === 0 && items['empty-select'].disabled))
+  check('single and multiple selections restore without markup defaults', JSON.stringify(restoredSelects['one-select'].selected) === '["b"]' && JSON.stringify(restoredSelects['many-select'].selected) === '["b","c"]')
+  check('disabled and fieldset-disabled multiple select defaults are preserved', ['disabled-select','fieldset-select'].every(id => JSON.stringify(restoredSelects[id].selected) === '["keep"]' && restoredSelects[id].disabled))
+  check('settled and restored multiple select states match', JSON.stringify(committedSelects) === JSON.stringify(restoredSelects))
+  frame = await mount({state:'answered',response:{}},selectForm.replace('value="literal"','value="undefined"'),true)
+  const emptySelectAnswer = await readSelects()
+  selectRestoration.emptyAnswer = emptySelectAnswer
+  check('empty answer clears every enabled multiple select including literal undefined and empty option values', ['empty-select','one-select','many-select'].every(id => emptySelectAnswer[id].selected.length === 0 && emptySelectAnswer[id].disabled))
+  await captureSelect('runtime-select-empty-answer')
+  await page.setViewportSize({width:390,height:844})
+  frame = await mount({state:'answered',response:selectAnswer,scheme:'light'},selectForm,true)
+  await captureSelect('runtime-select-mobile-light')
+  frame = await mount({state:'answered',response:selectAnswer,scheme:'dark'},selectForm,true)
+  await captureSelect('runtime-select-mobile-dark')
+  check('restored multiple select form fits mobile width', await frame.locator('body').evaluate(body => body.scrollWidth <= body.clientWidth))
+  await page.setViewportSize({width:900,height:900})
   frame = await mount({state:'answered',response:{...result,secret:'must-not-restore'}})
   await page.setViewportSize({ width: 320, height: 900 })
   const content = await frame.locator('body').evaluate(body => ({ width: body.clientWidth, scroll: body.scrollWidth, border: getComputedStyle(body).backgroundColor }))
@@ -199,10 +249,10 @@ try {
   }
   await page.screenshot({ path: join(output, 'runtime-rich.png'), fullPage: true })
   check('runtime emits no uncaught browser exceptions', errors.length === 0)
-  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, geometry, formRestoration, richRendering, note: 'IME events are synthetic; native OS candidate windows are not automated.' }, null, 2))
+  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, geometry, formRestoration, selectRestoration, richRendering, note: 'IME events are synthetic; native OS candidate windows are not automated.' }, null, 2))
   console.log(`${checks.length} Chromium runtime checks passed`)
 } catch (error) {
   await page.screenshot({ path: join(output, 'runtime-failure.png'), fullPage: true }).catch(() => {})
-  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, geometry, formRestoration, failure: String(error) }, null, 2))
+  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, geometry, formRestoration, selectRestoration, failure: String(error) }, null, 2))
   throw error
 } finally { await browser.close() }
