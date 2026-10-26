@@ -412,13 +412,14 @@ export function frameRuntime(): void {
     // two-pixel probe falsely classifies ordinary flex stacks as 100vh pages,
     // pins the frame and clips its heading after a control receives focus.
     // A Range measures intrinsic content (including overflowing descendants)
-    // without that viewport floor.
+    // without that viewport floor. Use document coordinates so collapsed top
+    // margins count, and retain the root box for collapsed trailing margins.
     const range = document.createRange()
     range.selectNodeContents(body)
     const content = range.getBoundingClientRect()
     const bodyRect = body.getBoundingClientRect()
     const padding = parseFloat(getComputedStyle(body).paddingBottom) || 0
-    return Math.ceil(Math.max(bodyRect.height, content.bottom - bodyRect.top + padding))
+    return Math.ceil(Math.max(rect.height, bodyRect.bottom + window.scrollY, content.bottom + window.scrollY + padding))
   }
   function measure() {
     queued = false

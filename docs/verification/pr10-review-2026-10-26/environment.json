@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-26",
+  "base": "8ac40233ca762014f6451f5c1b04e2b44d146360",
+  "originalPRHead": "5c0572e07c078286a92965913513d498602a07b3",
+  "node": "v24.19.0",
+  "chromium": "Chromium 154.0.8037.57 built on Debian GNU/Linux 13 (trixie)",
+  "dsh": "0.2.1-rc.2",
+  "react": "18.3.1",
+  "playwright": "1.55.1",
+  "runtimeLockSha256": "f65d4c151b22390e7927963d60c4dd2eeee232fc06931ee1f2531c6ad3d27e4a",
+  "productSha256": {
+    "src/client/store.ts": "d714a0c7bb995c04d6e2aa35e0935425a07300b2d50ec7f1f89c9707f069ac4f",
+    "src/client/Card.tsx": "177d6329aebe7922022d7fffa6604fd9f37061cf05e9fd572d7442a02c939623",
+    "src/frame/runtime.ts": "05fd7482a0eca2cd01589336dd39aade53f824b7a66ad87c97266d35befc4707",
+    "lib/client.js": "f63e3afca27c1d08e67ddb681d12e6dc6e3973a2394248c87a2fc930ab755e31",
+    "lib/index.js": "b075fc58e52e9184161c4b4cb72f01d8a3120343a6f6396af8aab85a75a2c9cd"
+  },
+  "shutdown": {
+    "port3088": "ECONNREFUSED after run",
+    "temporaryDSHHomes": 0
+  },
+  "initialDependencyRecovery": "Existing node_modules missed schemastery; restored lockfile using npm ci --ignore-scripts. Runtime installation cache moved under /tmp after default home cache was unavailable."
+}

@@ -244,6 +244,6 @@ function PathFrame(props: {
   }, [path, props.sessionId, props.record.callId])
   if (error) return <div className="lantern-note" data-kind="error">{c.fileError}: {error}</div>
   if (!url) return <div className="lantern-note">{c.loading}</div>
-  return <Frame callId={props.record.callId} sessionId={props.sessionId} mode="panel" url={url} paused={props.paused} state={props.state} response={props.response}
+  return <Frame callId={props.record.callId} sessionId={props.sessionId} title={props.record.args?.title} mode="panel" url={url} paused={props.paused} state={props.state} response={props.response}
     onSubmit={props.onSubmit} onSend={props.onSend} onError={props.onError} onGlLost={props.onGlLost} />
 }

@@ -1,0 +1,58 @@
+{
+  "checks": [
+    "native required validation prevents empty submit",
+    "textarea Enter inserts a newline without submitting",
+    "synthetic IME composition guard prevents modifier submit",
+    "pending submission marks form busy",
+    "pending submission disables submit button",
+    "duplicate submission is suppressed",
+    "failure retains typed text and reenables retry",
+    "native form serializes Japanese, radio, checkbox, and submitter",
+    "special field names are ordinary own properties",
+    "successful answer locks controls and reports success",
+    "drafts are not implicitly persisted",
+    "committed form values reconstruct from history",
+    "password fields are not restored",
+    "form fits 320px viewport",
+    "inline body is transparent",
+    "sandbox still prevents access to parent DOM",
+    "auto-height does not mistake an ordinary flex stack for a viewport app",
+    "focusing a slider does not scroll away the heading",
+    "range height is independent of vertical flex basis",
+    "collapsed top margin remains inside the auto-sized frame",
+    "body top margin remains inside the auto-sized frame",
+    "collapsed trailing margin is preserved without a viewport floor",
+    "intentional viewport-sized applications receive a bounded usable height",
+    "custom SVG survives the shared kit",
+    "custom styles override the low-priority default surface",
+    "WebGL2 renders and reads back pixels inside the sandbox",
+    "runtime emits no uncaught browser exceptions"
+  ],
+  "errors": [],
+  "geometry": {
+    "collapsedMargin": {
+      "bottom": 170,
+      "viewport": 171,
+      "scroll": 0
+    },
+    "bodyMargin": {
+      "bottom": 120,
+      "viewport": 150,
+      "scroll": 0
+    },
+    "trailingMargin": {
+      "root": 170,
+      "viewport": 170
+    }
+  },
+  "richRendering": {
+    "webgl2": "rendered",
+    "pixel": [
+      51,
+      153,
+      230,
+      255
+    ]
+  },
+  "note": "IME events are synthetic; native OS candidate windows are not automated."
+}

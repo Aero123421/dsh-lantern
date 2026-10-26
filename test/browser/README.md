@@ -34,6 +34,8 @@ printf 'Evidence: %s\n' "$LANTERN_E2E_OUTPUT"
 
 Both scripts accept `LANTERN_CHROMIUM` for an already-installed Chromium binary; otherwise they use the Chromium installed by Playwright. Do not disable browser/network policies to run these tests; use an authorized environment where loopback navigation is allowed.
 
+For replacement-chain regression checks, also install `react-dom@18.3.1` in the disposable runtime, then run `node test/browser/replacements.mjs` with the same environment variables. This bundles the actual `Tail`, `VisualCard` and `Frame` into a loopback-only mock host. It checks normal, 21- and 80-replacement chains, cycles, failed replacements and retry, fork isolation, removal/remount, mobile layout and workspace iframe names. Removal means React unmount here; it does not exercise DSH's persistent session deletion. Its JSON report records the actual `scrollIntoView` destination. [The October 26 review](../../docs/verification/pr10-review-2026-10-26/README.md) includes before/after results and separates mock checks from official DSH integration.
+
 The standalone runtime suite uses the actual `buildDocument` and iframe code on a blank browser page. Its parent acknowledgement is a test harness. The DSH suite starts the official application, loads the actual plugin, and exercises the real tool-result/session/form/settings paths through the rendered UI. Its model adapter is the only deterministic replacement.
 
 ## Evidence and limits

@@ -1,0 +1,71 @@
+{
+  "checks": [
+    "normal replacement",
+    "normal replacement: destination contains the latest iframe"
+  ],
+  "errors": [],
+  "diagnostics": [
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+    "Unrecognized Content-Security-Policy directive 'navigate-to'.",
+    "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set."
+  ],
+  "scrollTargets": [
+    {
+      "id": "r1",
+      "key": "[\"normal\",\"r1\"]",
+      "replaced": false
+    },
+    {
+      "id": "r20",
+      "key": "[\"boundary\",\"r20\"]",
+      "replaced": true
+    }
+  ],
+  "failure": "AssertionError [ERR_ASSERTION]: twenty-one replacements",
+  "scope": "mock DSH host; actual Tail/VisualCard/Frame; no DSH integration, account, or model"
+}

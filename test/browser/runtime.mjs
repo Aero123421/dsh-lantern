@@ -17,6 +17,7 @@ const browser = await chromium.launch({ headless: true,
 })
 const checks = []
 const errors = []
+const geometry = {}
 const page = await browser.newPage({ viewport: { width: 900, height: 900 } })
 page.on('pageerror', error => errors.push(String(error)))
 const check = (name, result) => { assert.ok(result, name); checks.push(name) }
@@ -104,6 +105,19 @@ try {
   check('auto-height does not mistake an ordinary flex stack for a viewport app', Math.abs(sizing.height - sizing.viewport) <= 1)
   check('focusing a slider does not scroll away the heading', sizing.scroll === 0)
   check('range height is independent of vertical flex basis', sizing.range === 32)
+  frame = await mount({ state: 'idle' }, '<div id="margin-label" style="margin-top:150px;height:20px">Visible label below a collapsed margin</div>', true)
+  await page.waitForTimeout(2100)
+  geometry.collapsedMargin = await frame.locator('#margin-label').evaluate(el => ({ bottom: el.getBoundingClientRect().bottom, viewport: innerHeight, scroll: scrollY }))
+  check('collapsed top margin remains inside the auto-sized frame', geometry.collapsedMargin.bottom <= geometry.collapsedMargin.viewport && geometry.collapsedMargin.scroll === 0)
+  await page.screenshot({ path: join(output, 'runtime-collapsed-margin.png'), fullPage: true })
+  frame = await mount({ state: 'idle' }, '<style>body{margin:80px 0 30px}</style><div id="body-margin-label" style="height:40px">Visible label below a body margin</div>', true)
+  await page.waitForTimeout(2100)
+  geometry.bodyMargin = await frame.locator('#body-margin-label').evaluate(el => ({ bottom: el.getBoundingClientRect().bottom, viewport: innerHeight, scroll: scrollY }))
+  check('body top margin remains inside the auto-sized frame', geometry.bodyMargin.bottom <= geometry.bodyMargin.viewport && geometry.bodyMargin.scroll === 0)
+  frame = await mount({ state: 'idle' }, '<div style="height:20px;margin-bottom:150px">Trailing space</div>', true)
+  await page.waitForTimeout(2100)
+  geometry.trailingMargin = await frame.locator('body').evaluate(() => ({ root: document.documentElement.getBoundingClientRect().height, viewport: innerHeight }))
+  check('collapsed trailing margin is preserved without a viewport floor', geometry.trailingMargin.viewport >= 170 && Math.abs(geometry.trailingMargin.root - geometry.trailingMargin.viewport) <= 1)
   frame = await mount({ state: 'idle' }, '<div style="height:100vh">Viewport-sized application</div>', true)
   await page.waitForTimeout(2100)
   const viewportApp = await frame.locator('body').evaluate(() => innerHeight)
@@ -122,10 +136,10 @@ try {
   }
   await page.screenshot({ path: join(output, 'runtime-rich.png'), fullPage: true })
   check('runtime emits no uncaught browser exceptions', errors.length === 0)
-  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, richRendering, note: 'IME events are synthetic; native OS candidate windows are not automated.' }, null, 2))
+  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, geometry, richRendering, note: 'IME events are synthetic; native OS candidate windows are not automated.' }, null, 2))
   console.log(`${checks.length} Chromium runtime checks passed`)
 } catch (error) {
   await page.screenshot({ path: join(output, 'runtime-failure.png'), fullPage: true }).catch(() => {})
-  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, failure: String(error) }, null, 2))
+  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, geometry, failure: String(error) }, null, 2))
   throw error
 } finally { await browser.close() }
