@@ -18,9 +18,11 @@ const browser = await chromium.launch({ headless: true,
 const checks = []
 const errors = []
 const geometry = {}
+let formRestoration
 const page = await browser.newPage({ viewport: { width: 900, height: 900 } })
 page.on('pageerror', error => errors.push(String(error)))
 const check = (name, result) => { assert.ok(result, name); checks.push(name) }
+const capture = name => page.screenshot({path:join(output,name + '.png'),fullPage:true})
 const html = `<form data-lt-form data-lt-submit-key="mod-enter" class="lt-stack">
 <h3>説明の条件</h3><label class="lt-field">追加の要望<textarea name="notes" required></textarea></label>
 <div class="lt-choices"><label class="lt-choice"><strong><input type="radio" name="style" value="visual" checked>図で理解する</strong><small>内容を動かして確認する</small></label><label class="lt-choice"><strong><input type="radio" name="style" value="math">数式も使う</strong><small>仕組みを詳しく確かめる</small></label></div>
@@ -60,6 +62,7 @@ async function mount(overrides = {}, markup = html, autoResize = false) {
 }
 try {
   let frame = await mount()
+  await capture('runtime-form-empty')
   await frame.getByRole('button', { name: '送信', exact: true }).click()
   check('native required validation prevents empty submit', await page.evaluate(() => requests.length) === 0)
   const notes = frame.locator('textarea')
@@ -71,14 +74,18 @@ try {
   check('synthetic IME composition guard prevents modifier submit', await page.evaluate(() => requests.length) === 0)
   await notes.dispatchEvent('compositionend'); await page.waitForTimeout(20)
   const value = await notes.inputValue()
+  await capture('runtime-form-japanese-draft')
   await frame.getByRole('button', { name: '送信', exact: true }).click()
   check('pending submission marks form busy', await frame.locator('form').getAttribute('aria-busy') === 'true')
   check('pending submission disables submit button', await frame.getByRole('button', { name: '送信', exact: true }).isDisabled())
+  await capture('runtime-form-sending')
   await notes.press('Control+Enter')
   check('duplicate submission is suppressed', await page.evaluate(() => requests.length) === 1)
   await frame.locator('[data-lt-form-status][data-error]').waitFor()
   check('failure retains typed text and reenables retry', await notes.inputValue() === value && await frame.getByRole('button', { name: '送信', exact: true }).isEnabled())
+  await capture('runtime-form-error-retained-input')
   await frame.getByRole('button', { name: '送信', exact: true }).click()
+  await capture('runtime-form-retrying')
   await page.waitForFunction(() => requests.length === 2)
   await page.waitForTimeout(700)
   const result = JSON.parse(await page.evaluate(() => requests[1].json))
@@ -90,6 +97,62 @@ try {
   frame = await mount({ state: 'answered', response: { ...result, secret: 'must-not-restore' } })
   check('committed form values reconstruct from history', await frame.locator('textarea').inputValue() === value && await frame.locator('textarea').isDisabled())
   check('password fields are not restored', await frame.locator('input[type=password]').inputValue() === '')
+  const checkboxForm = `<form data-lt-form class="lt-stack"><h3>Committed checkbox choices</h3>
+    <label><input id="single" type="checkbox" name="single" value="weekly" checked>Newsletter</label>
+    <label><input id="none-a" type="checkbox" name="none" value="a" checked>Clear group A</label>
+    <label><input id="none-b" type="checkbox" name="none" value="b" checked>Clear group B</label>
+    <label><input id="partial-a" type="checkbox" name="partial" value="a" checked>Partial A</label>
+    <label><input id="partial-b" type="checkbox" name="partial" value="b" checked>Partial B</label>
+    <label><input id="partial-c" type="checkbox" name="partial" value="c">Partial C</label>
+    <label><input id="one-a" type="checkbox" name="one" value="a" checked>Single selection A</label>
+    <label><input id="one-b" type="checkbox" name="one" value="b" checked>Single selection B</label>
+    <label><input id="mixed-on" type="checkbox" name="mixed" checked>Mixed default value</label>
+    <label><input id="mixed-custom" type="checkbox" name="mixed" value="custom" checked>Mixed custom value</label>
+    <label><input id="boolean" type="checkbox" name="boolean" checked>Boolean unchecked</label>
+    <input type="hidden" name="fallback" value="no"><label><input id="fallback" type="checkbox" name="fallback" value="yes" checked>Hidden fallback</label>
+    <label><input id="disabled" type="checkbox" name="disabled" value="untouched" checked disabled>Disabled default</label>
+    <fieldset disabled><label><input id="fieldset-disabled" type="checkbox" name="fieldset" value="untouched" checked>Disabled fieldset</label></fieldset>
+    <button type="submit">Commit choices</button></form>`
+  frame = await mount({}, checkboxForm)
+  await capture('runtime-checkbox-defaults')
+  for (const id of ['single','none-a','none-b','partial-a','one-a','boolean','fallback']) await frame.locator('#' + id).uncheck()
+  await frame.locator('#partial-c').check()
+  await capture('runtime-checkbox-unchecked-draft')
+  await page.evaluate(() => { window.failNext = false })
+  await frame.getByRole('button', { name: 'Commit choices', exact: true }).click()
+  await capture('runtime-checkbox-sending')
+  await page.waitForFunction(() => requests.length === 1)
+  await frame.locator('[data-lt-form-status]').filter({hasText:'送信しました'}).waitFor()
+  const checkboxAnswer = JSON.parse(await page.evaluate(() => requests[0].json))
+  const readChecks = () => frame.locator('input[type=checkbox]').evaluateAll(items => Object.fromEntries(items.map(input => [input.id,{checked:input.checked,disabled:input.matches(':disabled')} ])))
+  const committedChecks = await readChecks()
+  await capture('runtime-checkbox-committed')
+  frame = await mount({state:'answered',response:checkboxAnswer},checkboxForm)
+  const restoredChecks = await readChecks()
+  formRestoration = {answer:checkboxAnswer,committed:committedChecks,restored:restoredChecks}
+  await capture('runtime-checkbox-restored')
+  check('unchecked custom checkbox and all-unchecked custom group keep native FormData omissions', !Object.hasOwn(checkboxAnswer,'single') && !Object.hasOwn(checkboxAnswer,'none'))
+  check('same-name checkbox arrays, boolean false and hidden fallback keep their existing wire values', JSON.stringify(checkboxAnswer.partial) === '["b","c"]' && JSON.stringify(checkboxAnswer.mixed) === '["on","custom"]' && checkboxAnswer.boolean === false && checkboxAnswer.fallback === 'no')
+  check('unchecked custom checkbox is cleared and locked on settlement and history restoration', [committedChecks,restoredChecks].every(items => !items.single.checked && items.single.disabled))
+  check('all-unchecked custom checkbox group stays cleared and locked after history restoration', ['none-a','none-b'].every(id => !restoredChecks[id].checked && restoredChecks[id].disabled))
+  check('partially selected and multiple selected checkbox groups reconstruct every choice', !restoredChecks['partial-a'].checked && ['partial-b','partial-c','mixed-on','mixed-custom'].every(id => restoredChecks[id].checked && restoredChecks[id].disabled))
+  check('one selected custom checkbox in a same-name group keeps its scalar answer', checkboxAnswer.one === 'b' && !restoredChecks['one-a'].checked && restoredChecks['one-b'].checked && restoredChecks['one-a'].disabled && restoredChecks['one-b'].disabled)
+  check('unchecked boolean checkbox and hidden fallback remain unchecked after history restoration', !restoredChecks.boolean.checked && !restoredChecks.fallback.checked)
+  check('disabled checkbox defaults excluded from FormData remain unchanged', ['disabled','fieldset-disabled'].every(id => !Object.hasOwn(checkboxAnswer,id === 'disabled' ? 'disabled' : 'fieldset') && restoredChecks[id].checked && restoredChecks[id].disabled))
+  check('settled and restored checkbox states match', JSON.stringify(committedChecks) === JSON.stringify(restoredChecks))
+  frame = await mount({state:'answered',response:{}},checkboxForm)
+  const emptyAnswerChecks = await readChecks()
+  check('an empty committed object clears and locks every enabled checkbox', Object.entries(emptyAnswerChecks).filter(([id]) => !['disabled','fieldset-disabled'].includes(id)).every(([,item]) => !item.checked && item.disabled))
+  formRestoration.emptyAnswer = emptyAnswerChecks
+  await capture('runtime-checkbox-empty-answer')
+  await page.setViewportSize({width:390,height:844})
+  frame = await mount({state:'answered',response:checkboxAnswer,scheme:'light'},checkboxForm)
+  await capture('runtime-checkbox-restored-mobile-light')
+  frame = await mount({state:'answered',response:checkboxAnswer,scheme:'dark'},checkboxForm)
+  await capture('runtime-checkbox-restored-mobile-dark')
+  check('restored checkbox form fits mobile width in both themes', await frame.locator('body').evaluate(body => body.scrollWidth <= body.clientWidth))
+  await page.setViewportSize({width:900,height:900})
+  frame = await mount({state:'answered',response:{...result,secret:'must-not-restore'}})
   await page.setViewportSize({ width: 320, height: 900 })
   const content = await frame.locator('body').evaluate(body => ({ width: body.clientWidth, scroll: body.scrollWidth, border: getComputedStyle(body).backgroundColor }))
   check('form fits 320px viewport', content.scroll <= content.width + 1)
@@ -136,10 +199,10 @@ try {
   }
   await page.screenshot({ path: join(output, 'runtime-rich.png'), fullPage: true })
   check('runtime emits no uncaught browser exceptions', errors.length === 0)
-  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, geometry, richRendering, note: 'IME events are synthetic; native OS candidate windows are not automated.' }, null, 2))
+  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, geometry, formRestoration, richRendering, note: 'IME events are synthetic; native OS candidate windows are not automated.' }, null, 2))
   console.log(`${checks.length} Chromium runtime checks passed`)
 } catch (error) {
   await page.screenshot({ path: join(output, 'runtime-failure.png'), fullPage: true }).catch(() => {})
-  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, geometry, failure: String(error) }, null, 2))
+  await writeFile(join(output, 'runtime-checks.json'), JSON.stringify({ checks, errors, geometry, formRestoration, failure: String(error) }, null, 2))
   throw error
 } finally { await browser.close() }

@@ -1,0 +1,238 @@
+{
+  "productSha256": {
+    "src/frame/runtime.ts": "9fdda2fa9bab81d83d0c349e1c7d1f9432d1c261b65ddcaee46c585c45f7888b",
+    "lib/client.js": "b74e6bc470f5976e788a59e8b71b09253d98cfa1ef17a30d137c78484d09cc55",
+    "lib/index.js": "d81615469d87934a01bd0f74bfe058ff4b80e0a4935c208e0ec9ddc69bbdaf7b"
+  },
+  "images": [
+    {
+      "image": "baseline-checkbox-restored.png",
+      "state": "baseline-checkbox-restored",
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "beb9047c78cca766716e86037391c188d137e0d2",
+      "result": "expected failure: unchecked single and empty group restore as checked and remain enabled",
+      "sha256": "7058384ec32f157e7f902a0d7d14df6fd9b7f1a50043c77a703e43f6d1509fe3"
+    },
+    {
+      "image": "dsh-checkbox-defaults.png",
+      "state": "dsh-checkbox-defaults",
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "scope": "official DSH 0.2.1-rc.2 + deterministic model",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "121da247715bb3c9ca2ea7084b0bfcf05dce235eb7076a49f192eca9a88b855c"
+    },
+    {
+      "image": "dsh-checkbox-history-mobile.png",
+      "state": "dsh-checkbox-history-mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scope": "official DSH 0.2.1-rc.2 + deterministic model",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "ecac0b0535691ca6710041b78ddd9825f1d093fc309a9221d0638f38ad58b327"
+    },
+    {
+      "image": "dsh-checkbox-history.png",
+      "state": "dsh-checkbox-history",
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "scope": "official DSH 0.2.1-rc.2 + deterministic model",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "33c9ff6e754887dcbc50d228a802828130f2f77607827d4755fb86d53196750d"
+    },
+    {
+      "image": "dsh-checkbox-loading-autoheight.png",
+      "state": "dsh-checkbox-loading-autoheight",
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "scope": "official DSH 0.2.1-rc.2 + deterministic model",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "transient: captured during auto-height adjustment; form end temporarily clipped; stable image and formFits check confirm recovery",
+      "sha256": "a3dd3d3a2ede7acb530f38ba5f119afef97cc9abb0d0843b49ae3cd039f07413"
+    },
+    {
+      "image": "dsh-form-answered.png",
+      "state": "dsh-form-answered",
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "scope": "official DSH 0.2.1-rc.2 + deterministic model",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "37d7239bbaa92a6ac4fca492b022c2e428f81d066a9480c8a4ea8cf4ce99847b"
+    },
+    {
+      "image": "dsh-form-input.png",
+      "state": "dsh-form-input",
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "scope": "official DSH 0.2.1-rc.2 + deterministic model",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "f89848a18d7e4e211167fe88f783e3f1824c4794554fce87fadf8ea2f04d2274"
+    },
+    {
+      "image": "runtime-checkbox-committed.png",
+      "state": "runtime-checkbox-committed",
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "0ff7abe24dd0eada5d85cf46001c3d32eb613f31b2743674ec12f4616464c6d7"
+    },
+    {
+      "image": "runtime-checkbox-defaults.png",
+      "state": "runtime-checkbox-defaults",
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "fe7ec05409cfdb1b6ef1f99a799ace50a9d7a03e43a7dd625b44ab517865a041"
+    },
+    {
+      "image": "runtime-checkbox-empty-answer.png",
+      "state": "runtime-checkbox-empty-answer",
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "008b39d3c84139bc50850ffcb189ff97c3b0cb4cf3abad40bacf4ed92d5d8695"
+    },
+    {
+      "image": "runtime-checkbox-restored-mobile-dark.png",
+      "state": "runtime-checkbox-restored-mobile-dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "ed3ac4e8a1ca6259e835ebcf8e475fcac1cf14614547a81c7da8156a07b97843"
+    },
+    {
+      "image": "runtime-checkbox-restored-mobile-light.png",
+      "state": "runtime-checkbox-restored-mobile-light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "b4c55bb70feccd96d4a8168c34d1739bd8bee90ca647701f45066ab04f80f644"
+    },
+    {
+      "image": "runtime-checkbox-restored.png",
+      "state": "runtime-checkbox-restored",
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "2fcf0a956e8a9edfe0441b0cae8e75999291c22b5443c7401b2f6cd790ec8470"
+    },
+    {
+      "image": "runtime-checkbox-sending.png",
+      "state": "runtime-checkbox-sending",
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "5730f5a8b8dd25641b2bfac639212349e0618dc88594ad11d51006ad24119451"
+    },
+    {
+      "image": "runtime-checkbox-unchecked-draft.png",
+      "state": "runtime-checkbox-unchecked-draft",
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "580b9fdbe769953fdd4ec767ee712f6fb357450b231a98dbc871bab6aa44f973"
+    },
+    {
+      "image": "runtime-form-empty.png",
+      "state": "runtime-form-empty",
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "d66f476328a5ad6525698f7e8a4f512751c47f660290542e1c73c4f9f49ecf2d"
+    },
+    {
+      "image": "runtime-form-error-retained-input.png",
+      "state": "runtime-form-error-retained-input",
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "80a3f77bde881a579205eda1a4db8a73e435cb25243bf21d1152419a1d7d3e12"
+    },
+    {
+      "image": "runtime-form-retrying.png",
+      "state": "runtime-form-retrying",
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "fc21b1ce0b329b800689fce0b336e93227d2e74d9ca9ccfe5ac0e473fa4dfda3"
+    },
+    {
+      "image": "runtime-form-sending.png",
+      "state": "runtime-form-sending",
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "scope": "actual sandbox runtime + fixture parent",
+      "targetSHA": "containing commit; exact product source hashes below",
+      "result": "pass: checked state, bounds, overlap and lock state visually inspected",
+      "sha256": "fc21b1ce0b329b800689fce0b336e93227d2e74d9ca9ccfe5ac0e473fa4dfda3"
+    }
+  ],
+  "finalHeadRerun": "/tmp/lantern-checkbox-final-evidence/image-review.json"
+}

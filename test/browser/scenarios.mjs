@@ -17,6 +17,13 @@ export async function scenarios({ page, context, output, capture, errors }) {
   async function completed() {
     await page.getByText('この図や入力は会話の中に残ります。', { exact: false }).first().waitFor({ state: 'visible', timeout: 30000 })
   }
+  async function formFits(frame) {
+    for (let attempt = 0; attempt < 30; attempt++) {
+      if (await frame.locator('form').evaluate(form => form.getBoundingClientRect().bottom <= innerHeight + 1)) return true
+      await page.waitForTimeout(100)
+    }
+    return false
+  }
   async function dimensions(name) {
     const values = await child().locator('body').evaluate(body => ({
       viewport: innerHeight, content: body.getBoundingClientRect().height,
@@ -76,11 +83,17 @@ export async function scenarios({ page, context, output, capture, errors }) {
     const pendingForm = waiting.frameLocator('iframe')
     await pendingForm.locator('textarea').waitFor({ state: 'visible', timeout: 30000 })
     check('awaited form remains available in the tool row before the model continues', await waiting.count() === 1)
+    await capture('dsh-checkbox-loading-autoheight')
+    check('real DSH checkbox form finishes resizing without clipping its submit button', await formFits(pendingForm))
+    await capture('dsh-checkbox-defaults')
     const notes = pendingForm.locator('textarea')
     await notes.fill('図を中心に、日本語で説明してください。')
     await notes.press('End'); await notes.press('Enter'); await notes.pressSequentially('Extra detail')
     check('textarea newline does not submit the awaited form', await notes.isEnabled() && (await notes.inputValue()).includes('\n'))
     await pendingForm.locator('input[value="math"]').check()
+    await pendingForm.locator('input[name="newsletter"]').uncheck()
+    await pendingForm.locator('input[name="extras"][value="examples"]').uncheck()
+    await pendingForm.locator('input[name="extras"][value="details"]').uncheck()
     const submitted = await notes.inputValue()
     await capture('dsh-form-input')
     await pendingForm.getByRole('button', { name: 'この内容で続ける', exact: true }).click()
@@ -88,12 +101,26 @@ export async function scenarios({ page, context, output, capture, errors }) {
     await child().locator('textarea:disabled').waitFor()
     check('form answer reaches the real DSH waiting tool and resumes the model', await child().locator('textarea').inputValue() === submitted)
     check('form settlement moves to the final-answer tail without a duplicate tool frame', await visual().count() === 1 && await visual().locator('iframe').count() === 1 && await page.locator('.lantern-tool iframe').count() === 0)
+    const checkboxState = () => child().locator('form').evaluate(form => ({
+      response: window.lantern.response,
+      choices: [...form.querySelectorAll('input[type=checkbox]')].map(input => ({checked:input.checked,disabled:input.disabled})),
+    }))
+    const committedCheckboxes = await checkboxState()
+    check('real DSH settlement preserves native omissions and locks unchecked custom checkboxes', !Object.hasOwn(committedCheckboxes.response,'newsletter') && !Object.hasOwn(committedCheckboxes.response,'extras') && committedCheckboxes.choices.every(input => !input.checked && input.disabled))
     await capture('dsh-form-answered')
     await page.reload({ waitUntil: 'domcontentloaded' })
     await visual().locator('iframe[data-scripts="off"]').waitFor({ state: 'visible', timeout: 30000 })
     await visual().getByRole('button', { name: 'Run', exact: true }).click()
     await child().locator('textarea:disabled').waitFor()
     check('answered form reconstructs its text and selected option from DSH history', await child().locator('textarea').inputValue() === submitted && await child().locator('input[value="math"]').isChecked())
+    const restoredCheckboxes = await checkboxState()
+    check('real DSH history restores unchecked single and same-name custom checkboxes', JSON.stringify(restoredCheckboxes) === JSON.stringify(committedCheckboxes))
+    await capture('dsh-checkbox-history')
+    await page.setViewportSize({width:390,height:844})
+    check('real DSH checkbox history finishes resizing for mobile', await formFits(child()))
+    await capture('dsh-checkbox-history-mobile')
+    check('restored real DSH checkbox form fits mobile width', await child().locator('body').evaluate(body => body.scrollWidth <= body.clientWidth))
+    await page.setViewportSize({width:1440,height:1050})
 
     await composer().click(); await composer().pressSequentially('/lantern-', { delay: 50 })
     await page.getByText('lantern-chat-ux', { exact: false }).first().waitFor()
@@ -125,6 +152,7 @@ export async function scenarios({ page, context, output, capture, errors }) {
     const requests = (await readFile(join(output, 'model.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
     const latest = requests.at(-1)
     check('guides off removes automatic system guidance but leaves show_visual available', latest.automatic === false && latest.tools.includes('show_visual'))
+    await page.waitForTimeout(700)
     await capture('dsh-guides-off-runtime-on')
     // Chromium reports the inherited CSP directive and deliberately paused
     // historical boot scripts; preserve these diagnostics in the report.

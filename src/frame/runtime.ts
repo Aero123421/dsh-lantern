@@ -284,8 +284,12 @@ export function frameRuntime(): void {
         const answer = response as Record<string, unknown>
         const positions = new Map<string, number>()
         forms[0]!.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input[name], textarea[name], select[name]').forEach(control => {
-          if (!Object.hasOwn(answer, control.name) || control.type === 'password' || control.type === 'file') return
-          const raw = answer[control.name]
+          const present = Object.hasOwn(answer, control.name)
+          // Native FormData omits unchecked custom-valued checkboxes. Clear
+          // their markup defaults too, while preserving disabled controls.
+          const unchecked = control.type === 'checkbox' && !control.matches(':disabled')
+          if ((!present && !unchecked) || control.type === 'password' || control.type === 'file') return
+          const raw = present ? answer[control.name] : undefined
           const values = Array.isArray(raw) ? raw : [raw]
           if (control.type === 'checkbox' || control.type === 'radio') {
             const input = control as HTMLInputElement

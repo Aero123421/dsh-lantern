@@ -1,0 +1,153 @@
+{
+  "checks": [
+    "native required validation prevents empty submit",
+    "textarea Enter inserts a newline without submitting",
+    "synthetic IME composition guard prevents modifier submit",
+    "pending submission marks form busy",
+    "pending submission disables submit button",
+    "duplicate submission is suppressed",
+    "failure retains typed text and reenables retry",
+    "native form serializes Japanese, radio, checkbox, and submitter",
+    "special field names are ordinary own properties",
+    "successful answer locks controls and reports success",
+    "drafts are not implicitly persisted",
+    "committed form values reconstruct from history",
+    "password fields are not restored",
+    "unchecked custom checkbox and all-unchecked custom group keep native FormData omissions",
+    "same-name checkbox arrays, boolean false and hidden fallback keep their existing wire values"
+  ],
+  "errors": [],
+  "geometry": {},
+  "formRestoration": {
+    "answer": {
+      "partial": [
+        "b",
+        "c"
+      ],
+      "one": "b",
+      "mixed": [
+        "on",
+        "custom"
+      ],
+      "fallback": "no",
+      "boolean": false
+    },
+    "committed": {
+      "single": {
+        "checked": false,
+        "disabled": false
+      },
+      "none-a": {
+        "checked": false,
+        "disabled": false
+      },
+      "none-b": {
+        "checked": false,
+        "disabled": false
+      },
+      "partial-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "partial-b": {
+        "checked": true,
+        "disabled": true
+      },
+      "partial-c": {
+        "checked": true,
+        "disabled": true
+      },
+      "one-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "one-b": {
+        "checked": true,
+        "disabled": true
+      },
+      "mixed-on": {
+        "checked": true,
+        "disabled": true
+      },
+      "mixed-custom": {
+        "checked": true,
+        "disabled": true
+      },
+      "boolean": {
+        "checked": false,
+        "disabled": true
+      },
+      "fallback": {
+        "checked": false,
+        "disabled": true
+      },
+      "disabled": {
+        "checked": true,
+        "disabled": true
+      },
+      "fieldset-disabled": {
+        "checked": true,
+        "disabled": true
+      }
+    },
+    "restored": {
+      "single": {
+        "checked": true,
+        "disabled": false
+      },
+      "none-a": {
+        "checked": true,
+        "disabled": false
+      },
+      "none-b": {
+        "checked": true,
+        "disabled": false
+      },
+      "partial-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "partial-b": {
+        "checked": true,
+        "disabled": true
+      },
+      "partial-c": {
+        "checked": true,
+        "disabled": true
+      },
+      "one-a": {
+        "checked": false,
+        "disabled": true
+      },
+      "one-b": {
+        "checked": true,
+        "disabled": true
+      },
+      "mixed-on": {
+        "checked": true,
+        "disabled": true
+      },
+      "mixed-custom": {
+        "checked": true,
+        "disabled": true
+      },
+      "boolean": {
+        "checked": false,
+        "disabled": true
+      },
+      "fallback": {
+        "checked": false,
+        "disabled": true
+      },
+      "disabled": {
+        "checked": true,
+        "disabled": true
+      },
+      "fieldset-disabled": {
+        "checked": true,
+        "disabled": true
+      }
+    }
+  },
+  "failure": "AssertionError [ERR_ASSERTION]: unchecked custom checkbox is cleared and locked on settlement and history restoration"
+}
