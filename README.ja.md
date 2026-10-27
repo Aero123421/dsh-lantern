@@ -126,7 +126,7 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 
 ```sh
 sha256sum -c SHA256SUMS
-dsh plugin --profile web add ./dsh-lantern-0.2.2.tgz
+dsh plugin --profile web add ./dsh-lantern-0.2.3.tgz
 ```
 
 読み込まれたかは `dsh --profile web --dump-config | grep lantern` で確認できます。
@@ -216,7 +216,7 @@ sequenceDiagram
 
 ツール実行時のディレクトリと入口パスを記録します。カードを開き直すとき、保存したディレクトリがセッションの現在の作業ディレクトリの中にある場合だけ、その時点のファイルを読みます。外にあるフォルダは拒否します。編集は次に読み込んだときに反映され、移動・削除したファイルは開けません。リモート実行先のファイルシステムには対応しないため、その場合はデータを埋め込んだ `html` を渡してください。
 
-0.2.0 より前の、相対パスだけを保存した `path` の結果にはソースがありません。no-source になり、開けません。
+0.2.1 以前に作った、相対パスだけを保存した `path` の結果にはソースがありません。no-source になり、開けません。
 
 ワークスペースページが iframe 自体を別ページへ移動したり `location.reload()` を実行したりすると、Lantern との接続は新しい文書へ引き継がれません。サイドバーのタブを閉じてチャットから開き直すか、DSH 全体を再読み込みすると、接続と残っている保存済みの状態を復元できます。
 

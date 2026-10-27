@@ -121,6 +121,17 @@ test('history stays inside the folder and does not walk back into another docume
   assert.deepEqual(page.historyCalls, [['push', 'other.html'], ['replace', '']])
 })
 
+test('built-in refusals follow the visual language', async () => {
+  const settled = runtime({ boot: { state: 'answered', lang: 'ja' } })
+  settled.init()
+  await assert.rejects(settled.lantern.submit('b'), /すでに確定/)
+  const inactive = runtime({ boot: { lang: 'ja' }, active: false })
+  await assert.rejects(inactive.lantern.submit('b'), /ビジュアルの中での操作/)
+  const english = runtime({ boot: { state: 'answered', lang: 'en' } })
+  english.init()
+  await assert.rejects(english.lantern.submit('b'), /already settled/)
+})
+
 test('public action methods reject a call without native activation inside the child', async () => {
   const page = runtime({ active: false })
   await assert.rejects(page.lantern.submit('forged'), /user action inside the visual/)

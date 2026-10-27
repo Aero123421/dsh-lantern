@@ -54,6 +54,10 @@ test('native results preserve their call arguments and expose errors to the tail
   assert.equal(state.argsRaw, JSON.stringify(args))
   assert.equal(state.isError, true)
   assert.equal(state.errorText, 'Missing file')
+  const empty = { location, event: { type: 'tool/result', seq: 12, data: {
+    message: { source: { callId: 'native' }, isError: true, content: [] },
+  } } }
+  assert.equal(turnDefinition.update({ state: initial }, empty).errorText, 'Error')
   // An unrelated result with no visual call never materializes a card.
   assert.equal(turnDefinition.buildViewNode({ key: 'other', kind: 'lanternVisuals', id: 'native', matches: [finish] }), null)
   assert.equal(turnDefinition.match({ ...start.event, data: { ...start.event.data, name: 'read_file' } }), null)

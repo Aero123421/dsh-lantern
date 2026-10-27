@@ -115,6 +115,23 @@ try {
   check('workspace iframe uses the human-readable visual title', await page.locator('iframe').getAttribute('title') === 'Workspace report')
   await page.evaluate(() => fixture.clear())
   check('workspace iframe is removed on unmount', await page.locator('iframe').count() === 0)
+  await mount('closed', [{ callId: 'closed-card', seq: 1, settled: true, isError: false,
+    argsRaw: JSON.stringify({ title: 'Done', html: '<p>done</p>', display: 'inline' }), meta: { status: 'closed' } }])
+  check('closed visual shows the closed badge', await page.locator('[data-lantern-id="closed-card"] .lantern-badge').innerText() === 'Closed')
+  await page.evaluate(() => { document.documentElement.lang = 'ja' })
+  await mount('ja-error', [{ callId: 'bad', seq: 1, settled: true, isError: true,
+    argsRaw: JSON.stringify({ title: 'Bad', html: '<p>x</p>', display: 'inline' }) }])
+  check('empty tool error follows the page language', (await page.locator('[data-lantern-id="bad"]').innerText()).includes('エラー'))
+  await page.evaluate(() => { document.documentElement.lang = 'en' })
+  await mount('drift', [{ callId: 'drift', seq: 1, settled: true, isError: false, argsRaw: JSON.stringify({
+    title: 'Drift', display: 'inline',
+    html: '<button id="go" type="button">leave</button><script type="module">document.getElementById("go").addEventListener("click",()=>{location.href="about:blank"})<\/script>',
+  }), meta: { status: 'shown' } }])
+  await page.locator('[data-lantern-id="drift"]').getByRole('button', { name: 'Run', exact: true }).click()
+  await page.frameLocator('[data-lantern-id="drift"] iframe').locator('#go').click()
+  await page.locator('[data-lantern-id="drift"]').getByText('This page navigated', { exact: false }).waitFor()
+  check('self-navigation explains that visual controls stopped', true)
+  await page.screenshot({ path: join(output, 'navigated-notice.png') })
   check('no browser page errors', errors.length === 0)
   const unexpected = diagnostics.filter(message => !message.includes("Unrecognized Content-Security-Policy directive 'navigate-to'") && !message.includes("Blocked script execution in 'about:srcdoc'"))
   check('no unexpected console diagnostics', unexpected.length === 0)

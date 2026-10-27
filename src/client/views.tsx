@@ -19,7 +19,7 @@ function recordFromCall(item: TurnCall, sessionId: string | undefined): Omit<Vis
     seq: item.seq,
     args: parseArgs(item.argsRaw),
     result: item.settled && !item.isError ? parseMeta(item.meta) : undefined,
-    error: item.isError ? item.errorText ?? 'error' : undefined,
+    error: item.isError ? item.errorText || copy().error : undefined,
   }
 }
 
@@ -63,7 +63,7 @@ export function ToolView(props: ToolViewProps) {
   const held = pathVisual && holdScripts(key)
   useEffect(() => { if (fresh || held) notifyScripts() }, [fresh, held, key])
   const isError = phase === 'result' && block.isError === true
-  const errorText = isError ? (textOf(block.content) || String(block.error?.code ?? 'error')) : undefined
+  const errorText = isError ? (textOf(block.content) || String(block.error?.code ?? copy().error)) : undefined
   const meta = phase === 'result' && !isError ? parseMeta(block.meta) : undefined
 
   useEffect(() => {

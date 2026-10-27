@@ -1,4 +1,6 @@
 /** Replayable visual calls, including nested PTC dispatches, indexed by DSH's Chat target. */
+import { copy } from './i18n.ts'
+
 export const TOOL_NAME = 'show_visual'
 export const TURN_KEY = 'lanternVisuals'
 
@@ -52,7 +54,7 @@ function result(event: ConvEvent): { meta: unknown; isError: boolean; errorText?
   return {
     meta: event.data.meta,
     isError,
-    ...isError ? { errorText: textOf(payload?.content) || String(object(event.data.error)?.code ?? 'error') } : {},
+    ...isError ? { errorText: textOf(payload?.content) || String(object(event.data.error)?.code ?? copy().error) } : {},
   }
 }
 

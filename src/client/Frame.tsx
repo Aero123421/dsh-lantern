@@ -37,6 +37,8 @@ export interface FrameProps {
   readonly onWheelHint?: () => void
   /** The visual's WebGL context was lost (true) or restored (false). */
   readonly onGlLost?: (lost: boolean) => void
+  /** An html document navigated itself; scripts were removed. */
+  readonly onNavigated?: () => void
   readonly maxHeight?: number
 }
 
@@ -168,24 +170,25 @@ export function Frame(props: FrameProps) {
           return
         case 'submit':
         case 'send': {
-          if (p.streaming) { reply(data.id, false, 'The visual is still being written.'); return }
-          if (!userActed(frame.current)) { reply(data.id, false, 'Only a user action inside the visual can do this.'); return }
+          const t = copy()
+          if (p.streaming) { reply(data.id, false, t.stillWriting); return }
+          if (!userActed(frame.current)) { reply(data.id, false, t.needsUserAction); return }
           const now = Date.now()
-          if (now - lastAction.current < 400) { reply(data.id, false, 'Too fast.'); return }
+          if (now - lastAction.current < 400) { reply(data.id, false, t.tooFast); return }
           if (data.type === 'send') {
-            if (now - lastSend.current < SEND_INTERVAL_MS || sends.current >= MAX_SENDS) { reply(data.id, false, 'Too many messages from this visual.'); return }
+            if (now - lastSend.current < SEND_INTERVAL_MS || sends.current >= MAX_SENDS) { reply(data.id, false, t.tooManyMessages); return }
             lastSend.current = now
             sends.current++
           }
           lastAction.current = now
           if (data.type === 'submit') {
-            if (typeof data.json !== 'string' || data.json.length > MAX_JSON) { reply(data.id, false, 'The answer is too large.'); return }
-            if (p.state === 'answered' || p.state === 'dismissed' || p.state === 'closed') { reply(data.id, false, 'This visual is already settled.'); return }
+            if (typeof data.json !== 'string' || data.json.length > MAX_JSON) { reply(data.id, false, t.answerTooLarge); return }
+            if (p.state === 'answered' || p.state === 'dismissed' || p.state === 'closed') { reply(data.id, false, t.alreadySettled); return }
             let value: unknown
-            try { value = JSON.parse(data.json) } catch { reply(data.id, false, 'The answer is not JSON.'); return }
+            try { value = JSON.parse(data.json) } catch { reply(data.id, false, t.answerNotJson); return }
             p.onSubmit(value).then(() => reply(data.id, true), (error: Error) => reply(data.id, false, error.message))
           } else {
-            if (typeof data.text !== 'string' || data.text.trim() === '') { reply(data.id, false, 'Empty message.'); return }
+            if (typeof data.text !== 'string' || data.text.trim() === '') { reply(data.id, false, t.emptyMessage); return }
             p.onSend(data.text.slice(0, 4000)).then(() => reply(data.id, true), (error: Error) => reply(data.id, false, error.message))
           }
           return
@@ -284,6 +287,7 @@ export function Frame(props: FrameProps) {
           node.srcdoc = srcDoc.replace(/<script\b[\s\S]*?<\/script>/gi, '')
         }
         setDrifted(true)
+        latest.current.onNavigated?.()
       }}
       allow="fullscreen; clipboard-write"
       referrerPolicy="no-referrer"
