@@ -5,7 +5,7 @@ import { MESSAGE_TAG } from '../frame/runtime.ts'
 export const CHILD_ORIGIN = 'null'
 
 const USER_ACTIONS = new Set(['submit', 'send', 'expand', 'open-link'])
-const PASSIVE = new Set(['ready', 'resize', 'hint', 'gl', 'set-state', 'error'])
+const PASSIVE = new Set(['ready', 'resize', 'hint', 'gl', 'set-state', 'error', 'kept'])
 
 export interface ConnectEvent {
   readonly source: unknown

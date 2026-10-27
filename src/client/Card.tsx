@@ -57,6 +57,8 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
   const local = useRegistry(() => readLocal(callId, session))
   const [errors, setErrors] = useState<readonly string[]>([])
   const [notice, setNotice] = useState<string | undefined>(undefined)
+  const [navigated, setNavigated] = useState(false)
+  const onNavigated = useCallback(() => setNavigated(true), [])
   const [skipping, setSkipping] = useState(false)
   // A short "click first" hint when the wheel was kept for the chat, and a
   // paused state when the browser dropped the visual's WebGL context.
@@ -138,7 +140,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
         {skipButton}
         {phase !== 'preparing' && <button type="button" className="lantern-action" onClick={onExpand} title={c.openSidebar}><Icon name="sidebar" /><span>{c.openSidebar}</span></button>}
         {record.error && <div className="lantern-note" data-kind="error">{record.error}</div>}
-        <Notes notice={notice} errors={errors} />
+        <Notes notice={notice} errors={errors} navigated={navigated} />
       </div>
     )
   }
@@ -153,7 +155,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
         ? <Frame key={(phase === 'preparing' ? 'stream' : 'full') + generation + (paused ? ':paused' : ':run')} callId={callId} sessionId={session} title={title} mode={placement === 'panel' ? 'panel' : 'inline'}
             html={phase === 'preparing' ? partialHtml ?? '' : args?.html ?? ''} streaming={phase === 'preparing'} paused={paused}
             state={state} response={response} onSubmit={onSubmit} onSend={onSend} onExpand={placement === 'panel' ? undefined : onExpand} onError={onError}
-            onWheelHint={onWheelHint} onGlLost={onGlLost} />
+            onWheelHint={onWheelHint} onGlLost={onGlLost} onNavigated={onNavigated} />
         : <div className="lantern-note">{c.preparing}</div>
   const overlays = <>
     {paused && record.error === undefined && (args?.html !== undefined || isPath) && (
@@ -182,7 +184,7 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
             {skipButton}
           </div>
         )}
-        <Notes notice={notice} errors={errors} />
+        <Notes notice={notice} errors={errors} navigated={navigated} />
         <div className="lantern-panel-body">{body}{overlays}</div>
       </div>
     )
@@ -203,17 +205,18 @@ export function VisualCard({ record, sessionId, placement, phase, partialHtml }:
         </button>
       </div>
       <div className="lantern-body" hidden={collapsed}>{body}{overlays}</div>
-      <Notes notice={notice} errors={errors} />
+      <Notes notice={notice} errors={errors} navigated={navigated} />
     </div>
   )
 }
 
-function Notes({ notice, errors }: { notice: string | undefined; errors: readonly string[] }) {
+function Notes({ notice, errors, navigated }: { notice: string | undefined; errors: readonly string[]; navigated?: boolean }) {
   const c = useCopy()
-  if (!notice && errors.length === 0) return null
+  if (!notice && errors.length === 0 && !navigated) return null
   return (
     <div className="lantern-notes">
       {notice && <div className="lantern-note" data-kind="error">{notice}</div>}
+      {navigated && <div className="lantern-note" data-kind="warn" role="status">{c.navigated}</div>}
       {errors.map((message, index) => <div key={index} className="lantern-note" data-kind="warn">{c.scriptError}: {message}</div>)}
     </div>
   )

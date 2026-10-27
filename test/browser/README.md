@@ -29,6 +29,8 @@ npm install --prefix "$LANTERN_DSH_RUNTIME" --no-audit --no-fund \
 node --experimental-strip-types --no-warnings --import ./test/register.mjs \
   test/browser/runtime.mjs
 node test/browser/run.mjs
+# Issue #14: module navigation before the first iframe load. Port 3096.
+node test/browser/module-nav.mjs
 printf 'Evidence: %s\n' "$LANTERN_E2E_OUTPUT"
 ```
 
