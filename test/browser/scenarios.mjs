@@ -171,6 +171,9 @@ export async function scenarios({ page, context, output, capture, errors }) {
     const expectedWarnings = [
       "Unrecognized Content-Security-Policy directive 'navigate-to'.",
       "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+      // DSH 0.2.1-rc.4 asks for /open-in-app/icon/filemanager. The page answers 404
+      // and Chromium logs this text without the URL. It is not a Lantern request.
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
     ]
     const unexpected = errors.filter(message => !expectedWarnings.includes(message))
     check('no unexpected browser errors during the complete DSH flow', unexpected.length === 0)

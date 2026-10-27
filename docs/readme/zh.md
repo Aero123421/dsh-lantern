@@ -58,7 +58,7 @@ dsh plugin --profile web add github:Aero123421/dsh-lantern
 
 ```sh
 sha256sum -c SHA256SUMS
-dsh plugin --profile web add ./dsh-lantern-0.2.2.tgz
+dsh plugin --profile web add ./dsh-lantern-0.2.3.tgz
 ```
 
 用 `dsh --profile web --dump-config | grep lantern` 确认是否已加载。
@@ -141,7 +141,7 @@ sequenceDiagram
 
 工具运行时会记录目录和入口路径。重新打开卡片时，只有保存的目录仍在会话当前工作目录之内，才会再次读取那个实时文件。工作目录之外的文件夹会被拒绝。再次加载会看到编辑后的内容；已移动或删除的文件无法打开。不支持远程执行环境的文件系统，此时请改用嵌入数据的 `html`。
 
-0.2.0 之前只保存了相对路径的 `path` 结果没有来源信息。它们会变成 no-source，无法打开。
+0.2.1 及更早版本中只保存了相对路径的 `path` 结果没有来源信息。它们会变成 no-source，无法打开。
 
 如果工作区页面让自己的 iframe 跳转，或调用 `location.reload()`，Lantern 连接不会传递给新的文档。请先关闭其侧边栏标签页，再从对话中打开，或重新加载 DSH，以恢复连接和仍可用的已保存状态。
 

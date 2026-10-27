@@ -57,10 +57,10 @@ export async function call<T>(method: string, payload: unknown): Promise<T> {
 }
 
 export async function sendAsUser(sessionId: string | undefined, text: string): Promise<void> {
-  if (!sessionId) throw new Error('no session')
+  if (!sessionId) throw new Error(copy().noSession)
   const scope = sessions?.scope(sessionId)
   const conversation = scope?.get('conversation') as { send(text: string): Promise<void> } | undefined
-  if (!conversation) throw new Error('conversation service unavailable')
+  if (!conversation) throw new Error(copy().conversationUnavailable)
   await conversation.send(text)
 }
 
@@ -86,23 +86,23 @@ export async function answer(callId: string, sessionId: string | undefined, valu
   const key = visualKey(callId, session)
   // Reject repeated clicks immediately. The browser lock additionally
   // serializes this operation with other tabs using the same storage.
-  if (answering.has(key)) throw new Error('already answered')
+  if (answering.has(key)) throw new Error(copy().alreadyAnswered)
   answering.add(key)
   try {
     const submit = async () => {
       // Re-read after acquiring the lock: another tab may have answered
       // while this one was waiting for its turn.
       const record = getRecord(callId, session)
-      if (readLocal(callId, session).answer !== undefined || record?.result?.status === 'answered') throw new Error('already answered')
-      if (record?.error !== undefined || record?.result?.status === 'dismissed' || record?.result?.status === 'closed') throw new Error('This visual is already closed.')
+      if (readLocal(callId, session).answer !== undefined || record?.result?.status === 'answered') throw new Error(copy().alreadyAnswered)
+      if (record?.error !== undefined || record?.result?.status === 'dismissed' || record?.result?.status === 'closed') throw new Error(copy().visualClosed)
       if (record?.args?.await) {
         const { status } = await call<{ status: string }>('lantern.respond', { sessionId: session, callId, response: value })
         if (status === 'settled') {
           writeLocal(callId, { answer: JSON.stringify(value) }, session)
           return
         }
-        if (status === 'answered') throw new Error('already answered')
-        if (status !== 'timeout') throw new Error('This visual is no longer waiting for an answer.')
+        if (status === 'answered') throw new Error(copy().alreadyAnswered)
+        if (status !== 'timeout') throw new Error(copy().noLongerWaiting)
       }
       await sendAsUser(session, answerText(record?.args?.title ?? '', value))
       writeLocal(callId, { answer: JSON.stringify(value) }, session)
