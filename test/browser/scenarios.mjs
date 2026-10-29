@@ -148,8 +148,12 @@ export async function scenarios({ page, context, output, capture, errors }) {
     await automatic.click()
     await page.waitForFunction(() => [...document.querySelectorAll('[role=switch]')].some(el => el.getAttribute('aria-checked') === 'false'))
     check('turning off chat guidance leaves the advanced guide enabled', await advanced.getAttribute('aria-checked') === 'true')
+    await page.waitForFunction(() => !document.querySelector('.lantern-settings button[disabled]'))
     await advanced.click()
-    await page.waitForTimeout(500)
+    await page.waitForFunction(() => {
+      const switches = [...document.querySelectorAll('.lantern-settings [role=switch]')]
+      return switches.length === 2 && switches.every(el => el.getAttribute('aria-checked') === 'false' && !el.disabled)
+    })
     await capture('dsh-settings-off')
     check('both guide settings can be turned off', await automatic.getAttribute('aria-checked') === 'false' && await advanced.getAttribute('aria-checked') === 'false')
     await page.getByRole('button', { name: 'New session', exact: true }).first().click()

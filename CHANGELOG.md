@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Release captured DSH client services when the plugin unloads; an older activation's cleanup cannot disconnect a newly enabled activation.
+- Probe an inline document's viewport sizing once; keep ordinary content resize tracking without a second delayed height nudge during form input.
 - Keep the established placement: live previews/forms in the tool row, completed visuals below the final answer. Remove interleaving instructions from both bundled guides and the system prompt; do not split explanations around visuals.
 - Frameless inline defaults, readable iframe names, wider choices, mobile inputs, and contrast-derived semantic text/button colors. Custom HTML, Canvas, SVG, WebGL, panel pages and sandbox boundaries remain available.
 - Two independently toggleable bundled guides: lightweight `lantern-chat-ux` with automatic guidance, and explicit `lantern-visuals`. Live catalog invalidation rejects stale disabled guide loads without removing the runtime.
