@@ -30,7 +30,7 @@ interface ClientContext {
 
 export function apply(rawCtx: unknown): void {
   const ctx = rawCtx as ClientContext
-  bind({ sidebarRight: ctx.sidebarRight, sessions: ctx.sessions })
+  ctx.effect(() => bind({ sidebarRight: ctx.sidebarRight, sessions: ctx.sessions }), 'dsh-lantern: host services')
   ctx.effect(watchLocalStorage, 'dsh-lantern: other browser tabs')
 
   ctx.effect(() => {

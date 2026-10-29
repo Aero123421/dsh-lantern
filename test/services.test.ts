@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { answer, bind, fetchVisual, workspaceUrl } from '../src/client/services.ts'
+import { answer, bind, fetchVisual, openInSidebar, sendAsUser, workspaceUrl } from '../src/client/services.ts'
 import { readLocal, upsert, writeLocal } from '../src/client/store.ts'
 
 function replaceGlobal(t: test.TestContext, name: string, value: unknown): void {
@@ -11,6 +11,34 @@ function replaceGlobal(t: test.TestContext, name: string, value: unknown): void 
     else Reflect.deleteProperty(globalThis, name)
   })
 }
+
+test('unloading releases host services and a previous activation cannot clear a newer one', async t => {
+  const sent: string[] = []
+  const opened: string[] = []
+  const services = (activation: string) => ({
+    sidebarRight: { openResource: () => { opened.push(activation) } },
+    sessions: { scope: () => ({ get: () => ({ send: async () => { sent.push(activation) } }) }) },
+  })
+  const unloadOld = bind(services('old'))
+  t.after(() => bind({})())
+  await sendAsUser('session', 'before unloading')
+  unloadOld()
+  await assert.rejects(sendAsUser('session', 'after unloading'), /conversation service unavailable/)
+  openInSidebar('session', 'visual')
+  assert.deepEqual(opened, [])
+
+  const unloadNew = bind(services('new'))
+  unloadOld()
+  await sendAsUser('session', 'after reactivation')
+  openInSidebar('session', 'visual')
+  assert.deepEqual(sent, ['old', 'new'])
+  assert.deepEqual(opened, ['new'])
+  unloadNew()
+  unloadNew()
+  await assert.rejects(sendAsUser('session', 'after second unloading'), /conversation service unavailable/)
+  openInSidebar('session', 'visual')
+  assert.deepEqual(opened, ['new'])
+})
 
 test('forks can answer copied call ids independently, with one answer per session', async () => {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')

@@ -20,10 +20,20 @@ interface Sessions {
 
 let sidebar: SidebarRight | undefined
 let sessions: Sessions | undefined
+let binding: object | undefined
 
-export function bind(services: { sidebarRight?: unknown; sessions?: unknown }): void {
+/** Release only this activation's host references when Cordis unloads it. */
+export function bind(services: { sidebarRight?: unknown; sessions?: unknown }): () => void {
+  const owner = {}
+  binding = owner
   sidebar = services.sidebarRight as SidebarRight | undefined
   sessions = services.sessions as Sessions | undefined
+  return () => {
+    if (binding !== owner) return
+    binding = undefined
+    sidebar = undefined
+    sessions = undefined
+  }
 }
 
 export function addressOf(sessionId: string, callId: string): string {
