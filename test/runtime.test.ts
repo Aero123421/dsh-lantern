@@ -68,8 +68,14 @@ function runtime(options: { name?: string; boot?: Partial<FrameBoot>; preDisable
     querySelectorAll: (selector: string) => selector === '[data-lt-choices]' ? [group] : selector.startsWith('[data-lt-choice],') ? choices : [],
     addEventListener: (type: string, handler: Handler) => { listeners.set(type, [...listeners.get(type) ?? [], handler]) },
   }
+  class PageEvent {
+    constructor(trusted: boolean) {
+      Object.defineProperty(this, 'isTrusted', { configurable: false, get() { return trusted } })
+    }
+  }
   const context = vm.createContext({
-    window, document, parent, location, history, History, URL, navigator: { language: 'en', userActivation: new class { get isActive() { return options.active ?? true } } },
+    window, document, parent, location, history, History, URL, Event: PageEvent,
+    navigator: { language: 'en', userActivation: new class { get isActive() { return options.active ?? true } } },
     requestAnimationFrame: () => {}, setTimeout,
     CustomEvent: class { constructor(_type: string, _options: unknown) {} },
     MessageEvent: ChannelMessage,
@@ -92,6 +98,12 @@ function runtime(options: { name?: string; boot?: Partial<FrameBoot>; preDisable
     init: () => { for (const handler of listeners.get('DOMContentLoaded') ?? []) handler({}) },
     click: (index: number) => { for (const handler of listeners.get('click') ?? []) handler({ target: choices[index], preventDefault() {} }) },
     state: (state: string, response?: unknown) => { for (const handler of portListeners.get('message') ?? []) handler(new ChannelMessage({ __lantern: 1, type: 'state', state, response })) },
+    load: (trusted: boolean) => {
+      const event = new PageEvent(trusted)
+      for (const handler of windowListeners.get('load') ?? []) {
+        try { handler(event) } catch { /* later listeners measure a fuller document */ }
+      }
+    },
   }
 }
 
@@ -194,6 +206,17 @@ test('a timeout allows a late choice without enabling controls disabled by the p
   assert.equal(page.choices[1]!.disabled, true)
   page.click(0)
   assert.equal(page.posts.some(post => post.type === 'submit' && post.json === '"a"'), true)
+})
+
+test('only a trusted load of this document tells the parent it stayed', () => {
+  const page = runtime()
+  page.load(false)
+  assert.equal(page.posts.some(post => post.type === 'kept'), false)
+  page.evaluate(`Object.defineProperty(Event.prototype, 'isTrusted', { get() { return true } })`)
+  page.load(false)
+  assert.equal(page.posts.some(post => post.type === 'kept'), false)
+  page.load(true)
+  assert.equal(page.posts.filter(post => post.type === 'kept' && post.__lantern === 1).length, 1)
 })
 
 test('a rejected state value does not replace the last valid widget state', () => {

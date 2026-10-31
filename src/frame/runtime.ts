@@ -45,6 +45,8 @@ export type FrameMessage =
   | { type: 'open-link'; url: string }
   | { type: 'set-state'; json: string }
   | { type: 'error'; message: string }
+  /** This document reached its own load. Absent when a script navigated first. */
+  | { type: 'kept' }
   /** A wheel turn was kept from the visual's own handlers so the chat could scroll. */
   | { type: 'hint'; kind: 'wheel' }
   /** The browser took a WebGL context away (too many live contexts on the page), or gave it back. */
@@ -222,6 +224,25 @@ export function frameRuntime(): void {
   const startMessages = channel.port1.start.bind(channel.port1)
   const connect = parent.postMessage.bind(parent)
   connect({ [TAG]: 1, type: 'connect', bridge }, '*', [channel.port2])
+  // The parent cannot read this opaque document's location, and a module
+  // script can replace the page before the iframe's first load. That load
+  // then belongs to the other page, so a second load never arrives. Report
+  // the real load on the port captured above. A model script cannot mint a
+  // trusted event, and it cannot see this port.
+  // Chromium puts a non-configurable `isTrusted` getter on each event, not
+  // on Event.prototype. Capture the lookup before model scripts can replace it.
+  const getOwnProperty = Object.getOwnPropertyDescriptor
+  const callFn = Function.prototype.call
+  const listen = window.addEventListener.bind(window)
+  listen('load', (event: Event) => {
+    let trusted = false
+    try {
+      const desc = callFn.call(getOwnProperty, Object, event, 'isTrusted') as PropertyDescriptor | undefined
+      const getter = desc && desc.get
+      trusted = typeof getter === 'function' && callFn.call(getter, event) === true
+    } catch { trusted = false }
+    if (trusted) sendMessage({ [TAG]: 1, type: 'kept' })
+  }, true)
   delete boot.bridge
   if (bootNode) bootNode.textContent = ''
   bootNode?.remove()
