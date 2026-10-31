@@ -126,7 +126,7 @@ This needs the Web profile and DSH `>=0.2.1-rc.2 <0.3.0-0`. Pushing a version ta
 
 ```sh
 sha256sum -c SHA256SUMS
-dsh plugin --profile web add ./dsh-lantern-0.2.2.tgz
+dsh plugin --profile web add ./dsh-lantern-0.2.3.tgz
 ```
 
 Check that it loaded with `dsh --profile web --dump-config | grep lantern`.
@@ -216,7 +216,7 @@ The tokens cover fonts, sizes, surfaces, text, borders, accent, success/warning/
 
 The directory and entry path are recorded when the tool runs. Reopening the card reads that live file again only while the saved directory is still inside the session's current working directory. A saved folder outside that directory is refused. Edits appear when the page is loaded again; moved or deleted files cannot be reopened. Remote execution filesystems are unsupported; pass `html` with embedded data instead.
 
-Path results from before 0.2.0 that stored only a relative path have no saved source. They are no-source and cannot be opened.
+Path results from 0.2.1 or earlier stored only a relative path and have no saved source. They are no-source and cannot be opened.
 
 If a workspace page navigates its own iframe or calls `location.reload()`, its Lantern connection is not carried into the new document. Close its sidebar tab and reopen it from the chat, or reload DSH, to restore the connection and available saved state.
 

@@ -235,8 +235,22 @@ export function frameRuntime(): void {
     sendMessage(envelope)
   }
 
+  function uiText(kind: 'user' | 'settled'): string {
+    const lang = String(boot.lang || 'en').toLowerCase()
+    const ja = startsWith(lang, 'ja')
+    const zh = !ja && startsWith(lang, 'zh')
+    if (kind === 'user') {
+      if (ja) return 'ビジュアルの中での操作だけが、これを実行できます。'
+      if (zh) return '只有可视化内部的用户操作可以执行此操作。'
+      return 'Only a user action inside the visual can do this.'
+    }
+    if (ja) return 'このビジュアルはすでに確定しています。'
+    if (zh) return '此可视化已经确定。'
+    return 'This visual is already settled.'
+  }
+
   function requireUser(): void {
-    if (!userIsActive?.()) throw new Error('Only a user action inside the visual can do this.')
+    if (!userIsActive?.()) throw new Error(uiText('user'))
   }
 
   function call(type: string, payload: Record<string, unknown>): Promise<boolean> {
@@ -339,7 +353,7 @@ export function frameRuntime(): void {
     get mode() { return boot.mode as string },
     get visible() { return visible },
     submit(value: unknown) {
-      if (isLocked()) return rejectPromise(new Error('This visual is already settled.'))
+      if (isLocked()) return rejectPromise(new Error(uiText('settled')))
       try { requireUser(); return call('submit', { json: toJson(value, 'submit') }) } catch (error) { return rejectPromise(error) }
     },
     send(text: string) {

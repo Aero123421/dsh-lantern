@@ -12,6 +12,16 @@ function replaceGlobal(t: test.TestContext, name: string, value: unknown): void 
   })
 }
 
+test('answer refusals follow the document language', async t => {
+  replaceGlobal(t, 'document', { baseURI: 'https://dsh.example/app/', documentElement: { lang: 'ja' } })
+  bind({ sessions: { scope: () => undefined } })
+  t.after(() => bind({}))
+  upsert('ja-answer', { sessionId: 'ja', args: { title: '選択', html: 'x', display: 'inline', await: false } })
+  writeLocal('ja-answer', { answer: '"done"' }, 'ja')
+  await assert.rejects(answer('ja-answer', 'ja', 'again'), /すでに回答済み/)
+  await assert.rejects(answer('missing-session', undefined, 'x'), /セッションがありません/)
+})
+
 test('forks can answer copied call ids independently, with one answer per session', async () => {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
   Object.defineProperty(globalThis, 'localStorage', {

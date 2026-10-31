@@ -74,7 +74,7 @@ Pushing a `v*` tag creates a draft GitHub Release (`gh release create --draft`) 
 
 ### Known issue
 
-Path results from before 0.2.0 that stored only a relative path have no saved source. They are no-source and cannot be opened.
+Path results from 0.2.1 or earlier (before the unpublished 0.2.2) that stored only a relative path have no saved source. They are no-source and cannot be opened.
 
 pnpm 12 でプラグインを追加・更新すると、プロファイルの lockfile に公開から24時間たっていない依存が含まれている場合、ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION で失敗することがあります。このとき pnpm がプロファイルの node_modules を空にし、DSH も元に戻さないため、同じプロファイルのすべてのプラグインが読み込まれなくなります。プラグインの追加・更新は pnpm 10 で行ってください。壊れたときは pnpm 10 で `dsh plugin --profile web install` を実行すると戻ります。pnpm 11 では ERR_PNPM_UNEXPECTED_STORE で止まりますが、node_modules は壊れません。
 
