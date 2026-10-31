@@ -482,7 +482,9 @@ export function frameRuntime(): void {
       probing = false
       follows = 0
     } else if (inline && !pinned && seenViewport > 0 && viewport !== seenViewport) {
-      const followed = content >= viewport - 1 && Math.abs((content - seenHeight) - (viewport - seenViewport)) <= 1
+      // A shrinking iframe can follow its viewport even when its intrinsic
+      // content is shorter; that does not imply a viewport-sized app.
+      const followed = viewport > seenViewport && Math.abs(content - viewport) <= 1 && Math.abs((content - seenHeight) - (viewport - seenViewport)) <= 1
       follows = followed ? follows + 1 : 0
       if (follows >= 3) pinned = Math.round(Math.min(540, Math.max(320, window.innerWidth * 0.62)))
     }

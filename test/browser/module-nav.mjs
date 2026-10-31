@@ -115,7 +115,7 @@ try {
     await new Promise(r => setTimeout(r, 100))
   }
   if (!url) throw new Error('no url ' + redact(serverLog).slice(-1500))
-  browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--enable-unsafe-swiftshader'] })
+  browser = await chromium.launch({ headless: true, executablePath: process.env.LANTERN_CHROMIUM || undefined, args: ['--no-sandbox', '--enable-unsafe-swiftshader'] })
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, locale: 'en-US' })
   page.setDefaultTimeout(20000)
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })

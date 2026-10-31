@@ -165,7 +165,7 @@ try {
       if (await frame.locator('form').evaluate(form => form.getBoundingClientRect().bottom <= innerHeight + 1)) { await capture(name); return }
       await page.waitForTimeout(50)
     }
-    assert.fail('multiple select form remains clipped')
+    assert.fail(`multiple select form remains clipped: ${JSON.stringify(await frame.locator('form').evaluate(form => ({bottom: form.getBoundingClientRect().bottom, height: innerHeight, body: document.body.getBoundingClientRect().height, scroll: document.body.scrollHeight})))} parent=${JSON.stringify(await page.evaluate(() => ({height: document.querySelector('iframe').style.height, messages: window.messages})))}`)
   }
   frame = await mount({},selectForm,true)
   await captureSelect('runtime-select-defaults')
