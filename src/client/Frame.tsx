@@ -44,6 +44,10 @@ export interface FrameProps {
 
 // No popups and no same-origin: links leave through `open-link`, checked here.
 const SANDBOX = 'allow-scripts allow-forms allow-downloads'
+// Chromium fires the iframe load, and only then delivers the child load
+// listener's port message (a 0ms timer still runs too early; 10ms was enough
+// in a tight probe). Wait briefly so a real document can say it stayed.
+const KEPT_GRACE_MS = 100
 const MAX_INLINE_HEIGHT = 2400
 const MAX_JSON = 64 * 1024
 const SEND_INTERVAL_MS = 1500
@@ -74,6 +78,8 @@ export function Frame(props: FrameProps) {
   const lastSend = useRef(0)
   const sends = useRef(0)
   const loads = useRef(0)
+  const kept = useRef(false)
+  const driftTimer = useRef<number | undefined>(undefined)
   const dead = useRef(false)
   // An html card that navigates away is showing some other document. Put the
   // card back and drop scripts, so that navigation cannot stay on a workspace
@@ -135,6 +141,9 @@ export function Frame(props: FrameProps) {
   useLayoutEffect(() => {
     ready.current = false
     loads.current = 0
+    kept.current = false
+    if (driftTimer.current !== undefined) window.clearTimeout(driftTimer.current)
+    driftTimer.current = undefined
     dead.current = false
     const onMessage = (event: MessageEvent) => {
       if (!childOrigin(event.origin)) return
@@ -148,6 +157,11 @@ export function Frame(props: FrameProps) {
         if (typeof id === 'number') post({ type: 'reply', id, ok, ...error ? { error } : {} })
       }
       switch (kind.type) {
+        case 'kept':
+          kept.current = true
+          if (driftTimer.current !== undefined) window.clearTimeout(driftTimer.current)
+          driftTimer.current = undefined
+          return
         case 'ready': {
           ready.current = true
           const current = theme()
@@ -231,6 +245,8 @@ export function Frame(props: FrameProps) {
     window.addEventListener('message', connect)
     return () => {
       window.removeEventListener('message', connect)
+      if (driftTimer.current !== undefined) window.clearTimeout(driftTimer.current)
+      driftTimer.current = undefined
       connection.current?.close()
       connection.current = undefined
       ready.current = false
@@ -272,22 +288,36 @@ export function Frame(props: FrameProps) {
       sandbox={scriptsOff ? 'allow-downloads' : SANDBOX}
       data-scripts={scriptsOff ? 'off' : 'on'}
       onLoad={() => {
-        // A built document loads once. A second load means an html card
-        // navigated itself. Drop the private port, then restore the card
-        // with scripts removed so the other document does not stay on screen.
+        // A built document loads once. Another load, or a first load that
+        // never confirms itself, means an html card navigated away. Drop the
+        // private port and restore the card with scripts removed so the other
+        // document does not stay on screen.
         loads.current++
-        if (srcDoc === undefined || loads.current < 2 || dead.current) return
-        dead.current = true
-        ready.current = false
-        connection.current?.close()
-        connection.current = undefined
-        const node = frame.current
-        if (node) {
-          node.setAttribute('sandbox', 'allow-downloads')
-          node.srcdoc = srcDoc.replace(/<script\b[\s\S]*?<\/script>/gi, '')
+        if (srcDoc === undefined || dead.current || scriptsOff) return
+        const restore = () => {
+          if (dead.current) return
+          dead.current = true
+          if (driftTimer.current !== undefined) window.clearTimeout(driftTimer.current)
+          driftTimer.current = undefined
+          ready.current = false
+          connection.current?.close()
+          connection.current = undefined
+          const node = frame.current
+          if (node) {
+            node.setAttribute('sandbox', 'allow-downloads')
+            node.srcdoc = srcDoc.replace(/<script\b[\s\S]*?<\/script>/gi, '')
+          }
+          setDrifted(true)
+          latest.current.onNavigated?.()
         }
-        setDrifted(true)
-        latest.current.onNavigated?.()
+        if (loads.current >= 2) { restore(); return }
+        if (kept.current) return
+        const stamp = loads.current
+        driftTimer.current = window.setTimeout(() => {
+          driftTimer.current = undefined
+          if (dead.current || kept.current || loads.current !== stamp) return
+          restore()
+        }, KEPT_GRACE_MS)
       }}
       allow="fullscreen; clipboard-write"
       referrerPolicy="no-referrer"
