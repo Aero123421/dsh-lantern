@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { answer, bind, fetchVisual, workspaceUrl } from '../src/client/services.ts'
+import { answer, bind, fetchVisual, openInSidebar, sendAsUser, workspaceUrl } from '../src/client/services.ts'
 import { readLocal, upsert, writeLocal } from '../src/client/store.ts'
 
 function replaceGlobal(t: test.TestContext, name: string, value: unknown): void {
@@ -20,6 +20,35 @@ test('answer refusals follow the document language', async t => {
   writeLocal('ja-answer', { answer: '"done"' }, 'ja')
   await assert.rejects(answer('ja-answer', 'ja', 'again'), /すでに回答済み/)
   await assert.rejects(answer('missing-session', undefined, 'x'), /セッションがありません/)
+})
+
+test('unloading releases host services and a previous activation cannot clear a newer one', async t => {
+  replaceGlobal(t, 'document', { documentElement: { lang: 'en' } })
+  const sent: string[] = []
+  const opened: string[] = []
+  const services = (activation: string) => ({
+    sidebarRight: { openResource: () => { opened.push(activation) } },
+    sessions: { scope: () => ({ get: () => ({ send: async () => { sent.push(activation) } }) }) },
+  })
+  const unloadOld = bind(services('old'))
+  t.after(() => bind({})())
+  await sendAsUser('session', 'before unloading')
+  unloadOld()
+  await assert.rejects(sendAsUser('session', 'after unloading'), /conversation service is unavailable/)
+  openInSidebar('session', 'visual')
+  assert.deepEqual(opened, [])
+
+  const unloadNew = bind(services('new'))
+  unloadOld()
+  await sendAsUser('session', 'after reactivation')
+  openInSidebar('session', 'visual')
+  assert.deepEqual(sent, ['old', 'new'])
+  assert.deepEqual(opened, ['new'])
+  unloadNew()
+  unloadNew()
+  await assert.rejects(sendAsUser('session', 'after second unloading'), /conversation service is unavailable/)
+  openInSidebar('session', 'visual')
+  assert.deepEqual(opened, ['new'])
 })
 
 test('forks can answer copied call ids independently, with one answer per session', async () => {

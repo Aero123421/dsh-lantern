@@ -165,7 +165,7 @@ try {
       if (await frame.locator('form').evaluate(form => form.getBoundingClientRect().bottom <= innerHeight + 1)) { await capture(name); return }
       await page.waitForTimeout(50)
     }
-    assert.fail('multiple select form remains clipped')
+    assert.fail(`multiple select form remains clipped: ${JSON.stringify(await frame.locator('form').evaluate(form => ({bottom: form.getBoundingClientRect().bottom, height: innerHeight, body: document.body.getBoundingClientRect().height, scroll: document.body.scrollHeight})))} parent=${JSON.stringify(await page.evaluate(() => ({height: document.querySelector('iframe').style.height, messages: window.messages})))}`)
   }
   frame = await mount({},selectForm,true)
   await captureSelect('runtime-select-defaults')
@@ -231,6 +231,16 @@ try {
   await page.waitForTimeout(2100)
   geometry.trailingMargin = await frame.locator('body').evaluate(() => ({ root: document.documentElement.getBoundingClientRect().height, viewport: innerHeight }))
   check('collapsed trailing margin is preserved without a viewport floor', geometry.trailingMargin.viewport >= 170 && Math.abs(geometry.trailingMargin.root - geometry.trailingMargin.viewport) <= 1)
+  frame = await mount({ state: 'idle' }, '<div style="height:320px"><input type="checkbox" checked> Ordinary form content</div>', true)
+  await page.waitForTimeout(2100)
+  geometry.probeHeights = await page.evaluate(() => window.messages.filter(message => message.type === 'resize').map(message => message.height))
+  check('a settled intrinsic-height document is probed only once', geometry.probeHeights.filter(height => height === 324).length === 1)
+  await frame.locator('body > div').evaluate(el => { el.style.height = '480px' })
+  await page.waitForFunction(() => document.querySelector('iframe').getBoundingClientRect().height === 480)
+  check('content still grows after its viewport probe', await frame.locator('body').evaluate(() => innerHeight) === 480)
+  await frame.locator('body > div').evaluate(el => { el.style.height = '200px' })
+  await page.waitForFunction(() => document.querySelector('iframe').getBoundingClientRect().height === 200)
+  check('content still shrinks after its viewport probe', await frame.locator('body').evaluate(() => innerHeight) === 200)
   frame = await mount({ state: 'idle' }, '<div style="height:100vh">Viewport-sized application</div>', true)
   await page.waitForTimeout(2100)
   const viewportApp = await frame.locator('body').evaluate(() => innerHeight)

@@ -445,6 +445,7 @@ export function frameRuntime(): void {
   let seenViewport = -1
   let follows = 0
   let probing = false
+  let probeStarted = false
   let probeViewport = 0
   let probeContent = 0
   let pinned = 0
@@ -481,7 +482,9 @@ export function frameRuntime(): void {
       probing = false
       follows = 0
     } else if (inline && !pinned && seenViewport > 0 && viewport !== seenViewport) {
-      const followed = content >= viewport - 1 && Math.abs((content - seenHeight) - (viewport - seenViewport)) <= 1
+      // A shrinking iframe can follow its viewport even when its intrinsic
+      // content is shorter; that does not imply a viewport-sized app.
+      const followed = viewport > seenViewport && Math.abs(content - viewport) <= 1 && Math.abs((content - seenHeight) - (viewport - seenViewport)) <= 1
       follows = followed ? follows + 1 : 0
       if (follows >= 3) pinned = Math.round(Math.min(540, Math.max(320, window.innerWidth * 0.62)))
     }
@@ -502,11 +505,12 @@ export function frameRuntime(): void {
    * grows with it, `measure` pins the card; if not, the card shrinks back.
    */
   function probe() {
-    if (!inline || pinned || probing || document.fullscreenElement || !document.body) return
+    if (!inline || pinned || probing || probeStarted || document.fullscreenElement || !document.body) return
     const viewport = window.innerHeight
     if (Math.abs(contentHeight() - viewport) > 1) return
     const sized = Array.from(document.body.children).some((el) => Math.abs((el as HTMLElement).offsetHeight - viewport) <= 1)
     if (!sized) return
+    probeStarted = true
     probing = true
     probeViewport = viewport
     probeContent = contentHeight()
