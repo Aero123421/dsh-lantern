@@ -1,6 +1,6 @@
 {
   "name": "dsh-lantern",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Lantern: interactive HTML visuals in the DSH (DeepSeek Harness) chat and sidebar, with answers that flow back to the agent. Unofficial.",
   "type": "module",
   "license": "MIT",

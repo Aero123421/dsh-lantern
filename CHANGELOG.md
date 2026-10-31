@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.4
+
+- Restore inline HTML cards after self-navigation, including module navigation before the first iframe load, with scripts disabled and a navigation notice. Detection of the first load uses a 100 ms acknowledgement grace period; unusually delayed browser message delivery can produce a false positive. Workspace path pages have different navigation risks; see below.
+- Localize built-in refusal messages and empty tool errors; show a closed badge for closed visuals. Correct documentation for no-source cards created in 0.2.1 or earlier.
+- Avoid incorrectly pinning ordinary content to a 540px iframe while it shrinks; preserve viewport-sized applications and ordinary growth and shrinkage.
 - Release captured DSH client services when the plugin unloads; an older activation's cleanup cannot disconnect a newly enabled activation.
 - Probe an inline document's viewport sizing once; keep ordinary content resize tracking without a second delayed height nudge during form input.
 - Keep the established placement: live previews/forms in the tool row, completed visuals below the final answer. Remove interleaving instructions from both bundled guides and the system prompt; do not split explanations around visuals.
@@ -9,6 +14,12 @@
 - Two independently toggleable bundled guides: lightweight `lantern-chat-ux` with automatic guidance, and explicit `lantern-visuals`. Live catalog invalidation rejects stale disabled guide loads without removing the runtime.
 - Declarative forms guard IME composition and duplicate submission, retain values on errors, show accessible progress, and restore committed ordinary fields for single-form visuals. Draft persistence remains opt-in.
 - Add contrast/guide regressions and an isolated, deterministic-model browser integration runner for official DSH 0.2.1-rc.2.
+
+### Known issues and verification limits
+
+- Existing path cards from 0.2.1 or earlier may have no saved source; request the visual again. Workspace path pages can still navigate and leak allowed-folder content after Run; the inline-card fix does not remove this risk.
+- pnpm 12 plugin add/update can fail on recently published dependencies and empty the profile's `node_modules`, disabling all plugins in that profile. Use pnpm 10; recover with `dsh plugin --profile web install` under pnpm 10. Back up the profile before changes.
+- Integration uses deterministic fixtures, not a real model or paid inference; it does not cover every OS, Electron, or the live update service.
 
 ## 0.2.3
 
