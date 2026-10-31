@@ -445,6 +445,7 @@ export function frameRuntime(): void {
   let seenViewport = -1
   let follows = 0
   let probing = false
+  let probeStarted = false
   let probeViewport = 0
   let probeContent = 0
   let pinned = 0
@@ -502,11 +503,12 @@ export function frameRuntime(): void {
    * grows with it, `measure` pins the card; if not, the card shrinks back.
    */
   function probe() {
-    if (!inline || pinned || probing || document.fullscreenElement || !document.body) return
+    if (!inline || pinned || probing || probeStarted || document.fullscreenElement || !document.body) return
     const viewport = window.innerHeight
     if (Math.abs(contentHeight() - viewport) > 1) return
     const sized = Array.from(document.body.children).some((el) => Math.abs((el as HTMLElement).offsetHeight - viewport) <= 1)
     if (!sized) return
+    probeStarted = true
     probing = true
     probeViewport = viewport
     probeContent = contentHeight()
